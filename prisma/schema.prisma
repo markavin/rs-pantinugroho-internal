@@ -1,0 +1,386 @@
+prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  name        String
+  role        UserRole
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  patients          Patient[]
+  medicalRecords    MedicalRecord[]
+  educationNotes    EducationNote[]
+  nutritionPlans    NutritionPlan[]
+  medications       Medication[] @relation("PrescribedMedications")
+  doctorAppointments Appointment[] @relation("DoctorAppointments")
+  medicationLogs    MedicationLog[] @relation("MedicationLogs")
+
+  @@map("users")
+}
+
+model Patient {
+  id          String   @id @default(cuid())
+  mrNumber    String   @unique // Medical Record Number
+  name        String
+  birthDate   DateTime
+  gender      Gender
+  phone       String?
+  address     String?
+  
+  // Medical Info
+  height      Float?
+  weight      Float?
+  bmi         Float?
+  bloodType   String?
+  allergies   String[] // Array of allergies
+  
+  // Diabetes specific
+  diabetesType String?
+  diagnosisDate DateTime?
+  comorbidities String[] // Array of comorbidities
+  
+  // Insurance
+  insuranceType InsuranceType
+  insuranceNumber String?
+  
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  medicalRecords MedicalRecord[]
+  appointments   Appointment[]
+  vitalSigns     VitalSign[]
+  labResults     LabResult[]
+  medications    Medication[]
+  nutritionPlans NutritionPlan[]
+  educationNotes EducationNote[]
+  foodIntakes    FoodIntake[]
+  medicationLogs MedicationLog[]
+  
+  @@map("patients")
+}
+
+model MedicalRecord {
+  id          String   @id @default(cuid())
+  patientId   String
+  doctorId    String
+  visitDate   DateTime @default(now())
+  
+  // Complaint & History
+  chiefComplaint String
+  historyOfIllness String?
+  physicalExamination String?
+  
+  // Assessment & Plan
+  diagnosis   String
+  treatment   String?
+  notes       String?
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  doctor      User    @relation(fields: [doctorId], references: [id])
+  
+  // Relations - Fix: Add relation to VitalSign
+  vitalSigns  VitalSign[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("medical_records")
+}
+
+model VitalSign {
+  id          String   @id @default(cuid())
+  patientId   String
+  medicalRecordId String? // Optional relation to medical record
+  recordDate  DateTime @default(now())
+  measuredAt  DateTime @default(now()) // Alternative field name used in API
+  
+  // Vital signs
+  systolicBP  Int?
+  diastolicBP Int?
+  heartRate   Int?
+  temperature Float?
+  respiratoryRate Int?
+  oxygenSaturation Float?
+  
+  // Diabetes specific - Fixed field names
+  bloodGlucose Float?
+  bloodSugar  Float? // Alternative field name used in API
+  hba1c       Float?
+  
+  // Additional fields
+  notes       String?
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("vital_signs")
+}
+
+model LabResult {
+  id          String   @id @default(cuid())
+  patientId   String
+  testDate    DateTime
+  testType    String
+  testName    String
+  value       String
+  unit        String?
+  normalRange String?
+  status      String? // Normal, High, Low, Critical
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("lab_results")
+}
+
+model Medication {
+  id          String   @id @default(cuid())
+  patientId   String
+  prescribedBy String
+  
+  // Updated field names to match your API
+  medicationName String
+  dosage      String
+  frequency   String
+  route       String // Oral, Injection, etc
+  startDate   DateTime
+  endDate     DateTime?
+  
+  // Additional fields that might be used in API
+  name        String? // Alias for medicationName
+  genericName String?
+  duration    String?
+  instructions String?
+  
+  // Drug interaction warnings
+  interactions String[] // Array of potential interactions
+  
+  // Status
+  isActive    Boolean @default(true)
+  adherence   String? // Good, Fair, Poor
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  prescribedByUser User @relation("PrescribedMedications", fields: [prescribedBy], references: [id])
+  
+  // Relations
+  medicationLogs MedicationLog[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("medications")
+}
+
+model MedicationLog {
+  id          String   @id @default(cuid())
+  medicationId String
+  patientId   String
+  loggedBy    String
+  
+  takenAt     DateTime @default(now())
+  dosageTaken String?
+  notes       String?
+  
+  // Status
+  wasSkipped  Boolean @default(false)
+  skipReason  String?
+  
+  medication  Medication @relation(fields: [medicationId], references: [id])
+  patient     Patient    @relation(fields: [patientId], references: [id])
+  loggedByUser User      @relation("MedicationLogs", fields: [loggedBy], references: [id])
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("medication_logs")
+}
+
+model NutritionPlan {
+  id          String   @id @default(cuid())
+  patientId   String
+  nutritionistId String
+  
+  // Calorie requirements
+  totalCalories Int
+  carbohydrates Int // grams
+  protein     Int // grams
+  fat         Int // grams
+  fiber       Int? // grams
+  
+  // Meal plan
+  breakfast   String?
+  lunch       String?
+  dinner      String?
+  snacks      String?
+  
+  // Notes
+  restrictions String? // Food restrictions
+  notes       String?
+  
+  isActive    Boolean @default(true)
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  nutritionist User   @relation(fields: [nutritionistId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("nutrition_plans")
+}
+
+model FoodIntake {
+  id          String   @id @default(cuid())
+  patientId   String
+  intakeDate  DateTime
+  mealType    MealType
+  
+  foodName    String
+  portion     String
+  calories    Float
+  carbs       Float?
+  protein     Float?
+  fat         Float?
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("food_intakes")
+}
+
+model EducationNote {
+  id          String   @id @default(cuid())
+  patientId   String
+  educatorId  String
+  
+  educationType EducationType
+  topic       String
+  content     String
+  materials   String[] // Array of educational materials
+  
+  // Patient understanding
+  patientUnderstanding String? // Good, Fair, Poor
+  followUpNeeded Boolean @default(false)
+  
+  patient     Patient @relation(fields: [patientId], references: [id])
+  educator    User    @relation(fields: [educatorId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("education_notes")
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  patientId   String
+  doctorId    String?
+
+  appointmentDate DateTime
+  appointmentTime String
+  type        String
+  status      AppointmentStatus
+  notes       String?
+
+  patient     Patient @relation(fields: [patientId], references: [id])
+  doctor      User?   @relation("DoctorAppointments", fields: [doctorId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("appointments")
+}
+
+model Reminder {
+  id          String   @id @default(cuid())
+  patientId   String
+  
+  reminderType String // Medication, Meal, Appointment, Exercise
+  title       String
+  message     String
+  scheduledTime DateTime
+  
+  isActive    Boolean @default(true)
+  isSent      Boolean @default(false)
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("reminders")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  DOCTOR
+  NURSE
+  NUTRITIONIST
+  PHARMACIST
+  PATIENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum InsuranceType {
+  PRIVATE
+  BPJS
+  CORPORATE
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum EducationType {
+  DIET
+  MEDICATION
+  EXERCISE
+  COMPLICATIONS
+  GENERAL
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum ComplicationSeverity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum NoteType {
+  GENERAL
+  DIAGNOSIS
+  TREATMENT
+  FOLLOW_UP
+}
