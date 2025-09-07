@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
-        console.log('❌ Authentication failed for:', credentials.login);
+        console.log('Authentication failed for:', credentials.login);
         return null;
       }
     })
@@ -136,7 +136,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 8 * 60 * 60, // 8 jam untuk shift kerja rumah sakit
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development', // Only debug in development
+  debug: process.env.NODE_ENV === 'development', 
 };
 
 const handler = NextAuth(authOptions);

@@ -1,6 +1,4 @@
-// File: app/page.tsx
-// Halaman utama aplikasi dengan splash screen
-
+// app/page.tsx - Simplified homepage
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,8 +6,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import SplashScreen from '../components/SplashScreen';
 import LoginForm from '@/components/auth/LoginForm';
-import Dashboard from '@/components/dashboard/Dashboard';
-import AuthHandler from '@/components/auth/AuthHandler';
 
 export default function HomePage() {
   const [showSplash, setShowSplash] = useState(true);
@@ -19,6 +15,13 @@ export default function HomePage() {
   const handleSplashFinish = () => {
     setShowSplash(false);
   };
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (session) {
+      router.push('/dashboard');
+    }
+  }, [session, router]);
 
   // Show splash screen first
   if (showSplash) {
@@ -37,10 +40,19 @@ export default function HomePage() {
     );
   }
 
-  // Show dashboard if authenticated, otherwise show login
-  if (session) {
-    return <Dashboard />;
+  // If authenticated, redirect is handled by useEffect
+  // Otherwise, show login form
+  if (!session) {
+    return <LoginForm />;
   }
 
-  return <LoginForm />;
+  // This should not be reached due to useEffect redirect, but just in case
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-green-600">Redirecting to dashboard...</p>
+      </div>
+    </div>
+  );
 }

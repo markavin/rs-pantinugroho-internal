@@ -10,125 +10,111 @@ interface SplashScreenProps {
 }
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  
-  const motivationalSlides = [
-    {
-      id: 1,
-      title: "Selamat Datang! 🌟",
-      subtitle: "Di RS Pantinugroho Diabetes Care",
-      message: "Bersama kita kelola diabetes dengan penuh semangat!",
-      bgColor: "from-blue-400 to-cyan-400",
-      icon: "💪"
-    },
-    {
-      id: 2,
-      title: "Kamu Hebat! 🎯",
-      subtitle: "Setiap Langkah Berarti",
-      message: "Kontrol gula darah hari ini untuk masa depan yang lebih sehat",
-      bgColor: "from-green-400 to-emerald-400",
-      icon: "❤️"
-    },
-    {
-      id: 3,
-      title: "Tetap Semangat! ✨",
-      subtitle: "Konsisten adalah Kunci",
-      message: "Pantau makanan, minum obat tepat waktu, dan jaga aktivitas fisik",
-      bgColor: "from-purple-400 to-pink-400",
-      icon: "🌈"
-    }
-  ];
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => {
-        if (prev < motivationalSlides.length - 1) {
-          return prev + 1;
-        } else {
-          // After showing all slides, finish splash screen
-          setTimeout(onFinish, 1000);
-          return prev;
-        }
-      });
-    }, 2500); // Change slide every 2.5 seconds
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onFinish, 700); 
+    }, 300);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, [onFinish]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Background with gradient animation */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${motivationalSlides[currentSlide].bgColor} transition-all duration-1000`}>
-        {/* Animated circles */}
-        <div className="absolute top-10 left-10 w-20 h-20 bg-white/20 rounded-full animate-bounce delay-75"></div>
-        <div className="absolute top-32 right-20 w-16 h-16 bg-white/15 rounded-full animate-bounce delay-150"></div>
-        <div className="absolute bottom-20 left-1/4 w-12 h-12 bg-white/25 rounded-full animate-bounce delay-300"></div>
-        <div className="absolute bottom-32 right-10 w-8 h-8 bg-white/20 rounded-full animate-bounce delay-500"></div>
+    <div className={`fixed inset-0 z-50 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Clean gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-green-50">
+        {/* Subtle geometric patterns */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-20 left-20 w-32 h-32 border border-green-200 rounded-full"></div>
+          <div className="absolute bottom-20 right-20 w-24 h-24 border border-emerald-300 rounded-full"></div>
+          <div className="absolute top-1/2 left-1/3 w-16 h-16 border border-green-100 rounded-full"></div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 text-center px-8 max-w-lg mx-auto">
-        {/* Hospital Logo */}
-        <div className="mb-8 animate-pulse">
-          <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center shadow-lg">
-            <span className="text-3xl">🏥</span>
+      {/* Main content */}
+      <div className="relative z-10 flex flex-col items-center justify-center h-full px-8">
+        
+        {/* Hospital Logo - Modern Medical Cross */}
+        <div className="mb-8 relative">
+          <div className="w-20 h-20 bg-white rounded-2xl shadow-lg border border-green-100 flex items-center justify-center transform transition-transform duration-500 hover:scale-105">
+            {/* Medical Cross Icon */}
+            <div className="relative">
+              <div className="w-8 h-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full"></div>
+              <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-green-500 rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+            </div>
+          </div>
+          {/* Subtle glow effect */}
+          <div className="absolute inset-0 w-20 h-20 bg-emerald-200 rounded-2xl blur-xl opacity-20 animate-pulse"></div>
+        </div>
+
+        {/* Hospital Name */}
+        <div className="text-center space-y-2 mb-8">
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+            RS Pantinugroho
+          </h1>
+          <div className="flex items-center justify-center space-x-2">
+            <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent"></div>
+            <p className="text-sm font-medium text-emerald-600 tracking-wide uppercase">
+              Diabetes Care
+            </p>
+            <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent"></div>
           </div>
         </div>
 
-        {/* Slide Content */}
-        <div className="space-y-6 animate-fade-in">
-          <div className="text-6xl animate-bounce">
-            {motivationalSlides[currentSlide].icon}
-          </div>
-          
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white drop-shadow-lg">
-              {motivationalSlides[currentSlide].title}
-            </h1>
-            <h2 className="text-xl font-semibold text-white/90">
-              {motivationalSlides[currentSlide].subtitle}
-            </h2>
-          </div>
-
-          <p className="text-lg text-white/95 leading-relaxed px-4">
-            {motivationalSlides[currentSlide].message}
+        {/* Motivational Message */}
+        <div className="text-center max-w-sm">
+          <p className="text-gray-600 text-base leading-relaxed">
+            Bersama menuju hidup yang lebih sehat dan berkualitas
           </p>
-
-          {/* Progress dots */}
-          <div className="flex justify-center space-x-2 pt-4">
-            {motivationalSlides.map((_, index) => (
-              <div
-                key={index}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  index === currentSlide 
-                    ? 'bg-white scale-125' 
-                    : 'bg-white/50'
-                }`}
-              />
-            ))}
-          </div>
         </div>
 
-        {/* Loading indicator */}
-        <div className="mt-12">
-          <div className="w-16 h-16 mx-auto">
-            <div className="w-full h-full border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+        {/* Minimal Loading Indicator */}
+        <div className="mt-12 flex flex-col items-center space-y-4">
+          <div className="relative w-12 h-12">
+            {/* Spinning ring */}
+            <div className="absolute inset-0 border-2 border-green-100 rounded-full"></div>
+            <div className="absolute inset-0 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="text-white/90 mt-4 text-sm font-medium">
-            Menyiapkan aplikasi untuk Anda...
+          <p className="text-xs text-gray-500 font-medium tracking-wide">
+            Memuat aplikasi...
           </p>
         </div>
       </div>
 
-      {/* Bottom decoration */}
-      <div className="absolute bottom-0 left-0 right-0">
-        <svg viewBox="0 0 1440 120" className="w-full h-24">
+      {/* Bottom wave decoration */}
+      <div className="absolute bottom-0 left-0 right-0 overflow-hidden">
+        <svg viewBox="0 0 1440 60" className="w-full h-15 opacity-10">
           <path
-            fill="rgba(255,255,255,0.1)"
-            d="M0,32L48,37.3C96,43,192,53,288,58.7C384,64,480,64,576,58.7C672,53,768,43,864,48C960,53,1056,75,1152,80C1248,85,1344,75,1392,69.3L1440,64V120H1392C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120H0V32Z"
+            fill="url(#wave-gradient)"
+            d="M0,32L60,37.3C120,43,240,53,360,48C480,43,600,21,720,21.3C840,21,960,43,1080,48C1200,53,1320,43,1380,37.3L1440,32V60H1380C1320,60,1200,60,1080,60C960,60,840,60,720,60C600,60,480,60,360,60C240,60,120,60,60,60H0V32Z"
           />
+          <defs>
+            <linearGradient id="wave-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#059669" />
+            </linearGradient>
+          </defs>
         </svg>
       </div>
+
+      <style jsx>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out;
+        }
+
+        /* Custom pulse for glow effect */
+        @keyframes gentle-pulse {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   );
 };

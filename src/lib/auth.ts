@@ -9,7 +9,7 @@ export type UserRole =
   | 'PERAWAT_RUANGAN'   // Perawat Ruangan
   | 'PERAWAT_POLI'      // Perawat Poli
   | 'AHLI_GIZI'         // Ahli Gizi
-  | 'FARMASI';          // Farmasi
+  | 'FARMASI';          
 
 // Role display names in Indonesian
 export const ROLE_NAMES: Record<UserRole, string> = {
@@ -83,12 +83,12 @@ export function isAuthenticated(session: any): session is {
   return session?.user?.id && session?.user?.role;
 }
 
-// Helper to get role-based dashboard path
+// Helper to get role-based dashboard path - FIXED TO MATCH [role] MAPPING
 export function getDashboardPath(role: UserRole): string {
   switch (role) {
     case 'SUPER_ADMIN': return '/dashboard/admin';
     case 'DOKTER_SPESIALIS': return '/dashboard/doctor';
-    case 'PERAWAT_RUANGAN': return '/dashboard/nurse-ward';
+    case 'PERAWAT_RUANGAN': return '/dashboard/nurse'; // Fixed: was nurse-ward, now nurse
     case 'PERAWAT_POLI': return '/dashboard/nurse-poli';
     case 'AHLI_GIZI': return '/dashboard/nutritionist';
     case 'FARMASI': return '/dashboard/pharmacy';
@@ -103,7 +103,7 @@ export function getRoleTheme(role: UserRole): { primary: string; gradient: strin
       return { 
         primary: 'purple', 
         gradient: 'from-purple-50 via-blue-50 to-indigo-100',
-        icon: '👑'
+        icon: '🔧'
       };
     case 'DOKTER_SPESIALIS':
       return { 
