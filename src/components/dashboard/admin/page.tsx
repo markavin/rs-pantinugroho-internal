@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database } from 'lucide-react';
+import { NewStaff } from '@/data/mockData';
 
 // Mock data for admin dashboard
 const mockStaff = [
@@ -88,16 +89,6 @@ const chartData = {
   ]
 };
 
-interface NewStaff {
-  name: string;
-  role: string;
-  username: string;
-  email: string;
-  employeeId: string;
-  department: string;
-  password: string;
-}
-
 const AdminDashboard = () => {
   const [staff, setStaff] = useState(mockStaff);
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,19 +165,24 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Search and Actions Header */}
+        {/* Header with Search (Staff tab) and System Status (All tabs) */}
         <div className="mb-6 flex items-center justify-between">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari staff..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <div className="flex-1">
+            {activeTab === 'staff' && (
+              <div className="relative max-w-md">
+                <input
+                  type="text"
+                  placeholder="Cari staff..."
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-64 text-gray-700"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-700" />
+              </div>
+            )}
           </div>
 
+          {/* System Status Button - appears on all tabs */}
           <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">
             System Status
           </button>
@@ -208,8 +204,8 @@ const AdminDashboard = () => {
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key as any)}
                     className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
                       }`}
                   >
                     <IconComponent className="h-5 w-5" />

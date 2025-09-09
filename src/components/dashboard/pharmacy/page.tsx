@@ -8,51 +8,16 @@ import {
     dashboardStats,
     Patient,
     Alert,
-    Medication
+    Medication,
+    mockDrugData,
+    mockPatientComplaint,
+    mockLabResult,
+    mockPharmacyNote,
+    DrugData,
+    PatientComplaint,
+    LabResult,
+    PharmacyNote
 } from '@/data/mockData';
-
-interface DrugData {
-    id: string;
-    name: string;
-    category: string;
-    dosageForm: string;
-    strength: string;
-    manufacturer: string;
-    stock: number;
-    expiryDate: string;
-    interactions: string[];
-    contraindications: string[];
-    sideEffects: string[];
-    indications: string[];
-}
-
-interface PatientComplaint {
-    id: string;
-    patientId: string;
-    date: string;
-    complaint: string;
-    severity: 'MILD' | 'MODERATE' | 'SEVERE';
-    status: 'ACTIVE' | 'RESOLVED';
-}
-
-interface LabResult {
-    id: string;
-    patientId: string;
-    testType: string;
-    value: string;
-    normalRange: string;
-    date: string;
-    status: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL';
-}
-
-interface PharmacyNote {
-    id: string;
-    patientId: string;
-    date: string;
-    note: string;
-    pharmacist: string;
-    category: 'MEDICATION' | 'COUNSELING' | 'MONITORING' | 'ADVERSE_REACTION';
-}
 
 const PharmacyDashboard = () => {
     const [patients, setPatients] = useState<Patient[]>([]);
@@ -65,95 +30,13 @@ const PharmacyDashboard = () => {
     const [activeFilter, setActiveFilter] = useState<'all' | 'allergies' | 'interactions' | 'high-risk'>('all');
 
     // Mock data
-    const [drugData, setDrugData] = useState<DrugData[]>([
-        {
-            id: '1',
-            name: 'Metformin 500mg',
-            category: 'Antidiabetes',
-            dosageForm: 'Tablet',
-            strength: '500mg',
-            manufacturer: 'Dexa Medica',
-            stock: 500,
-            expiryDate: '2025-12-31',
-            interactions: ['Glimepiride', 'Insulin'],
-            contraindications: ['Gagal ginjal berat', 'Ketoasidosis diabetik'],
-            sideEffects: ['Mual', 'Diare', 'Nyeri perut'],
-            indications: ['Diabetes melitus tipe 2']
-        },
-        {
-            id: '2',
-            name: 'Glimepiride 2mg',
-            category: 'Antidiabetes',
-            dosageForm: 'Tablet',
-            strength: '2mg',
-            manufacturer: 'Novartis',
-            stock: 300,
-            expiryDate: '2025-08-15',
-            interactions: ['Metformin', 'Aspirin'],
-            contraindications: ['Diabetes tipe 1', 'Kehamilan'],
-            sideEffects: ['Hipoglikemia', 'Pusing', 'Mual'],
-            indications: ['Diabetes melitus tipe 2']
-        }
-    ]);
+    const [drugData, setDrugData] = useState<DrugData[]>(mockDrugData);
 
-    const [complaints, setComplaints] = useState<PatientComplaint[]>([
-        {
-            id: '1',
-            patientId: '1',
-            date: '2024-08-20',
-            complaint: 'Mual setelah minum obat metformin',
-            severity: 'MODERATE',
-            status: 'ACTIVE'
-        },
-        {
-            id: '2',
-            patientId: '2',
-            date: '2024-08-18',
-            complaint: 'Pusing saat berdiri',
-            severity: 'MILD',
-            status: 'RESOLVED'
-        }
-    ]);
+    const [complaints, setComplaints] = useState<PatientComplaint[]>(mockPatientComplaint);
 
-    const [labResults, setLabResults] = useState<LabResult[]>([
-        {
-            id: '1',
-            patientId: '1',
-            testType: 'HbA1c',
-            value: '8.5%',
-            normalRange: '<7%',
-            date: '2024-08-15',
-            status: 'HIGH'
-        },
-        {
-            id: '2',
-            patientId: '1',
-            testType: 'Kreatinin',
-            value: '1.2 mg/dL',
-            normalRange: '0.6-1.3 mg/dL',
-            date: '2024-08-15',
-            status: 'NORMAL'
-        }
-    ]);
+    const [labResults, setLabResults] = useState<LabResult[]>(mockLabResult);
 
-    const [pharmacyNotes, setPharmacyNotes] = useState<PharmacyNote[]>([
-        {
-            id: '1',
-            patientId: '1',
-            date: '2024-08-20',
-            note: 'Pasien mengalami mual setelah minum metformin. Disarankan minum setelah makan.',
-            pharmacist: 'Apt. Sarah',
-            category: 'MEDICATION'
-        },
-        {
-            id: '2',
-            patientId: '2',
-            date: '2024-08-18',
-            note: 'Edukasi tentang tanda-tanda hipoglikemia dan cara mengatasinya.',
-            pharmacist: 'Apt. Ahmad',
-            category: 'COUNSELING'
-        }
-    ]);
+    const [pharmacyNotes, setPharmacyNotes] = useState<PharmacyNote[]>(mockPharmacyNote);
 
     const [newDrug, setNewDrug] = useState<Partial<DrugData>>({
         name: '',
@@ -169,10 +52,40 @@ const PharmacyDashboard = () => {
         indications: []
     });
 
+    // useEffect(() => {
+    //     setPatients(mockPatients);
+    //     setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
+    // }, []);
+
     useEffect(() => {
-        setPatients(mockPatients);
-        setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
-    }, []);
+        const fetchData = async () => {
+            try {
+                // Fetch patients from API
+                const patientsResponse = await fetch('/api/dashboard?type=patients');
+                if (patientsResponse.ok) {
+                    const patientsData = await patientsResponse.json();
+                    setPatients(patientsData);
+                }
+
+                const alertsResponse = await fetch('/api/dashboard?type=alerts');
+                if (alertsResponse.ok) {
+                    const alertsData = await alertsResponse.json();
+                    setAlerts(alertsData.filter(alert => alert.category === 'medication'))
+                } else {
+                    console.error('Failed to fetch alerts:', alertsResponse.status);
+                    setAlerts(mockAlerts.filter(alert => alert.category === 'medication')); 
+                }
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                setPatients(mockPatients)
+                setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
+                // setPatientLogs(mockPatientLog);
+            }
+        };
+
+        fetchData();
+    }, []);;
 
     const handleSaveDrug = () => {
         if (editingDrug) {
@@ -245,8 +158,8 @@ const PharmacyDashboard = () => {
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key as any)}
                                         className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                                                ? 'border-emerald-500 text-emerald-600'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            ? 'border-emerald-500 text-emerald-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                             }`}
                                     >
                                         <IconComponent className="h-5 w-5" />
@@ -286,8 +199,8 @@ const PharmacyDashboard = () => {
                                             key={filter.key}
                                             onClick={() => setActiveFilter(filter.key as any)}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeFilter === filter.key
-                                                    ? 'bg-emerald-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                 }`}
                                         >
                                             {filter.label}
@@ -333,13 +246,13 @@ const PharmacyDashboard = () => {
                                                     <div>
                                                         <span className="text-gray-600">Keluhan: </span>
                                                         <span className="font-medium">
-                                                            {complaints.filter(c => c.patientId === patient.id && c.status === 'ACTIVE').length}
+                                                            {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length}
                                                         </span>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-600">Risiko: </span>
                                                         <span className={`font-medium ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
-                                                                patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
+                                                            patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
                                                             }`}>
                                                             {patient.riskLevel}
                                                         </span>
@@ -444,9 +357,9 @@ const PharmacyDashboard = () => {
                                                 <div className="flex items-center space-x-2 mb-2">
                                                     <p className="font-medium text-gray-900">{patient?.name}</p>
                                                     <p className="text-sm text-gray-500">{patient?.mrNumber}</p>
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${complaint.severity === 'SEVERE' ? 'bg-red-100 text-red-800' :
-                                                            complaint.severity === 'MODERATE' ? 'bg-orange-100 text-orange-800' :
-                                                                'bg-yellow-100 text-yellow-800'
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${complaint.severity === 'Berat' ? 'bg-red-100 text-red-800' :
+                                                        complaint.severity === 'Sedang' ? 'bg-orange-100 text-orange-800' :
+                                                            'bg-yellow-100 text-yellow-800'
                                                         }`}>
                                                         {complaint.severity}
                                                     </span>
@@ -454,7 +367,7 @@ const PharmacyDashboard = () => {
                                                 <p className="text-gray-700 mb-2">{complaint.complaint}</p>
                                                 <p className="text-sm text-gray-500">{complaint.date}</p>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${complaint.status === 'ACTIVE' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${complaint.status === 'Baru' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                                                 }`}>
                                                 {complaint.status}
                                             </span>
@@ -501,9 +414,9 @@ const PharmacyDashboard = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.date}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                            result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                                result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    'bg-green-100 text-green-800'
+                                                        result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                                                            result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
+                                                                'bg-green-100 text-green-800'
                                                         }`}>
                                                         {result.status}
                                                     </span>
@@ -535,9 +448,9 @@ const PharmacyDashboard = () => {
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${note.category === 'MEDICATION' ? 'bg-blue-100 text-blue-800' :
-                                                        note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
-                                                            note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
-                                                                'bg-red-100 text-red-800'
+                                                    note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
+                                                        note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
+                                                            'bg-red-100 text-red-800'
                                                     }`}>
                                                     {note.category}
                                                 </span>
@@ -803,8 +716,8 @@ const PharmacyDashboard = () => {
                                     <div>
                                         <p className="text-sm font-medium text-gray-600">Level Risiko</p>
                                         <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${selectedPatient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
-                                                selectedPatient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
-                                                    'bg-green-100 text-green-800'
+                                            selectedPatient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
+                                                'bg-green-100 text-green-800'
                                             }`}>
                                             {selectedPatient.riskLevel}
                                         </span>
@@ -873,13 +786,13 @@ const PharmacyDashboard = () => {
                                             {complaints.filter(c => c.patientId === selectedPatient.id).map((complaint) => (
                                                 <div key={complaint.id} className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.severity === 'SEVERE' ? 'bg-red-100 text-red-800' :
-                                                                complaint.severity === 'MODERATE' ? 'bg-orange-100 text-orange-800' :
-                                                                    'bg-yellow-100 text-yellow-800'
+                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.severity === 'Berat' ? 'bg-red-100 text-red-800' :
+                                                            complaint.severity === 'Sedang' ? 'bg-orange-100 text-orange-800' :
+                                                                'bg-yellow-100 text-yellow-800'
                                                             }`}>
                                                             {complaint.severity}
                                                         </span>
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.status === 'ACTIVE' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.status === 'Baru' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                                                             }`}>
                                                             {complaint.status}
                                                         </span>
@@ -903,9 +816,9 @@ const PharmacyDashboard = () => {
                                                     <div className="flex items-center justify-between mb-2">
                                                         <p className="font-medium text-gray-900">{result.testType}</p>
                                                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                                result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                                    result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                                        'bg-green-100 text-green-800'
+                                                            result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                                                                result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-green-100 text-green-800'
                                                             }`}>
                                                             {result.status}
                                                         </span>
@@ -931,9 +844,9 @@ const PharmacyDashboard = () => {
                                                 <div key={note.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${note.category === 'MEDICATION' ? 'bg-blue-100 text-blue-800' :
-                                                                note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
-                                                                    note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
-                                                                        'bg-red-100 text-red-800'
+                                                            note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
+                                                                note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
+                                                                    'bg-red-100 text-red-800'
                                                             }`}>
                                                             {note.category}
                                                         </span>

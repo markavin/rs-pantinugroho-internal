@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = []
 }
 
 datasource db {
@@ -9,57 +8,70 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  username    String   @unique
-  password    String
-  name        String
-  role        UserRole
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  email      String   @unique
+  username   String   @unique
+  password   String
+  name       String
+  role       UserRole
+  employeeId String?
+  department String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
-  patients          Patient[]
-  medicalRecords    MedicalRecord[]
-  educationNotes    EducationNote[]
-  nutritionPlans    NutritionPlan[]
-  medications       Medication[] @relation("PrescribedMedications")
-  doctorAppointments Appointment[] @relation("DoctorAppointments")
-  medicationLogs    MedicationLog[] @relation("MedicationLogs")
+  patients           Patient[]
+  medicalRecords     MedicalRecord[]
+  educationNotes     EducationNote[]
+  nutritionPlans     NutritionPlan[]
+  medications        Medication[]    @relation("PrescribedMedications")
+  doctorAppointments Appointment[]   @relation("DoctorAppointments")
+  medicationLogs     MedicationLog[] @relation("MedicationLogs")
+  visitationLogs     Visitation[]
 
   @@map("users")
 }
 
 model Patient {
-  id          String   @id @default(cuid())
-  mrNumber    String   @unique // Medical Record Number
-  name        String
-  birthDate   DateTime
-  gender      Gender
-  phone       String?
-  address     String?
-  
+  id        String    @id @default(cuid())
+  mrNumber  String    @unique
+  name      String
+  birthDate DateTime?
+  gender    Gender
+  phone     String?
+  address   String?
+
   // Medical Info
-  height      Float?
-  weight      Float?
-  bmi         Float?
-  bloodType   String?
-  allergies   String[] // Array of allergies
-  
+  height    Float?
+  weight    Float?
+  bmi       Float?
+  bloodType String?
+  allergies String[]
+
   // Diabetes specific
-  diabetesType String?
+  diabetesType  String?
   diagnosisDate DateTime?
-  comorbidities String[] // Array of comorbidities
-  
+  comorbidities String[]
+
   // Insurance
-  insuranceType InsuranceType
+  insuranceType   InsuranceType
   insuranceNumber String?
-  
-  createdBy   String
-  user        User     @relation(fields: [createdBy], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // Additional fields from mockData
+  lastVisit       DateTime?
+  nextAppointment DateTime?
+  riskLevel       RiskLevel?
+  status          PatientStatus?
+  dietCompliance  Int?
+  calorieNeeds    Int?
+  calorieRequirement Int?
+  dietPlan        String?
+
+  createdBy String
+  user      User     @relation(fields: [createdBy], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   medicalRecords MedicalRecord[]
@@ -71,268 +83,431 @@ model Patient {
   educationNotes EducationNote[]
   foodIntakes    FoodIntake[]
   medicationLogs MedicationLog[]
-  
+  complaints     PatientComplaint[]
+  bloodSugars    BloodSugarHistory[]
+  patientLogs    PatientLog[]
+  pharmacyNotes  PharmacyNote[]
+  alerts         Alert[]
+  mealEntries    MealEntry[]
+  foodRecalls    FoodRecall[]
+  visitations    Visitation[]
+
   @@map("patients")
 }
 
 model MedicalRecord {
-  id          String   @id @default(cuid())
-  patientId   String
-  doctorId    String
-  visitDate   DateTime @default(now())
-  
-  // Complaint & History
-  chiefComplaint String
-  historyOfIllness String?
+  id        String   @id @default(cuid())
+  patientId String
+  doctorId  String
+  visitDate DateTime @default(now())
+
+  chiefComplaint      String
+  historyOfIllness    String?
   physicalExamination String?
-  
-  // Assessment & Plan
-  diagnosis   String
-  treatment   String?
-  notes       String?
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  doctor      User    @relation(fields: [doctorId], references: [id])
-  
-  // Relations - Fix: Add relation to VitalSign
-  vitalSigns  VitalSign[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  diagnosis           String
+  treatment           String?
+  notes               String?
+
+  patient    Patient     @relation(fields: [patientId], references: [id])
+  doctor     User        @relation(fields: [doctorId], references: [id])
+  vitalSigns VitalSign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("medical_records")
 }
 
 model VitalSign {
-  id          String   @id @default(cuid())
-  patientId   String
-  medicalRecordId String? // Optional relation to medical record
-  recordDate  DateTime @default(now())
-  measuredAt  DateTime @default(now()) // Alternative field name used in API
-  
-  // Vital signs
-  systolicBP  Int?
-  diastolicBP Int?
-  heartRate   Int?
-  temperature Float?
-  respiratoryRate Int?
+  id              String   @id @default(cuid())
+  patientId       String
+  medicalRecordId String?
+  recordDate      DateTime @default(now())
+  measuredAt      DateTime @default(now())
+
+  systolicBP       Int?
+  diastolicBP      Int?
+  heartRate        Int?
+  temperature      Float?
+  respiratoryRate  Int?
   oxygenSaturation Float?
-  
-  // Diabetes specific - Fixed field names
+
   bloodGlucose Float?
-  bloodSugar  Float? // Alternative field name used in API
-  hba1c       Float?
-  
-  // Additional fields
-  notes       String?
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
+  bloodSugar   Float?
+  hba1c        Float?
+  notes        String?
+
+  patient       Patient        @relation(fields: [patientId], references: [id])
   medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   @@map("vital_signs")
 }
 
 model LabResult {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   patientId   String
   testDate    DateTime
   testType    String
-  testName    String
   value       String
-  unit        String?
   normalRange String?
-  status      String? // Normal, High, Low, Critical
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  
+  status      LabStatus?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+
   @@map("lab_results")
 }
 
 model Medication {
-  id          String   @id @default(cuid())
-  patientId   String
+  id           String @id @default(cuid())
+  patientId    String
   prescribedBy String
-  
-  // Updated field names to match your API
+
   medicationName String
-  dosage      String
-  frequency   String
-  route       String // Oral, Injection, etc
-  startDate   DateTime
-  endDate     DateTime?
-  
-  // Additional fields that might be used in API
-  name        String? // Alias for medicationName
-  genericName String?
-  duration    String?
+  dosage         String
+  frequency      String
+  route          String
+  startDate      DateTime
+  endDate        DateTime?
+
+  genericName  String?
   instructions String?
-  
-  // Drug interaction warnings
-  interactions String[] // Array of potential interactions
-  
-  // Status
-  isActive    Boolean @default(true)
-  adherence   String? // Good, Fair, Poor
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  prescribedByUser User @relation("PrescribedMedications", fields: [prescribedBy], references: [id])
-  
-  // Relations
-  medicationLogs MedicationLog[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  interactions String[]
+  adherence    String?
+  isActive     Boolean  @default(true)
+
+  patient          Patient         @relation(fields: [patientId], references: [id])
+  prescribedByUser User            @relation("PrescribedMedications", fields: [prescribedBy], references: [id])
+  medicationLogs   MedicationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("medications")
 }
 
 model MedicationLog {
-  id          String   @id @default(cuid())
+  id           String @id @default(cuid())
   medicationId String
-  patientId   String
-  loggedBy    String
-  
+  patientId    String
+  loggedBy     String
+
   takenAt     DateTime @default(now())
   dosageTaken String?
   notes       String?
-  
-  // Status
-  wasSkipped  Boolean @default(false)
+  wasSkipped  Boolean  @default(false)
   skipReason  String?
-  
-  medication  Medication @relation(fields: [medicationId], references: [id])
-  patient     Patient    @relation(fields: [patientId], references: [id])
-  loggedByUser User      @relation("MedicationLogs", fields: [loggedBy], references: [id])
-  
-  createdAt   DateTime @default(now())
-  
+
+  medication   Medication @relation(fields: [medicationId], references: [id])
+  patient      Patient    @relation(fields: [patientId], references: [id])
+  loggedByUser User       @relation("MedicationLogs", fields: [loggedBy], references: [id])
+
+  createdAt DateTime @default(now())
+
   @@map("medication_logs")
 }
 
 model NutritionPlan {
-  id          String   @id @default(cuid())
-  patientId   String
+  id             String @id @default(cuid())
+  patientId      String
   nutritionistId String
-  
-  // Calorie requirements
-  totalCalories Int
-  carbohydrates Int // grams
-  protein     Int // grams
-  fat         Int // grams
-  fiber       Int? // grams
-  
-  // Meal plan
-  breakfast   String?
-  lunch       String?
-  dinner      String?
-  snacks      String?
-  
-  // Notes
-  restrictions String? // Food restrictions
-  notes       String?
-  
-  isActive    Boolean @default(true)
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  nutritionist User   @relation(fields: [nutritionistId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+
+  targetCalories   Int
+  carbLimit        Int
+  proteinGoal      Int
+  fatLimit         Int
+  mealDistribution Json
+  restrictions     String[]
+  goals            String[]
+  compliance       Int
+
+  patient      Patient @relation(fields: [patientId], references: [id])
+  nutritionist User    @relation(fields: [nutritionistId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("nutrition_plans")
 }
 
 model FoodIntake {
-  id          String   @id @default(cuid())
-  patientId   String
-  intakeDate  DateTime
-  mealType    MealType
-  
-  foodName    String
-  portion     String
-  calories    Float
-  carbs       Float?
-  protein     Float?
-  fat         Float?
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  
+  id         String   @id @default(cuid())
+  patientId  String
+  intakeDate DateTime
+  mealType   MealType
+
+  foodName String
+  portion  String
+  calories Float
+  carbs    Float?
+  protein  Float?
+  fat      Float?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+
   @@map("food_intakes")
 }
 
 model EducationNote {
-  id          String   @id @default(cuid())
-  patientId   String
-  educatorId  String
-  
-  educationType EducationType
-  topic       String
-  content     String
-  materials   String[] // Array of educational materials
-  
-  // Patient understanding
-  patientUnderstanding String? // Good, Fair, Poor
-  followUpNeeded Boolean @default(false)
-  
-  patient     Patient @relation(fields: [patientId], references: [id])
-  educator    User    @relation(fields: [educatorId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String @id @default(cuid())
+  patientId  String
+  educatorId String
+
+  educationType        EducationType
+  topic                String
+  content              String
+  materials            String[]
+  patientUnderstanding String?
+  followUpNeeded       Boolean       @default(false)
+
+  patient  Patient @relation(fields: [patientId], references: [id])
+  educator User    @relation(fields: [educatorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("education_notes")
 }
 
 model Appointment {
-  id          String   @id @default(cuid())
-  patientId   String
-  doctorId    String?
+  id        String  @id @default(cuid())
+  patientId String
+  doctorId  String?
 
   appointmentDate DateTime
   appointmentTime String
-  type        String
-  status      AppointmentStatus
-  notes       String?
+  type            String
+  status          AppointmentStatus
+  notes           String?
 
-  patient     Patient @relation(fields: [patientId], references: [id])
-  doctor      User?   @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User?   @relation("DoctorAppointments", fields: [doctorId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("appointments")
 }
 
 model Reminder {
-  id          String   @id @default(cuid())
-  patientId   String
-  
-  reminderType String // Medication, Meal, Appointment, Exercise
-  title       String
-  message     String
+  id        String @id @default(cuid())
+  patientId String
+
+  reminderType  String
+  title         String
+  message       String
   scheduledTime DateTime
-  
-  isActive    Boolean @default(true)
-  isSent      Boolean @default(false)
-  
-  createdAt   DateTime @default(now())
-  
+  isActive      Boolean  @default(true)
+  isSent        Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
   @@map("reminders")
+}
+
+// Additional models from mockData.ts
+
+model Alert {
+  id        String    @id @default(cuid())
+  type      AlertType
+  message   String
+  patientId String
+  timestamp String
+  category  String
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("alerts")
+}
+
+model FoodItem {
+  id               String  @id @default(cuid())
+  name             String
+  category         String
+  calories         Int
+  carbs            Float
+  protein          Float
+  fat              Float
+  fiber            Float
+  glycemicIndex    Int
+  diabeticFriendly Boolean
+  sodium           Int
+  sugar            Float
+  portion          String
+
+  mealEntryFoods MealEntryFood[]
+
+  @@map("food_items")
+}
+
+model MealEntry {
+  id               String   @id @default(cuid())
+  patientId        String
+  date             String
+  mealType         MealType
+  totalCalories    Int
+  totalCarbs       Float
+  totalProtein     Float
+  totalFat         Float
+  bloodSugarBefore Int?
+  bloodSugarAfter  Int?
+  notes            String
+
+  patient Patient         @relation(fields: [patientId], references: [id])
+  foods   MealEntryFood[]
+
+  createdAt DateTime @default(now())
+
+  @@map("meal_entries")
+}
+
+model MealEntryFood {
+  id          String @id @default(cuid())
+  mealEntryId String
+  foodId      String
+  foodName    String
+  portion     Int    // in grams
+  calories    Int
+  carbs       Float
+  protein     Float
+  fat         Float
+
+  mealEntry MealEntry @relation(fields: [mealEntryId], references: [id])
+  foodItem  FoodItem  @relation(fields: [foodId], references: [id])
+
+  @@map("meal_entry_foods")
+}
+
+model FoodRecall {
+  id              String   @id @default(cuid())
+  patientId       String
+  date            String
+  totalCalories   Int
+  totalCarbs      Float
+  totalProtein    Float
+  totalFat        Float
+  complianceScore Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("food_recalls")
+}
+
+model DrugData {
+  id                String   @id @default(cuid())
+  name              String
+  category          String
+  dosageForm        String
+  strength          String
+  manufacturer      String
+  stock             Int
+  expiryDate        DateTime
+  interactions      String[]
+  contraindications String[]
+  sideEffects       String[]
+  indications       String[]
+
+  @@map("drug_data")
+}
+
+model PatientComplaint {
+  id        String   @id @default(cuid())
+  patientId String
+  date      DateTime
+  complaint String
+  severity  ComplaintSeverity
+  status    ComplaintStatus
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("patient_complaints")
+}
+
+model PharmacyNote {
+  id         String              @id @default(cuid())
+  patientId  String
+  date       DateTime
+  note       String
+  pharmacist String
+  category   PharmacyNoteCategory
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("pharmacy_notes")
+}
+
+model BloodSugarHistory {
+  id        String          @id @default(cuid())
+  patientId String
+  value     Int
+  date      DateTime
+  time      String
+  trend     BloodSugarTrend?
+  notes     String?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("blood_sugar_history")
+}
+
+model PatientLog {
+  id                 String   @id @default(cuid())
+  patientId          String
+  roomNumber         String
+  bedNumber          String
+  admissionDate      DateTime
+  diagnosis          String
+  comorbidities      String[]
+  allergies          String[]
+  currentMedications String[]
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("patient_logs")
+}
+
+model Visitation {
+  id           String     @id @default(cuid())
+  patientId    String
+  nurseId      String
+  date         DateTime
+  shift        Shift
+  complaints   String
+  medications  String
+  labResults   String
+  actions      String
+  complications String
+  education    String
+  notes        String
+  
+  // Vital signs as JSON for nurse interface compatibility
+  vitalSigns   Json
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  nurse   User    @relation(fields: [nurseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("visitations")
 }
 
 // Enums
 enum UserRole {
-  ADMIN
-  DOCTOR
-  NURSE
-  NUTRITIONIST
-  PHARMACIST
+  SUPER_ADMIN
+  DOKTER_SPESIALIS
+  PERAWAT_RUANGAN
+  PERAWAT_POLI
+  AHLI_GIZI
+  FARMASI
   PATIENT
 }
 
@@ -370,15 +545,59 @@ enum MealType {
   SNACK
 }
 
-enum ComplicationSeverity {
-  MILD
-  MODERATE
-  SEVERE
+enum PharmacyNoteCategory {
+  MEDICATION
+  COUNSELING
+  MONITORING
+  ADVERSE_REACTION
 }
 
-enum NoteType {
-  GENERAL
-  DIAGNOSIS
-  TREATMENT
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  RUJUK_BALIK
+  MONITORING
   FOLLOW_UP
+}
+
+enum AlertType {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum LabStatus {
+  NORMAL
+  HIGH
+  LOW
+  CRITICAL
+}
+
+enum ComplaintSeverity {
+  RINGAN
+  SEDANG
+  BERAT
+}
+
+enum ComplaintStatus {
+  BARU
+  DALAM_PROSES
+  SELESAI
+}
+
+enum BloodSugarTrend {
+  INCREASING
+  STABLE
+  DECREASING
+}
+
+enum Shift {
+  PAGI
+  SORE
 }

@@ -39,10 +39,55 @@ const DoctorDashboard = () => {
   });
 
   useEffect(() => {
-    // Load data from mock data file instead of hardcoding
-    setPatients(mockPatients);
-    setAlerts(mockAlerts);
+    const fetchData = async () => {
+      try {
+        // Fetch patients from API
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
+
+        // Fetch alerts from API
+        const alertsResponse = await fetch('/api/dashboard?type=alerts');
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          setAlerts(alertsData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data if API fails
+        setPatients(mockPatients);
+        setAlerts(mockAlerts);
+      }
+    };
+
+    fetchData();
   }, []);
+
+  // You might also want to add a refresh function
+  const refreshData = async () => {
+    const fetchData = async () => {
+      try {
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
+
+        const alertsResponse = await fetch('/api/dashboard?type=alerts');
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          setAlerts(alertsData);
+        }
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+
+    await fetchData();
+  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getRiskLevelColor = (level: string) => {
     switch (level) {
@@ -145,22 +190,49 @@ const DoctorDashboard = () => {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Search and Actions Header */}
         <div className="mb-6 flex items-center justify-between">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari pasien..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <div className="flex-1">
+            {activeTab === 'patients' && (
+              <div className="relative max-w-md">
+                <input
+                  type="text"
+                  placeholder="Cari staff..."
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-64 text-gray-700"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-700" />
+              </div>
+            )}
           </div>
 
-          <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors">
-            Notifikasi
-          </button>
-        </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                await refreshData();
+                setIsRefreshing(false);
+              }}
+              disabled={isRefreshing}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+            >
+              {isRefreshing ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4" />
+                  <span>Refresh Data</span>
+                </>
+              )}
+            </button>
 
+            <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors">
+              Notifikasi
+            </button>
+          </div>
+        </div>
         {/* Navigation Tabs */}
         <div className="bg-white rounded-lg shadow-sm mb-6">
           <div className="border-b border-gray-200">
@@ -636,97 +708,97 @@ const DoctorDashboard = () => {
                         </button>
                       </div>
                     </div>{showVitalInput === patient.id && (
-                     <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                       <h5 className="font-medium text-gray-900 mb-3">Input Vital Signs</h5>
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                         <div>
-                           <label className="block text-xs text-gray-600 mb-1">GDS</label>
-                           <input
-                             type="number"
-                             placeholder="mg/dL"
-                             className="w-full px-2 py-1 border rounded text-sm"
-                             value={vitalInputs[patient.id]?.bloodSugar || ''}
-                             onChange={(e) => handleVitalInput(patient.id, 'bloodSugar', e.target.value)}
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs text-gray-600 mb-1">TD Sistolik</label>
-                           <input
-                             type="number"
-                             placeholder="mmHg"
-                             className="w-full px-2 py-1 border rounded text-sm"
-                             value={vitalInputs[patient.id]?.systolic || ''}
-                             onChange={(e) => handleVitalInput(patient.id, 'systolic', e.target.value)}
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs text-gray-600 mb-1">TD Diastolik</label>
-                           <input
-                             type="number"
-                             placeholder="mmHg"
-                             className="w-full px-2 py-1 border rounded text-sm"
-                             value={vitalInputs[patient.id]?.diastolic || ''}
-                             onChange={(e) => handleVitalInput(patient.id, 'diastolic', e.target.value)}
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs text-gray-600 mb-1">Nadi</label>
-                           <input
-                             type="number"
-                             placeholder="bpm"
-                             className="w-full px-2 py-1 border rounded text-sm"
-                             value={vitalInputs[patient.id]?.heartRate || ''}
-                             onChange={(e) => handleVitalInput(patient.id, 'heartRate', e.target.value)}
-                           />
-                         </div>
-                       </div>
-                       <div className="mt-3 space-x-2">
-                         <button
-                           onClick={() => saveVitals(patient.id)}
-                           className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                         >
-                           Simpan
-                         </button>
-                         <button
-                           onClick={() => setShowVitalInput(null)}
-                           className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
-                         >
-                           Batal
-                         </button>
-                       </div>
-                     </div>
-                   )}
+                      <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                        <h5 className="font-medium text-gray-900 mb-3">Input Vital Signs</h5>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">GDS</label>
+                            <input
+                              type="number"
+                              placeholder="mg/dL"
+                              className="w-full px-2 py-1 border rounded text-sm"
+                              value={vitalInputs[patient.id]?.bloodSugar || ''}
+                              onChange={(e) => handleVitalInput(patient.id, 'bloodSugar', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">TD Sistolik</label>
+                            <input
+                              type="number"
+                              placeholder="mmHg"
+                              className="w-full px-2 py-1 border rounded text-sm"
+                              value={vitalInputs[patient.id]?.systolic || ''}
+                              onChange={(e) => handleVitalInput(patient.id, 'systolic', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">TD Diastolik</label>
+                            <input
+                              type="number"
+                              placeholder="mmHg"
+                              className="w-full px-2 py-1 border rounded text-sm"
+                              value={vitalInputs[patient.id]?.diastolic || ''}
+                              onChange={(e) => handleVitalInput(patient.id, 'diastolic', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Nadi</label>
+                            <input
+                              type="number"
+                              placeholder="bpm"
+                              className="w-full px-2 py-1 border rounded text-sm"
+                              value={vitalInputs[patient.id]?.heartRate || ''}
+                              onChange={(e) => handleVitalInput(patient.id, 'heartRate', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3 space-x-2">
+                          <button
+                            onClick={() => saveVitals(patient.id)}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                          >
+                            Simpan
+                          </button>
+                          <button
+                            onClick={() => setShowVitalInput(null)}
+                            className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                     <div className="bg-blue-50 p-3 rounded-lg">
-                       <p className="text-2xl font-bold text-blue-700">{patient.bloodSugar.value} mg/dL</p>
-                       <p className="text-xs text-blue-600">GDS</p>
-                     </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-2xl font-bold text-blue-700">{patient.bloodSugar.value} mg/dL</p>
+                        <p className="text-xs text-blue-600">GDS</p>
+                      </div>
 
-                     <div className="bg-red-50 p-3 rounded-lg">
-                       <p className="text-2xl font-bold text-red-700">{patient.vitalSigns.bloodPressure}</p>
-                       <p className="text-xs text-red-600">TD</p>
-                     </div>
+                      <div className="bg-red-50 p-3 rounded-lg">
+                        <p className="text-2xl font-bold text-red-700">{patient.vitalSigns.bloodPressure}</p>
+                        <p className="text-xs text-red-600">TD</p>
+                      </div>
 
-                     <div className="bg-green-50 p-3 rounded-lg">
-                       <p className="text-2xl font-bold text-green-700">{patient.vitalSigns.heartRate} bpm</p>
-                       <p className="text-xs text-green-600">Nadi</p>
-                     </div>
+                      <div className="bg-green-50 p-3 rounded-lg">
+                        <p className="text-2xl font-bold text-green-700">{patient.vitalSigns.heartRate} bpm</p>
+                        <p className="text-xs text-green-600">Nadi</p>
+                      </div>
 
-                     <div className="bg-purple-50 p-3 rounded-lg">
-                       <p className="text-2xl font-bold text-purple-700">{patient.bmi}</p>
-                       <p className="text-xs text-purple-600">IMT</p>
-                     </div>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           </div>
-         </div>
-       )}
-     </div>
-   </div>
- );
+                      <div className="bg-purple-50 p-3 rounded-lg">
+                        <p className="text-2xl font-bold text-purple-700">{patient.bmi}</p>
+                        <p className="text-xs text-purple-600">IMT</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default DoctorDashboard;

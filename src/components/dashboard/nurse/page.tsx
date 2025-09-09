@@ -4,47 +4,14 @@ import {
     mockPatients,
     mockAlerts,
     Patient,
-    Alert
+    Alert, 
+    PatientLog,
+    Visitation,
+    VitalSigns,
+    mockPatientLog
 } from '@/data/mockData';
 
-interface VitalSigns {
-    temperature: string;
-    bloodPressure: string;
-    heartRate: string;
-    respiratoryRate: string;
-    oxygenSaturation: string;
-    bloodSugar: string;
-    weight: string;
-    height: string;
-}
 
-interface Visitation {
-    id: string;
-    patientId: string;
-    date: string;
-    shift: 'pagi' | 'sore';
-    complaints: string;
-    medications: string;
-    labResults: string;
-    actions: string;
-    vitalSigns: VitalSigns;
-    complications: string;
-    education: string;
-    notes: string;
-}
-
-interface PatientLog {
-    id: string;
-    patientId: string;
-    roomNumber: string;
-    bedNumber: string;
-    admissionDate: string;
-    diagnosis: string;
-    comorbidities: string[];
-    allergies: string[];
-    currentMedications: string[];
-    visitationHistory: Visitation[];
-}
 
 const NurseDashboard = () => {
     const [patients, setPatients] = useState<Patient[]>([]);
@@ -78,38 +45,40 @@ const NurseDashboard = () => {
         notes: ''
     });
 
-    useEffect(() => {
-        setPatients(mockPatients.filter(p => p.status === 'Aktif'));
-
-        // Mock patient logs for inpatients
-        const mockLogs: PatientLog[] = [
-            {
-                id: '1',
-                patientId: '1',
-                roomNumber: 'R201',
-                bedNumber: 'B1',
-                admissionDate: '2024-08-25',
-                diagnosis: 'Diabetes Melitus Tipe 2 dengan Komplikasi',
-                comorbidities: ['Hipertensi', 'Neuropati Diabetik'],
-                allergies: ['Sulfa', 'Ruam kulit'],
-                currentMedications: ['Metformin 500mg 2x/hari', 'Glimepiride 2mg 1x/hari', 'Amlodipine 5mg 1x/hari'],
-                visitationHistory: []
-            },
-            {
-                id: '2',
-                patientId: '3',
-                roomNumber: 'R203',
-                bedNumber: 'B2',
-                admissionDate: '2024-08-28',
-                diagnosis: 'Diabetes Melitus Tipe 2 Dekompensasi',
-                comorbidities: ['Hipertensi', 'Obesitas'],
-                allergies: [],
-                currentMedications: ['Metformin 850mg 2x/hari', 'Insulin Regular 10 unit 2x/hari'],
-                visitationHistory: []
+useEffect(() => {
+    const fetchData = async () => {
+        try {
+            // Fetch patients from API
+            const patientsResponse = await fetch('/api/dashboard?type=patients');
+            if (patientsResponse.ok) {
+                const patientsData = await patientsResponse.json();
+                setPatients(patientsData.filter(p => p.status === 'Aktif'));
+            } else {
+                console.error('Failed to fetch patients:', patientsResponse.status);
+                // Hanya gunakan mock data jika API benar-benar tidak tersedia
+                setPatients(mockPatients.filter(p => p.status === 'Aktif'));
             }
-        ];
-        setPatientLogs(mockLogs);
-    }, []);
+
+            // Fetch patient logs from API
+            const logsResponse = await fetch('/api/dashboard?type=patient-logs');
+            if (logsResponse.ok) {
+                const logsData = await logsResponse.json();
+                setPatientLogs(logsData);
+            } else {
+                console.error('Failed to fetch patient logs:', logsResponse.status);
+                setPatientLogs(mockPatientLog);
+            }
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            // Fallback to mock data only when there's a network error
+            setPatients(mockPatients.filter(p => p.status === 'Aktif'));
+            setPatientLogs(mockPatientLog);
+        }
+    };
+
+    fetchData();
+}, []);;
 
     const filteredPatients = patients.filter(patient =>
         patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

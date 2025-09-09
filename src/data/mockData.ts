@@ -1,6 +1,15 @@
 // src/data/mockData.ts
 
-import NutritionistDashboard from "@/components/dashboard/nutritionist/page";
+// admin 
+export interface NewStaff {
+    name: string;
+    role: string;
+    username: string;
+    email: string;
+    employeeId: string;
+    department: string;
+    password: string;
+}
 
 export interface Patient {
     id: string;
@@ -130,6 +139,99 @@ export interface FoodRecall {
     complianceScore: number;
 }
 
+// PharmacyDashboard
+export interface DrugData {
+    id: string;
+    name: string;
+    category: string;
+    dosageForm: string;
+    strength: string;
+    manufacturer: string;
+    stock: number;
+    expiryDate: string;
+    interactions: string[];
+    contraindications: string[];
+    sideEffects: string[];
+    indications: string[];
+}
+
+export interface PatientComplaint {
+    id: string;
+    patientId: string;
+    date: string;
+    complaint: string;
+    severity: 'Ringan' | 'Sedang' | 'Berat';
+    status: 'Baru' | 'Dalam Proses' | 'Selesai';
+
+}
+
+export interface LabResult {
+    id: string;
+    patientId: string;
+    testType: string;
+    value: string;
+    normalRange: string;
+    date: string;
+    status: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL';
+}
+
+export interface PharmacyNote {
+    id: string;
+    patientId: string;
+    date: string;
+    note: string;
+    pharmacist: string;
+    category: 'MEDICATION' | 'COUNSELING' | 'MONITORING' | 'ADVERSE_REACTION';
+}
+
+export interface BloodSugarHistory {
+    id: string;
+    patientId: string;
+    value: number;
+    date: string;
+    time: string;
+    notes: string;
+}
+
+// nurse 
+export interface VitalSigns {
+    temperature: string;
+    bloodPressure: string;
+    heartRate: string;
+    respiratoryRate: string;
+    oxygenSaturation: string;
+    bloodSugar: string;
+    weight: string;
+    height: string;
+}
+
+export interface Visitation {
+    id: string;
+    patientId: string;
+    date: string;
+    shift: 'pagi' | 'sore';
+    complaints: string;
+    medications: string;
+    labResults: string;
+    actions: string;
+    vitalSigns: VitalSigns;
+    complications: string;
+    education: string;
+    notes: string;
+}
+
+export interface PatientLog {
+    id: string;
+    patientId: string;
+    roomNumber: string;
+    bedNumber: string;
+    admissionDate: string;
+    diagnosis: string;
+    comorbidities: string[];
+    allergies: string[];
+    currentMedications: string[];
+    visitationHistory: Visitation[];
+}
 // Mock Patients Data
 export const mockPatients: Patient[] = [
     {
@@ -324,7 +426,7 @@ export const mockFoodData: FoodItem[] = [
     { id: '14', name: 'Kacang Almond', category: 'Snack Sehat', calories: 579, carbs: 22, protein: 21, fat: 50, fiber: 12, glycemicIndex: 15, diabeticFriendly: true, sodium: 1, sugar: 4.4, portion: '30g (1 genggam)' }
 ];
 
-export const mockNutritionPlans : NutritionPlan[] = [
+export const mockNutritionPlans: NutritionPlan[] = [
     {
         id: '1',
         patientId: '1',
@@ -338,8 +440,8 @@ export const mockNutritionPlans : NutritionPlan[] = [
         createdDate: '2024-08-01',
         lastUpdated: '2024-08-20',
         compliance: 65
-      },
-      {
+    },
+    {
         id: '2',
         patientId: '2',
         targetCalories: 1600,
@@ -352,19 +454,19 @@ export const mockNutritionPlans : NutritionPlan[] = [
         createdDate: '2024-07-15',
         lastUpdated: '2024-08-18',
         compliance: 85
-      },
+    },
 ]
 
-export const mockMealEntries : MealEntry[] = [
+export const mockMealEntries: MealEntry[] = [
     {
         id: '1',
         patientId: '1',
         date: '2024-08-29',
         mealType: 'breakfast',
         foods: [
-          { foodId: '1', foodName: 'Nasi Merah', portion: 100, calories: 110, carbs: 25, protein: 2.5, fat: 1 },
-          { foodId: '3', foodName: 'Ayam Dada', portion: 80, calories: 132, carbs: 0, protein: 24.8, fat: 2.9 },
-          { foodId: '7', foodName: 'Bayam', portion: 100, calories: 23, carbs: 3.6, protein: 2.9, fat: 0.4 }
+            { foodId: '1', foodName: 'Nasi Merah', portion: 100, calories: 110, carbs: 25, protein: 2.5, fat: 1 },
+            { foodId: '3', foodName: 'Ayam Dada', portion: 80, calories: 132, carbs: 0, protein: 24.8, fat: 2.9 },
+            { foodId: '7', foodName: 'Bayam', portion: 100, calories: 23, carbs: 3.6, protein: 2.9, fat: 0.4 }
         ],
         totalCalories: 265,
         totalCarbs: 28.6,
@@ -373,24 +475,161 @@ export const mockMealEntries : MealEntry[] = [
         bloodSugarBefore: 120,
         bloodSugarAfter: 145,
         notes: 'Pasien merasa kenyang dan puas'
-      },
-      {
+    },
+    {
         id: '2',
         patientId: '1',
         date: '2024-08-29',
         mealType: 'lunch',
         foods: [
-          { foodId: '1', foodName: 'Nasi Merah', portion: 150, calories: 165, carbs: 37.5, protein: 3.8, fat: 1.5 },
-          { foodId: '4', foodName: 'Ikan Salmon', portion: 100, calories: 206, carbs: 0, protein: 28, fat: 12 },
-          { foodId: '8', foodName: 'Brokoli', portion: 100, calories: 25, carbs: 5, protein: 3, fat: 0.4 }
+            { foodId: '1', foodName: 'Nasi Merah', portion: 150, calories: 165, carbs: 37.5, protein: 3.8, fat: 1.5 },
+            { foodId: '4', foodName: 'Ikan Salmon', portion: 100, calories: 206, carbs: 0, protein: 28, fat: 12 },
+            { foodId: '8', foodName: 'Brokoli', portion: 100, calories: 25, carbs: 5, protein: 3, fat: 0.4 }
         ],
         totalCalories: 396,
         totalCarbs: 42.5,
         totalProtein: 34.8,
         totalFat: 13.9,
         notes: 'Porsi sesuai anjuran'
-      }
+    }
 ]
+
+
+export const mockDrugData: DrugData[] = [
+    {
+        id: '1',
+        name: 'Metformin 500mg',
+        category: 'Antidiabetes',
+        dosageForm: 'Tablet',
+        strength: '500mg',
+        manufacturer: 'Dexa Medica',
+        stock: 500,
+        expiryDate: '2025-12-31',
+        interactions: ['Glimepiride', 'Insulin'],
+        contraindications: ['Gagal ginjal berat', 'Ketoasidosis diabetik'],
+        sideEffects: ['Mual', 'Diare', 'Nyeri perut'],
+        indications: ['Diabetes melitus tipe 2']
+    },
+    {
+        id: '2',
+        name: 'Glimepiride 2mg',
+        category: 'Antidiabetes',
+        dosageForm: 'Tablet',
+        strength: '2mg',
+        manufacturer: 'Novartis',
+        stock: 300,
+        expiryDate: '2025-08-15',
+        interactions: ['Metformin', 'Aspirin'],
+        contraindications: ['Diabetes tipe 1', 'Kehamilan'],
+        sideEffects: ['Hipoglikemia', 'Pusing', 'Mual'],
+        indications: ['Diabetes melitus tipe 2']
+    }
+]
+
+export const mockPatientComplaint: PatientComplaint[] = [
+    {
+        id: '1',
+        patientId: '1',
+        date: '2024-08-20',
+        complaint: 'Mual setelah minum obat metformin',
+        severity: 'Sedang',
+        status: 'Baru'
+    },
+    {
+        id: '2',
+        patientId: '2',
+        date: '2024-08-18',
+        complaint: 'Pusing saat berdiri',
+        severity: 'Ringan',
+        status: 'Selesai'
+    },
+    {
+        id: '3',
+        patientId: '3',
+        date: '2024-08-27',
+        complaint: 'Penglihatan Kabur',
+        severity: 'Berat',
+        status: 'Selesai'
+    }
+]
+
+export const mockLabResult: LabResult[] = [
+    {
+        id: '1',
+        patientId: '1',
+        testType: 'HbA1c',
+        value: '8.5%',
+        normalRange: '<7%',
+        date: '2024-08-15',
+        status: 'HIGH'
+    },
+    {
+        id: '2',
+        patientId: '1',
+        testType: 'Kreatinin',
+        value: '1.2 mg/dL',
+        normalRange: '0.6-1.3 mg/dL',
+        date: '2024-08-15',
+        status: 'NORMAL'
+    }
+]
+
+export const mockPharmacyNote: PharmacyNote[] = [
+    {
+        id: '1',
+        patientId: '1',
+        date: '2024-08-20',
+        note: 'Pasien mengalami mual setelah minum metformin. Disarankan minum setelah makan.',
+        pharmacist: 'Apt. Sarah',
+        category: 'MEDICATION'
+    },
+    {
+        id: '2',
+        patientId: '2',
+        date: '2024-08-18',
+        note: 'Edukasi tentang tanda-tanda hipoglikemia dan cara mengatasinya.',
+        pharmacist: 'Apt. Ahmad',
+        category: 'COUNSELING'
+    }
+]
+
+// nursepoli
+export const mockBloodSugar: BloodSugarHistory[] = [
+    { id: '1', patientId: '1', value: 180, date: '2024-08-29', time: '08:00', notes: 'Setelah sarapan' },
+    { id: '2', patientId: '1', value: 145, date: '2024-08-28', time: '07:30', notes: 'Puasa' },
+    { id: '3', patientId: '2', value: 145, date: '2024-08-29', time: '08:15', notes: 'Setelah minum obat' },
+    { id: '4', patientId: '3', value: 220, date: '2024-08-29', time: '09:00', notes: 'Tidak minum obat' }
+]
+
+// Nurse
+export const mockPatientLog: PatientLog[] = [
+    {
+        id: '1',
+        patientId: '1',
+        roomNumber: 'R201',
+        bedNumber: 'B1',
+        admissionDate: '2024-08-25',
+        diagnosis: 'Diabetes Melitus Tipe 2 dengan Komplikasi',
+        comorbidities: ['Hipertensi', 'Neuropati Diabetik'],
+        allergies: ['Sulfa', 'Ruam kulit'],
+        currentMedications: ['Metformin 500mg 2x/hari', 'Glimepiride 2mg 1x/hari', 'Amlodipine 5mg 1x/hari'],
+        visitationHistory: []
+    },
+    {
+        id: '2',
+        patientId: '3',
+        roomNumber: 'R203',
+        bedNumber: 'B2',
+        admissionDate: '2024-08-28',
+        diagnosis: 'Diabetes Melitus Tipe 2 Dekompensasi',
+        comorbidities: ['Hipertensi', 'Obesitas'],
+        allergies: [],
+        currentMedications: ['Metformin 850mg 2x/hari', 'Insulin Regular 10 unit 2x/hari'],
+        visitationHistory: []
+    }
+]
+
+
 
 // Dashboard Statistics
 export const dashboardStats = {

@@ -9,8 +9,8 @@ declare module "next-auth" {
       id: string;
       role: UserRole;
       username: string;
-      employeeId?: string;  // For internal staff identification
-      department?: string;  // For organizational structure
+      employeeId?: string;  
+      department?: string;  
     } & DefaultSession["user"];
   }
 

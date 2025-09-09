@@ -2,29 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Users, HeartPulse, Edit, Trash2, Eye } from 'lucide-react';
 import {
-  mockPatients, mockAlerts,
-  dashboardStats,
+  mockPatients,
   Patient,
-  Alert
+  PatientComplaint,
+  mockPatientComplaint,
+  BloodSugarHistory,
+  mockBloodSugar
 } from '@/data/mockData';
 
-interface PatientComplaint {
-  id: string;
-  patientId: string;
-  complaint: string;
-  severity: 'Ringan' | 'Sedang' | 'Berat';
-  date: string;
-  status: 'Baru' | 'Dalam Proses' | 'Selesai';
-}
 
-interface BloodSugarHistory {
-  id: string;
-  patientId: string;
-  value: number;
-  date: string;
-  time: string;
-  notes: string;
-}
 
 const NursePoliDashboard = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -35,18 +21,9 @@ const NursePoliDashboard = () => {
   const [showEditPatient, setShowEditPatient] = useState<string | null>(null);
   const [showAddComplaint, setShowAddComplaint] = useState<string | null>(null);
   
-  const [complaints] = useState<PatientComplaint[]>([
-    { id: '1', patientId: '1', complaint: 'Sering merasa haus dan lapar', severity: 'Sedang', date: '2024-08-29', status: 'Baru' },
-    { id: '2', patientId: '2', complaint: 'Kesemutan di kaki', severity: 'Ringan', date: '2024-08-28', status: 'Dalam Proses' },
-    { id: '3', patientId: '3', complaint: 'Penglihatan kabur', severity: 'Berat', date: '2024-08-27', status: 'Selesai' }
-  ]);
+  const [complaints] = useState<PatientComplaint[]>(mockPatientComplaint);
 
-  const [bloodSugarHistory] = useState<BloodSugarHistory[]>([
-    { id: '1', patientId: '1', value: 180, date: '2024-08-29', time: '08:00', notes: 'Setelah sarapan' },
-    { id: '2', patientId: '1', value: 145, date: '2024-08-28', time: '07:30', notes: 'Puasa' },
-    { id: '3', patientId: '2', value: 145, date: '2024-08-29', time: '08:15', notes: 'Setelah minum obat' },
-    { id: '4', patientId: '3', value: 220, date: '2024-08-29', time: '09:00', notes: 'Tidak minum obat' }
-  ]);
+  const [bloodSugarHistory] = useState<BloodSugarHistory[]>(mockBloodSugar);
 
   const [newPatient, setNewPatient] = useState({
     name: '',
@@ -65,7 +42,24 @@ const NursePoliDashboard = () => {
   });
 
   useEffect(() => {
-    setPatients(mockPatients);
+    const fetchData = async () => {
+      try {
+        // Fetch patients from API
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
+
+       
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data if API fails
+        setPatients(mockPatients);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const filteredPatients = patients.filter(patient =>
@@ -190,7 +184,7 @@ const NursePoliDashboard = () => {
           <input
             type="text"
             placeholder="Cari pasien..."
-            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-64"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -371,7 +365,7 @@ const NursePoliDashboard = () => {
                 <div className="mt-6 space-x-4">
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-500 transition-colors"
                   >
                     {showEditPatient ? 'Update' : 'Simpan'} Pasien
                   </button>
@@ -397,7 +391,7 @@ const NursePoliDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
               <button
                 onClick={() => setShowAddPatient(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors flex items-center space-x-2"
               >
                 <Plus className="h-4 w-4" />
                 <span>Pasien Baru</span>

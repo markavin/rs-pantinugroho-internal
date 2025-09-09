@@ -23,16 +23,46 @@ const NutritionistDashboard = () => {
   const [showFoodRecall, setShowFoodRecall] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Initialize demo data (integrated with doctor data)
   useEffect(() => {
-    // Patient data from doctor dashboard
-    setPatients(mockPatients)
-    // Enhanced food database with Indonesian foods
-    setFoodDatabase(mockFoodData)
-    // Nutrition plans
-    setNutritionPlans(mockNutritionPlans);
-    // Sample meal entries
-    setMealEntries(mockMealEntries);
+    const fetchData = async () => {
+      try {
+        // Fetch patients from API
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
+
+        const foodDatabase = await fetch('/api/dashboard?type=food-items');
+        if (foodDatabase.ok) {
+          const foodData = await foodDatabase.json();
+          setFoodDatabase(foodData);
+        }
+
+        const nutritionPlans = await fetch('/api/dashboard?type=nutrition-plans');
+        if (nutritionPlans.ok) {
+          const nutritionplan = await nutritionPlans.json();
+          setNutritionPlans(nutritionplan);
+        }
+
+        const mealEntry = await fetch('/api/dashboard?type=meal-entries');
+        if (mealEntry.ok) {
+          const mealentries = await mealEntry.json();
+          setMealEntries(mealentries);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data if API fails
+        setPatients(mockPatients);
+        setFoodDatabase(mockFoodData)
+        // Nutrition plans
+        setNutritionPlans(mockNutritionPlans);
+        // Sample meal entries
+        setMealEntries(mockMealEntries);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -221,7 +251,7 @@ const NutritionistDashboard = () => {
                     <div className="w-full h-2 bg-gray-200 rounded-full">
                       <div
                         className={`h-full rounded-full transition-all ${percentage > 110 ? 'bg-red-500' :
-                            percentage > 90 ? 'bg-yellow-500' : 'bg-emerald-500'
+                          percentage > 90 ? 'bg-yellow-500' : 'bg-emerald-500'
                           }`}
                         style={{ width: `${Math.min(percentage, 100)}%` }}
                       />
@@ -358,7 +388,7 @@ const NutritionistDashboard = () => {
                     <div className="w-full h-2 bg-gray-200 rounded-full">
                       <div
                         className={`h-full rounded-full ${compliance >= 80 ? 'bg-green-500' :
-                            compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                          compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                           }`}
                         style={{ width: `${compliance}%` }}
                       />
@@ -495,7 +525,7 @@ const NutritionistDashboard = () => {
                         <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
                           <div
                             className={`h-2 rounded-full ${compliance >= 80 ? 'bg-green-500' :
-                                compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                              compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                               }`}
                             style={{ width: `${compliance}%` }}
                           />
@@ -617,7 +647,7 @@ const NutritionistDashboard = () => {
                   </div>
                   <div className="flex gap-2">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${plan.compliance >= 80 ? 'bg-green-100 text-green-800' :
-                        plan.compliance >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                      plan.compliance >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
                       }`}>
                       Kepatuhan: {plan.compliance}%
                     </span>
@@ -866,7 +896,7 @@ const NutritionistDashboard = () => {
                     <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${compliance >= 80 ? 'bg-green-500' :
-                            compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                          compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                           }`}
                         style={{ width: `${compliance}%` }}
                       />
@@ -890,7 +920,7 @@ const NutritionistDashboard = () => {
                 <div key={risk} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-4 h-4 rounded ${risk === 'HIGH' ? 'bg-red-500' :
-                        risk === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+                      risk === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
                       }`} />
                     <span className="text-sm font-medium text-gray-700">
                       Risiko {risk === 'HIGH' ? 'Tinggi' : risk === 'MEDIUM' ? 'Sedang' : 'Rendah'}
@@ -900,7 +930,7 @@ const NutritionistDashboard = () => {
                     <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${risk === 'HIGH' ? 'bg-red-500' :
-                            risk === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+                          risk === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
                           }`}
                         style={{ width: `${percentage}%` }}
                       />
@@ -1200,8 +1230,8 @@ const NutritionistDashboard = () => {
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key as any)}
                     className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                        ? 'border-emerald-500 text-emerald-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-emerald-500 text-emerald-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                   >
                     <IconComponent className="h-5 w-5" />

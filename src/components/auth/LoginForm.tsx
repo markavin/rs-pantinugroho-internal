@@ -11,6 +11,7 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showCredentials, setShowCredentials] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,19 +70,19 @@ export default function LoginForm() {
     setIsLoading(false);
   };
 
-  // Demo accounts - update routes sesuai dengan getDashboardPath
-  const demoAccounts = [
-    { label: 'Super Admin', login: 'admin', password: 'admin123', role: 'SUPER_ADMIN' },
-    { label: 'Dokter', login: 'dokter', password: 'dokter123', role: 'DOKTER_SPESIALIS' },
-    { label: 'Perawat Ruangan', login: 'perawat_ruangan', password: 'perawat123', role: 'PERAWAT_RUANGAN' },
-    { label: 'Perawat Poli', login: 'perawat_poli', password: 'perawat123', role: 'PERAWAT_POLI' },
-    { label: 'Ahli Gizi', login: 'ahli_gizi', password: 'gizi123', role: 'AHLI_GIZI' },
-    { label: 'Farmasi', login: 'farmasi', password: 'farmasi123', role: 'FARMASI' }
+  // Available accounts from database (for reference/testing)
+  const availableAccounts = [
+    { role: 'Super Admin', username: 'admin', password: 'admin123' },
+    { role: 'Dokter Spesialis', username: 'dokter', password: 'dokter123' },
+    { role: 'Perawat Ruangan', username: 'perawat_ruangan', password: 'perawat123' },
+    { role: 'Perawat Poli', username: 'perawat_poli', password: 'perawat123' },
+    { role: 'Ahli Gizi', username: 'ahli_gizi', password: 'gizi123' },
+    { role: 'Farmasi', username: 'farmasi', password: 'farmasi123' }
   ];
 
-  const handleDemoLogin = (demoLogin: string, demoPassword: string) => {
-    setLogin(demoLogin);
-    setPassword(demoPassword);
+  const handleQuickFill = (username: string, pwd: string) => {
+    setLogin(username);
+    setPassword(pwd);
   };
 
   return (
@@ -93,7 +94,7 @@ export default function LoginForm() {
             <span className="text-white text-3xl">🏥</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">RS Panti Nugroho</h1>
-          <p className="text-gray-600">Sistem Informasi Manajemen Diabetes</p>
+          <p className="text-gray-600">Kawan Diabetes</p>
         </div>
 
         {/* Login Form */}
@@ -108,7 +109,7 @@ export default function LoginForm() {
                 type="text"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                 placeholder="Masukkan email atau username"
                 required
                 disabled={isLoading}
@@ -124,7 +125,7 @@ export default function LoginForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                 placeholder="Masukkan password"
                 required
                 disabled={isLoading}
@@ -153,38 +154,50 @@ export default function LoginForm() {
             </button>
           </form>
 
-          {/* Demo Accounts */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-3 text-center">Akun Demo - Klik untuk Preview Dashboard</h3>
-            <div className="space-y-2 text-xs">
-              {demoAccounts.map((account, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => handleDemoLogin(account.login, account.password)}
-                  className="w-full p-3 text-left bg-gray-50 hover:bg-gray-100 rounded border transition-colors"
-                  disabled={isLoading}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="font-medium text-gray-700">{account.label}</div>
-                      <div className="text-gray-500">{account.login}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-green-600 font-mono text-xs">
-                        {getDashboardPath(account.role as UserRole)}
+          {/* Toggle for showing available credentials */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => setShowCredentials(!showCredentials)}
+              className="w-full text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              disabled={isLoading}
+            >
+              {showCredentials ? 'sembunyikan contoh akun' : ' lihat contoh akun '} 
+            </button>
+
+            {showCredentials && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-gray-500 mb-2">Klik untuk mengisi otomatis:</p>
+                {availableAccounts.map((account, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleQuickFill(account.username, account.password)}
+                    className="w-full p-2 text-left bg-gray-50 hover:bg-gray-100 rounded border transition-colors text-xs"
+                    disabled={isLoading}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-gray-700">{account.role}</div>
+                        <div className="text-gray-500">@{account.username}</div>
+                      </div>
+                      <div className="text-gray-400 font-mono">
+                        {account.password}
                       </div>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+                <p className="text-xs text-gray-400 mt-2">
+                  * Untuk keperluan testing dan development
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
-          © 2024 RS Panti Nugroho. Semua hak dilindungi.
+          © 2025 RS Panti Nugroho. Semua hak dilindungi.
         </div>
       </div>
     </div>

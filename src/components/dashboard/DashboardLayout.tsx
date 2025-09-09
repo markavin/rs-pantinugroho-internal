@@ -64,7 +64,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     <div className={`min-h-screen bg-gradient-to-br ${roleTheme.gradient}`}>
       {/* Modern Header */}
       <header className="bg-white/90 backdrop-blur-md shadow-sm border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
             {/* Left side - Hospital branding */}
