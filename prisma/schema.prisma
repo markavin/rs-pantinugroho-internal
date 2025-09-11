@@ -7,6 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model LoginLog {
+  id         String    @id @default(cuid())
+  userId     String
+  loginTime  DateTime  @default(now())
+  logoutTime DateTime?
+  ipAddress  String?
+  userAgent  String?
+  sessionId  String?   @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relation to User model
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Indexes for better performance
+  @@index([userId])
+  @@index([sessionId])
+  @@index([loginTime])
+  @@index([logoutTime])
+
+  @@map("login_logs")
+}
+
 model User {
   id         String   @id @default(cuid())
   email      String   @unique
@@ -21,6 +44,7 @@ model User {
   updatedAt  DateTime @updatedAt
 
   // Relations
+  loginLogs          LoginLog[]
   patients           Patient[]
   medicalRecords     MedicalRecord[]
   educationNotes     EducationNote[]

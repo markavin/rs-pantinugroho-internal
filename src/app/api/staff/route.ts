@@ -1,143 +1,147 @@
-// import { NextRequest, NextResponse } from 'next/server';
-// import bcrypt from 'bcryptjs';
+// src/app/api/staff/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-// // Mock database - dalam implementasi nyata gunakan Prisma
-// let staffDatabase = [
-//   {
-//     id: '1',
-//     name: 'Dr. Sarah Ahmad',
-//     role: 'DOKTER_SPESIALIS',
-//     username: 'sarah.ahmad',
-//     email: 'sarah.ahmad@rspn.com',
-//     employeeId: 'DOK001',
-//     department: 'Penyakit Dalam',
-//     status: 'Aktif',
-//     lastLogin: '2024-01-15 09:30',
-//     createdAt: new Date('2024-01-01')
-//   },
-//   // ... staff lainnya dari mockData
-// ];
+const prisma = new PrismaClient();
 
-// export async function GET(request: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(request.url);
-//     const search = searchParams.get('search') || '';
-    
-//     let filteredStaff = staffDatabase;
-    
-//     if (search) {
-//       filteredStaff = staffDatabase.filter(staff =>
-//         staff.name.toLowerCase().includes(search.toLowerCase()) ||
-//         staff.username.toLowerCase().includes(search.toLowerCase()) ||
-//         staff.employeeId.toLowerCase().includes(search.toLowerCase())
-//       );
-//     }
-    
-//     return NextResponse.json(filteredStaff);
-//   } catch (error) {
-//     return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 });
-//   }
-// }
+// GET - Fetch all staff
+export async function GET() {
+  try {
+    const staff = await prisma.user.findMany({
+      where: {
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        department: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
 
-// export async function POST(request: NextRequest) {
-//   try {
-//     const data = await request.json();
-    
-//     // Validasi data
-//     const requiredFields = ['name', 'role', 'username', 'email', 'employeeId', 'department', 'password'];
-//     for (const field of requiredFields) {
-//       if (!data[field]) {
-//         return NextResponse.json({ error: `Field ${field} is required` }, { status: 400 });
-//       }
-//     }
-    
-//     // Cek duplikat username/email/employeeId
-//     const existingStaff = staffDatabase.find(s => 
-//       s.username === data.username || 
-//       s.email === data.email || 
-//       s.employeeId === data.employeeId
-//     );
-    
-//     if (existingStaff) {
-//       return NextResponse.json({ error: 'Username, email, or employee ID already exists' }, { status: 409 });
-//     }
-    
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(data.password, 12);
-    
-//     // Create new staff
-//     const newStaff = {
-//       id: (staffDatabase.length + 1).toString(),
-//       name: data.name,
-//       role: data.role,
-//       username: data.username,
-//       email: data.email,
-//       employeeId: data.employeeId,
-//       department: data.department,
-//       status: 'Aktif',
-//       lastLogin: 'Belum pernah login',
-//       password: hashedPassword, // Simpan hash password
-//       createdAt: new Date()
-//     };
-    
-//     staffDatabase.push(newStaff);
-    
-//     // Return without password
-//     const { password, ...staffWithoutPassword } = newStaff;
-//     return NextResponse.json(staffWithoutPassword, { status: 201 });
-    
-//   } catch (error) {
-//     return NextResponse.json({ error: 'Failed to create staff' }, { status: 500 });
-//   }
-// }
+    return NextResponse.json(staff);
+  } catch (error) {
+    console.error('Error fetching staff:', error);
+    return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 });
+  }
+}
 
-// export async function PUT(request: NextRequest) {
-//   try {
-//     const data = await request.json();
-//     const { id, ...updateData } = data;
+// POST - Create new staff
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
     
-//     if (!id) {
-//       return NextResponse.json({ error: 'Staff ID is required' }, { status: 400 });
-//     }
-    
-//     const staffIndex = staffDatabase.findIndex(s => s.id === id);
-//     if (staffIndex === -1) {
-//       return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
-//     }
-    
-//     // Update staff data
-//     staffDatabase[staffIndex] = {
-//       ...staffDatabase[staffIndex],
-//       ...updateData,
-//       updatedAt: new Date()
-//     };
-    
-//     const { password, ...staffWithoutPassword } = staffDatabase[staffIndex];
-//     return NextResponse.json(staffWithoutPassword);
-    
-//   } catch (error) {
-//     return NextResponse.json({ error: 'Failed to update staff' }, { status: 500 });
-//   }
-// }
+    if (!session || session.user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-// export async function DELETE(request: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(request.url);
-//     const id = searchParams.get('id');
+    const body = await request.json();
+    const { name, email, username, password, role, employeeId } = body;
+
+    // Validate required fields - more explicit check
+    const missingFields = [];
+    if (!name || name.trim() === '') missingFields.push('name');
+    if (!email || email.trim() === '') missingFields.push('email');
+    if (!username || username.trim() === '') missingFields.push('username');
+    if (!password || password.trim() === '') missingFields.push('password');
+    if (!role || role.trim() === '') missingFields.push('role');
+
+    if (missingFields.length > 0) {
+      return NextResponse.json({ 
+        error: `Missing required fields: ${missingFields.join(', ')}` 
+      }, { status: 400 });
+    }
+
+    // Check if username, email already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username.trim() },
+          { email: email.trim() }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      return NextResponse.json({ 
+        error: 'Username atau email sudah digunakan' 
+      }, { status: 400 });
+    }
+
+    // Generate sequential Employee ID based on role
+    const prefixes: { [key: string]: string } = {
+      'DOKTER_SPESIALIS': 'DOK',
+      'PERAWAT_RUANGAN': 'NUR',
+      'PERAWAT_POLI': 'NUP',
+      'FARMASI': 'PHA',
+      'AHLI_GIZI': 'NUT'
+    };
+
+    const prefix = prefixes[role] || 'EMP';
     
-//     if (!id) {
-//       return NextResponse.json({ error: 'Staff ID is required' }, { status: 400 });
-//     }
+    // Count existing users with the same role to get next number
+    const existingCount = await prisma.user.count({
+      where: { 
+        role: role,
+        isActive: true 
+      }
+    });
     
-//     const staffIndex = staffDatabase.findIndex(s => s.id === id);
-//     if (staffIndex === -1) {
-//       return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
-//     }
-    
-//     staffDatabase.splice(staffIndex, 1);
-//     return NextResponse.json({ message: 'Staff deleted successfully' });
-    
-//   } catch (error) {
-//     return NextResponse.json({ error: 'Failed to delete staff' }, { status: 500 });
-//   }
-// }
+    const nextNumber = (existingCount + 1).toString().padStart(3, '0');
+    const generatedEmployeeId = `${prefix}${nextNumber}`;
+
+    // Auto-generate department based on role
+    const departmentMapping: { [key: string]: string } = {
+      'DOKTER_SPESIALIS': 'Penyakit Dalam',
+      'PERAWAT_RUANGAN': 'Keperawatan Ruangan',
+      'PERAWAT_POLI': 'Poliklinik',
+      'FARMASI': 'Farmasi',
+      'AHLI_GIZI': 'Gizi'
+    };
+
+    const department = departmentMapping[role] || 'Umum';
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password.trim(), 12);
+
+    // Create user
+    const newUser = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.trim(),
+        username: username.trim(),
+        password: hashedPassword,
+        role,
+        employeeId: generatedEmployeeId,
+        department,
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        department: true,
+        createdAt: true,
+      }
+    });
+
+    return NextResponse.json(newUser, { status: 201 });
+  } catch (error) {
+    console.error('Error creating staff:', error);
+    return NextResponse.json({ error: 'Failed to create staff' }, { status: 500 });
+  }
+}

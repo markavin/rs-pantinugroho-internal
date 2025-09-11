@@ -4,6 +4,69 @@ import bcrypt from 'bcryptjs';
 
 
 const prisma = new PrismaClient();
+async function seedLoginLogs() {
+  console.log('🔄 Seeding login logs...');
+
+  // Get all users
+  const users = await prisma.user.findMany();
+
+  if (users.length === 0) {
+    console.log('No users found, skipping login logs');
+    return;
+  }
+
+  try {
+    // Generate login logs for the past 7 days
+    const now = new Date();
+    const loginLogs = [];
+
+    for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - dayOffset);
+
+      // Generate 3-15 login logs per day
+      const loginsPerDay = Math.floor(Math.random() * 13) + 3;
+
+      for (let i = 0; i < loginsPerDay; i++) {
+        const user = users[Math.floor(Math.random() * users.length)];
+
+        // Random time during the day (6 AM to 10 PM)
+        const loginTime = new Date(date);
+        loginTime.setHours(
+          Math.floor(Math.random() * 16) + 6,
+          Math.floor(Math.random() * 60),
+          Math.floor(Math.random() * 60)
+        );
+
+        // Some sessions are still active (no logout time)
+        const isActive = dayOffset === 0 && Math.random() < 0.3; // 30% of today's sessions are active
+        const logoutTime = isActive ? null : new Date(loginTime.getTime() + Math.random() * 8 * 60 * 60 * 1000); // 0-8 hours later
+
+        const sessionId = `${user.id}_${loginTime.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        loginLogs.push({
+          userId: user.id,
+          loginTime,
+          logoutTime,
+          sessionId,
+          ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        });
+      }
+    }
+
+    // Create login logs
+    for (const log of loginLogs) {
+      await prisma.loginLog.create({
+        data: log
+      });
+    }
+
+    console.log(`✅ Created ${loginLogs.length} login logs`);
+  } catch (error) {
+    console.log('⚠️ LoginLog table not available, skipping login logs:', error.message);
+  }
+}
 
 async function main() {
   console.log('🌱 Start seeding...');
@@ -20,7 +83,7 @@ async function main() {
     create: {
       email: 'admin@pantinugroho.com',
       username: 'admin',
-      password: await hashPassword('admin123'), 
+      password: await hashPassword('admin123'),
       name: 'Dr. Bambang Sutrisno',
       role: 'SUPER_ADMIN',
       employeeId: 'ADM001',
@@ -34,7 +97,7 @@ async function main() {
     create: {
       email: 'dokter@pantinugroho.com',
       username: 'dokter',
-      password: await hashPassword('dokter123'), 
+      password: await hashPassword('dokter123'),
       name: 'Dr. Sarah Wijayanti, Sp.PD',
       role: 'DOKTER_SPESIALIS',
       employeeId: 'DOC001',
@@ -65,7 +128,7 @@ async function main() {
       password: await hashPassword('perawat123'), // Hashed password
       name: 'Rina Kartika, S.Kep',
       role: 'PERAWAT_POLI',
-      employeeId: 'NUR002',
+      employeeId: 'NUP001',
       department: 'Poliklinik',
     },
   });
@@ -787,6 +850,8 @@ async function main() {
       },
     ],
   });
+
+  await seedLoginLogs();
 
   console.log('✅ Seeding finished!');
   console.log(`Created users: Admin, Doctor, Nurse, Nutritionist, Pharmacist`);

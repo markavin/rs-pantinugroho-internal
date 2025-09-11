@@ -62,67 +62,68 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${roleTheme.gradient}`}>
-      {/* Modern Header */}
-      <header className="bg-white/90 backdrop-blur-md shadow-sm border-b border-white/20">
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            
+      {/* Modern Header - Fully Responsive */}
+      <header className="bg-white/90 backdrop-blur-md shadow-sm border-b border-white/20 sticky top-0 z-30">
+        <div className="w-full max-w-none px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-16">
+          <div className="flex items-center justify-between h-14 sm:h-16 lg:h-18">
+
             {/* Left side - Hospital branding */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-2.5 shadow-md">
-                  <Heart className="h-6 w-6 text-white" />
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 shadow-md">
+                  <Heart className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold text-gray-900">RS Panti Nugroho</h1>
-                  <p className="text-sm text-gray-600 font-medium">Diabetes Care System</p>
+                <div className="min-w-0">
+                  <h1 className="text-sm sm:text-lg font-bold text-gray-900 truncate">RS Panti Nugroho</h1>
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium hidden xs:block">Diabetes Care System</p>
                 </div>
               </div>
             </div>
 
-            {/* Center - Time and shift info */}
-            <div className="hidden md:flex items-center space-x-6">
+            {/* Center - Time and shift info - Hidden on small screens, progressive reveal */}
+            <div className="hidden lg:flex items-center space-x-4 xl:space-x-6 flex-1 justify-center">
               <div className="text-center">
-                <p className="text-sm font-medium text-gray-600">
-                  {currentTime.toLocaleDateString('id-ID', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
+                <p className="text-sm font-medium text-gray-600 xl:text-base">
+                  {currentTime.toLocaleDateString('id-ID', {
+                    weekday: window.innerWidth > 1280 ? 'long' : 'short',
+                    year: 'numeric',
+                    month: window.innerWidth > 1280 ? 'long' : 'short',
+                    day: 'numeric'
                   })}
                 </p>
                 <div className="flex items-center justify-center space-x-3 mt-1">
                   <div className="flex items-center space-x-2">
                     <Clock className="h-4 w-4 text-gray-500" />
-                    <span className="text-lg font-bold text-gray-900">
-                      {currentTime.toLocaleTimeString('id-ID', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
+                    <span className="text-lg xl:text-xl font-bold text-gray-900">
+                      {currentTime.toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit'
                       })}
                     </span>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${shiftInfo.color}`}>
-                    {shiftInfo.shift}
+                  <div className={`px-2 xl:px-3 py-1 rounded-full text-xs font-medium ${shiftInfo.color}`}>
+                    <span className="hidden xl:inline">{shiftInfo.shift}</span>
+                    <span className="xl:hidden">{shiftInfo.shift.split(' ')[1]}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Right side - User info and actions */}
-            <div className="flex items-center space-x-4">
-              
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
+
               {/* Notifications */}
               <div className="flex items-center space-x-2">
                 <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Bell className="h-5 w-5" />
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full animate-pulse"></div>
                 </button>
-                
-                {/* Employee ID display */}
+
+                {/* Employee ID display - Progressive reveal */}
                 {session?.user?.employeeId && (
-                  <div className="hidden sm:flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg">
-                    <User className="h-4 w-4 text-gray-500" />
-                    <span className="text-xs text-gray-600">ID:</span>
+                  <div className="hidden md:flex lg:hidden xl:flex items-center space-x-2 bg-gray-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
+                    <User className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
+                    <span className="text-xs text-gray-600 hidden lg:inline xl:inline">ID:</span>
                     <span className="font-mono font-medium text-gray-800 text-xs">
                       {session.user.employeeId}
                     </span>
@@ -130,80 +131,107 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 )}
               </div>
 
-              {/* User profile section */}
-              <div className="flex items-center space-x-3 bg-white/80 rounded-xl px-4 py-2 shadow-sm border border-white/30">
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-bold text-gray-900">
-                    {getGreeting()}, {session?.user?.name}!
+              {/* User profile section - Responsive sizing */}
+              <div className="flex items-center space-x-2 sm:space-x-3 bg-white/80 rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 shadow-sm border border-white/30">
+                <div className="hidden sm:block lg:hidden xl:block text-right min-w-0">
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
+                    <span className="hidden lg:inline xl:inline">{getGreeting()}, </span>
+                    <span className="lg:hidden xl:hidden">Hi, </span>
+                    {session?.user?.name}!
                   </p>
-                  <div className="flex items-center justify-end space-x-2">
-                    <Shield className="h-3 w-3 text-green-600" />
-                    <span className="text-xs font-medium text-green-700">
-                      {userRole ? ROLE_NAMES[userRole] : 'Staff Medis'}
+                  <div className="flex items-center justify-end space-x-1 sm:space-x-2">
+                    <Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
+                    <span className="text-xs font-medium text-green-700 truncate">
+                      <span className="hidden lg:inline xl:inline">
+                        {userRole ? ROLE_NAMES[userRole] : 'Staff Medis'}
+                      </span>
+                      <span className="lg:hidden xl:hidden">
+                        {userRole ? ROLE_NAMES[userRole].split(' ')[0] : 'Staff'}
+                      </span>
                     </span>
                   </div>
-                  {session?.user?.department && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {session.user.department}
-                    </p>
-                  )}
                 </div>
-                
-                <button 
+
+                <button
                   onClick={handleLogout}
-                  className="flex items-center justify-center w-8 h-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors group"
+                  className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors group"
                   title="Logout"
                 >
-                  <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4 group-hover:scale-110 transition-transform" />
                 </button>
               </div>
 
               {/* Mobile menu button */}
-              <button 
+              <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                className="lg:hidden p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Mobile/Tablet Time Display - Only visible on smaller screens */}
+      <div className="lg:hidden bg-white/70 backdrop-blur-sm border-b border-white/20 px-3 sm:px-4 py-2 sm:py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Clock className="h-4 w-4 text-gray-500" />
+            <div>
+              <span className="text-lg font-bold text-gray-900">
+                {currentTime.toLocaleTimeString('id-ID', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+              <span className="text-sm text-gray-600 ml-2">
+                {currentTime.toLocaleDateString('id-ID', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short'
+                })}
+              </span>
+            </div>
+          </div>
+          <div className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${shiftInfo.color}`}>
+            {shiftInfo.shift}
+          </div>
+        </div>
+      </div>
+
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm"
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Modern Mobile sidebar */}
+      {/* Modern Mobile/Tablet sidebar - Responsive width */}
       <div className={`
-        fixed top-0 right-0 h-full w-80 bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 md:hidden
+        fixed top-0 right-0 h-full bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 lg:hidden
+        w-full max-w-sm sm:max-w-md md:max-w-lg
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
-        
+
         {/* Sidebar Header */}
-        <div className="p-6 bg-gradient-to-r from-green-500 to-green-600 text-white">
+        <div className="p-4 sm:p-6 bg-gradient-to-r from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <div className="bg-white/20 rounded-lg p-2">
-                <Heart className="h-6 w-6 text-white" />
+                <Heart className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <div>
-                <p className="font-bold text-white text-lg">{session?.user?.name}</p>
-                <p className="text-sm text-green-100">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-white text-base sm:text-lg truncate">{session?.user?.name}</p>
+                <p className="text-sm text-green-100 truncate">
                   {userRole ? ROLE_NAMES[userRole] : 'Staff Medis'}
                 </p>
-                {session?.user?.department && (
-                  <p className="text-xs text-green-100 opacity-80">{session.user.department}</p>
-                )}
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setSidebarOpen(false)}
-              className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors flex-shrink-0"
             >
               <X className="h-5 w-5" />
             </button>
@@ -222,85 +250,95 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
           )}
         </div>
-        
-        {/* Sidebar Content */}
-        <div className="p-6 space-y-6">
-          
-          {/* Current time and shift */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-            <div className="flex items-center space-x-2 mb-3">
-              <Clock className="h-5 w-5 text-blue-600" />
-              <span className="text-sm font-semibold text-blue-800">Waktu & Shift Saat Ini</span>
-            </div>
-            <p className="text-2xl font-bold text-blue-900 mb-2">
-              {currentTime.toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </p>
-            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${shiftInfo.color}`}>
-              {shiftInfo.shift}
-            </div>
-            <p className="text-xs text-blue-600 mt-2">{shiftInfo.time}</p>
-          </div>
 
-          {/* Current date */}
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
-            <p className="text-sm font-medium text-gray-600 mb-1">Tanggal Hari Ini</p>
-            <p className="text-lg font-bold text-gray-900">
-              {currentTime.toLocaleDateString('id-ID', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </p>
-          </div>
+        {/* Sidebar Content - Scrollable on small screens */}
+        <div className="p-4 sm:p-6 space-y-3 overflow-y-auto h-full pb-20">
 
-          {/* Notifications */}
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+          {/* Current time and shift - Compact */}
+          <div className="bg-white rounded-lg p-3 border border-green-100 shadow-sm">
             <div className="flex items-center space-x-2 mb-2">
-              <Bell className="h-5 w-5 text-amber-600" />
-              <span className="text-sm font-semibold text-amber-800">Notifikasi Pending</span>
+              <Clock className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium text-green-800">Waktu & Shift Saat Ini</span>
             </div>
-            <p className="text-lg font-bold text-amber-900 mb-1">3</p>
-            <p className="text-xs text-amber-700">tugas menunggu perhatian</p>
+            <p className="text-lg font-bold text-gray-900 mb-1">
+              {currentTime.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+            <div className="flex items-center justify-between">
+              <div className="bg-green-50 text-green-700 px-2 py-1 rounded-md text-xs font-medium">
+                {shiftInfo.shift}
+              </div>
+              <span className="text-xs text-gray-500">{shiftInfo.time}</span>
+            </div>
           </div>
 
-          {/* Logout button */}
-          <button 
-            onClick={handleLogout}
-            className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2"
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Logout</span>
-          </button>
+          {/* Current date - Compact */}
+          <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+            <p className="text-sm font-medium text-gray-600 mb-1">Tanggal Hari Ini</p>
+            <p className="text-base font-bold text-gray-900">
+              {currentTime.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </p>
+          </div>
+
+          {/* Notifications - Compact */}
+          <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Bell className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-gray-800">Notifikasi Pending</span>
+              </div>
+              <div className="bg-green-50 text-green-700 px-2 py-1 rounded-md">
+                <span className="text-sm font-bold">3</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">tugas menunggu perhatian</p>
+          </div>
+
+          {/* Logout button - Simple */}
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 group"
+            >
+              <LogOut className="h-4 w-4 text-red-500 group-hover:text-red-600" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
+      {/* Main content - Responsive container */}
+      <main className="w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-16 py-4 sm:py-6 lg:py-8">
+        <div className="max-w-none mx-auto">
+          {children}
+        </div>
       </main>
 
-      {/* Modern Motivational Footer */}
-      <footer className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-8 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4">
-            <div className="flex items-center justify-center space-x-3">
-              <Heart className="h-8 w-8 text-white" />
-              <h3 className="text-xl font-bold">RS Panti Nugroho</h3>
+      {/* Modern Motivational Footer - Responsive */}
+      <footer className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-6 sm:py-8 mt-8 sm:mt-12 lg:mt-16">
+        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-16">
+          <div className="text-center space-y-3 sm:space-y-4">
+            <div className="flex items-center justify-center space-x-2 sm:space-x-3">
+              <Heart className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+              <h3 className="text-lg sm:text-xl font-bold">RS Panti Nugroho</h3>
             </div>
-            
-            <p className="text-lg font-medium max-w-2xl mx-auto">
+
+            <p className="text-base sm:text-lg font-medium max-w-2xl mx-auto px-4">
               "Bersama kita berikan pelayanan diabetes terbaik untuk Indonesia"
             </p>
-            
-            <p className="text-sm text-green-100 max-w-xl mx-auto">
-              Tim Medis Profesional untuk Perawatan Diabetes Berkualitas
+
+            <p className="text-sm text-green-100 max-w-xl mx-auto px-4">
+              © 2025 RS Panti Nugroho. Semua hak dilindungi.
             </p>
-            
-            <div className="flex items-center justify-center space-x-6 text-xs text-green-200 pt-4 border-t border-green-500/30">
+
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-6 text-xs text-green-200 pt-4 border-t border-green-500/30">
               <div className="flex items-center space-x-1">
                 <Shield className="h-3 w-3" />
                 <span>{userRole ? ROLE_NAMES[userRole] : 'Staff Medis'}</span>
@@ -309,7 +347,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Clock className="h-3 w-3" />
                 <span>{shiftInfo.shift}</span>
               </div>
-              <span>Sistem Internal RS Panti Nugroho</span>
+              <span className="text-center">Sistem Internal RS Panti Nugroho</span>
             </div>
           </div>
         </div>

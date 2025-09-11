@@ -70,9 +70,8 @@ export default function LoginForm() {
     setIsLoading(false);
   };
 
-  // Available accounts from database (for reference/testing)
   const availableAccounts = [
-    { role: 'Super Admin', username: 'admin', password: 'admin123' },
+    { role: 'Admin', username: 'admin', password: 'admin123' },
     { role: 'Dokter Spesialis', username: 'dokter', password: 'dokter123' },
     { role: 'Perawat Ruangan', username: 'perawat_ruangan', password: 'perawat123' },
     { role: 'Perawat Poli', username: 'perawat_poli', password: 'perawat123' },

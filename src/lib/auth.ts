@@ -13,7 +13,7 @@ export type UserRole =
 
 // Role display names in Indonesian
 export const ROLE_NAMES: Record<UserRole, string> = {
-  SUPER_ADMIN: 'Super Admin',
+  SUPER_ADMIN: 'Admin',
   DOKTER_SPESIALIS: 'Dokter Spesialis Penyakit Dalam',
   PERAWAT_RUANGAN: 'Perawat Ruangan',
   PERAWAT_POLI: 'Perawat Poli',
