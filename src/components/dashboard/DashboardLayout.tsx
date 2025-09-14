@@ -53,9 +53,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const getShiftInfo = () => {
     const hour = currentTime.getHours();
-    if (hour >= 7 && hour < 14) return { shift: 'Shift Pagi', time: '07:00-14:00', color: 'text-orange-600 bg-orange-100' };
-    if (hour >= 14 && hour < 21) return { shift: 'Shift Siang', time: '14:00-21:00', color: 'text-blue-600 bg-blue-100' };
-    return { shift: 'Shift Malam', time: '21:00-07:00', color: 'text-purple-600 bg-purple-100' };
+    if (hour >= 7 && hour < 14) return { shift: 'Shift Pagi', time: '07:00-19:00', color: 'text-orange-600 bg-orange-100' };
+    // if (hour >= 14 && hour < 21) return { shift: 'Shift Siang', time: '14:00-21:00', color: 'text-blue-600 bg-blue-100' };
+    return { shift: 'Shift Malam', time: '19:00-07:00', color: 'text-purple-600 bg-purple-100' };
   };
 
   const shiftInfo = getShiftInfo();

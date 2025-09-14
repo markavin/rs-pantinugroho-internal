@@ -136,7 +136,7 @@ export const authOptions: NextAuthOptions = {
             username: user.username,
             employeeId: user.employeeId,
             department: user.department,
-            sessionId // Add session ID for tracking
+            sessionId 
           };
 
         } catch (error) {

@@ -14,6 +14,8 @@ import NurseDashboard from '@/components/dashboard/nurse/page';
 import NursePoliDashboard from '@/components/dashboard/nursePoli/page';
 import NutritionistDashboard from '@/components/dashboard/nutritionist/page';
 import PharmacyDashboard from '@/components/dashboard/pharmacy/page';
+import ManajerDashboard from '@/components/dashboard/manajer/page';
+import AdministrasiDashboard from '@/components/dashboard/administrasi/page';
 
 const roleMapping = {
   'admin': 'SUPER_ADMIN',
@@ -21,7 +23,9 @@ const roleMapping = {
   'nurse': 'PERAWAT_RUANGAN',
   'nurse-poli': 'PERAWAT_POLI',
   'nutritionist': 'AHLI_GIZI',
-  'pharmacy': 'FARMASI'
+  'pharmacy': 'FARMASI',
+  'administrasi': 'ADMINISTRASI',
+  'manajer': 'MANAJER'
 };
 
 export default function RoleBasedDashboard() {
@@ -72,6 +76,8 @@ export default function RoleBasedDashboard() {
       case 'nurse-poli': return <NursePoliDashboard />;
       case 'nutritionist': return <NutritionistDashboard />;
       case 'pharmacy': return <PharmacyDashboard />;
+      case 'manajer': return <ManajerDashboard/>;
+      case 'administrasi' : return <AdministrasiDashboard/>;
       default: 
         router.push('/dashboard');
         return null;

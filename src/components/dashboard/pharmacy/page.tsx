@@ -1,7 +1,7 @@
 // src/components/dashboard/pharmacy/page.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Pill, AlertTriangle, Users, FileText, Activity, TrendingDown, Clock, AlertCircle, CheckCircle, XCircle, Edit, Trash2, Eye, Save, X, History, TestTube } from 'lucide-react';
+import { Search, Plus, Pill, AlertTriangle, Users, FileText, Activity, TrendingDown, Clock, AlertCircle, CheckCircle, XCircle, Edit, Trash2, Eye, Save, X, History, TestTube, Menu } from 'lucide-react';
 import {
     mockPatients,
     mockAlerts,
@@ -28,6 +28,7 @@ const PharmacyDashboard = () => {
     const [showDrugForm, setShowDrugForm] = useState(false);
     const [editingDrug, setEditingDrug] = useState<DrugData | null>(null);
     const [activeFilter, setActiveFilter] = useState<'all' | 'allergies' | 'interactions' | 'high-risk'>('all');
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
     // Mock data
     const [drugData, setDrugData] = useState<DrugData[]>(mockDrugData);
@@ -132,26 +133,92 @@ const PharmacyDashboard = () => {
         }
     });
 
+    const handleTabChange = (tab: 'patients' | 'drugs' | 'complaints' | 'lab-results' | 'notes') => {
+        setActiveTab(tab);
+        setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+    };
+
+    // Navigation items
+    const navigationItems = [
+        { key: 'patients', label: 'Pasien', icon: Users },
+        { key: 'drugs', label: 'Data Obat', icon: Pill },
+        { key: 'complaints', label: 'Keluhan', icon: AlertCircle },
+        { key: 'lab-results', label: 'Hasil Lab', icon: TestTube },
+        { key: 'notes', label: 'Catatan Asuhan', icon: FileText }
+    ];
+
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* Mobile Sidebar Overlay */}
+            {isMobileSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                />
+            )}
+
+            {/* Mobile Sidebar */}
+            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
+                isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}>
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+                    <button
+                        onClick={() => setIsMobileSidebarOpen(false)}
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        <X className="h-5 w-5 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Sidebar Navigation */}
+                <nav className="p-4 space-y-2">
+                    {navigationItems.map(item => {
+                        const IconComponent = item.icon;
+                        return (
+                            <button
+                                key={item.key}
+                                onClick={() => handleTabChange(item.key as any)}
+                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
+                                    activeTab === item.key
+                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                            >
+                                <IconComponent className="h-5 w-5" />
+                                <span>{item.label}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+            </div>
+
             <div className="max-w-7xl mx-auto px-6 py-6">
                 {/* Header */}
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard Farmasi</h1>
-                    <p className="text-gray-600">Manajemen obat dan asuhan kefarmasian terintegrasi</p>
+                    {/* Mobile Header with Menu Button */}
+                    <div className="flex items-center justify-between mb-4 lg:hidden">
+                        <button
+                            onClick={() => setIsMobileSidebarOpen(true)}
+                            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                            <Menu className="h-5 w-5 text-gray-600" />
+                        </button>
+                    </div>
+
+                    {/* Desktop Header */}
+                    <div className="hidden lg:block">
+                        <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard Farmasi</h1>
+                        <p className="text-gray-600">Manajemen obat dan asuhan kefarmasian terintegrasi</p>
+                    </div>
                 </div>
 
-                {/* Tab Navigation */}
-                <div className="bg-white rounded-lg shadow-sm mb-6">
+                {/* Tab Navigation - Desktop Only */}
+                <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
                     <div className="border-b border-gray-200">
                         <nav className="-mb-px flex space-x-8 px-6">
-                            {[
-                                { key: 'patients', label: 'Pasien', icon: Users },
-                                { key: 'drugs', label: 'Data Obat', icon: Pill },
-                                { key: 'complaints', label: 'Keluhan', icon: AlertCircle },
-                                { key: 'lab-results', label: 'Hasil Lab', icon: TestTube },
-                                { key: 'notes', label: 'Catatan Asuhan', icon: FileText }
-                            ].map(tab => {
+                            {navigationItems.map(tab => {
                                 const IconComponent = tab.icon;
                                 return (
                                     <button

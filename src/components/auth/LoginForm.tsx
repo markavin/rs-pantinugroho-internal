@@ -76,6 +76,8 @@ export default function LoginForm() {
     { role: 'Perawat Ruangan', username: 'perawat_ruangan', password: 'perawat123' },
     { role: 'Perawat Poli', username: 'perawat_poli', password: 'perawat123' },
     { role: 'Ahli Gizi', username: 'ahli_gizi', password: 'gizi123' },
+    { role: 'Administrasi', username: 'administrasi', password: 'administrasi123' },
+    { role: 'Manajer', username: 'manajer', password: 'manajer123' },
     { role: 'Farmasi', username: 'farmasi', password: 'farmasi123' }
   ];
 

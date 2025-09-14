@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database, Edit, Trash2, Eye } from 'lucide-react';
+import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database, Edit, Trash2, Eye, Menu, X } from 'lucide-react';
 import StaffForm from './StaffForm';
 import { useStaffManagement } from './useStaffManagement';
 
 const AdminDashboard = () => {
   const { staff, loading, error, refetchStaff, deleteStaff } = useStaffManagement();
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'reports' | 'system'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'system'>('dashboard');
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [formMode, setFormMode] = useState<'add' | 'edit' | 'view'>('add');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [realTimeStats, setRealTimeStats] = useState({
     totalStaff: 0,
     dailyLogins: 0,
@@ -46,6 +47,8 @@ const AdminDashboard = () => {
       'PERAWAT_RUANGAN': 'Perawat Ruangan',
       'PERAWAT_POLI': 'Perawat Poli',
       'FARMASI': 'Farmasi',
+      'ADMINISTRASI': 'Administrasi',
+      'MANAJER': 'Manajer',
       'AHLI_GIZI': 'Ahli Gizi'
     };
     return roleNames[role] || role;
@@ -57,6 +60,8 @@ const AdminDashboard = () => {
       'PERAWAT_RUANGAN': 'text-teal-700 bg-teal-50 border-teal-200',
       'PERAWAT_POLI': 'text-cyan-700 bg-cyan-50 border-cyan-200',
       'FARMASI': 'text-emerald-700 bg-emerald-50 border-emerald-200',
+      'ADMINISTRASI': 'text-gray-700 bg-gray-50 border-gray-200',
+      'MANAJER': 'text-amber-700 bg-amber-50 border-amber-200',
       'AHLI_GIZI': 'text-green-700 bg-green-50 border-green-200'
     };
     return roleColors[role] || 'text-gray-700 bg-gray-50 border-gray-200';
@@ -107,45 +112,94 @@ const AdminDashboard = () => {
     setFormMode('add');
   };
 
+  const handleTabChange = (tab: 'dashboard' | 'staff' | 'system') => {
+    setActiveTab(tab);
+    setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+  };
+
   const maxLogins = Math.max(...realTimeStats.weeklyActivity.map(d => d.logins || 0), 1);
+
+  // Navigation items
+  const navigationItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: Activity },
+    { key: 'staff', label: 'Staff', icon: Users },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Header with Search (Staff tab) and System Status (All tabs) */}
-        <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          <div className="flex-1 mr-1">
-            {activeTab === 'staff' && (
-              <div className="relative w-full max-w-lg sm:max-w-xl md:max-w-6xl">
-                <input
-                  type="text"
-                  placeholder="Cari staff..."
-                  className="pl-10 md:pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full text-gray-700 text-sm md:text-base"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <Search className="absolute left-3 top-2.5 h-4 w-4 md:h-5 md:w-5 text-gray-700" />
-              </div>
-            )}
-          </div>
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
 
-          {/* Real-time Status Indicator */}
-          <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
-            <button className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-green-500 text-xs md:text-sm text-gray-600 hover:bg-green-300 transition-colors">
-              System Status
-            </button>
-          </div>
+      {/* Mobile Sidebar */}
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
+        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
+        {/* Sidebar Navigation */}
+        <nav className="p-4 space-y-2">
+          {navigationItems.map(item => {
+            const IconComponent = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleTabChange(item.key as any)}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
+                  activeTab === item.key
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <IconComponent className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Mobile Header with Menu Button */}
+        <div className="flex items-center justify-between mb-4 lg:hidden">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <Menu className="h-5 w-5 text-gray-600" />
+            {/* <span className="text-sm font-medium text-gray-700">Menu</span> */}
+          </button>
+
+          <button className="flex items-center bg-white px-4 py-2 rounded-lg shadow-sm border border-green-300 text-sm text-gray-600 hover:bg-green-300 transition-colors">
+            System Status
+          </button>
+        </div>
+
+        {/* Real-time Status Indicator - Desktop Only */}
+        <div className="hidden lg:flex items-center justify-center md:justify-end space-x-2 md:space-x-3 mb-4">
+          <button className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-green-300 text-xs md:text-sm text-gray-600 hover:bg-green-300 transition-colors">
+            System Status
+          </button>
+        </div>
+
+        {/* Navigation Tabs - Desktop Only */}
+        <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-20 px-3 sm:px-6 justify-center overflow-x-auto">
-              {[
-                { key: 'dashboard', label: 'Dashboard', icon: Activity },
-                { key: 'staff', label: 'Staff', icon: Users },
-                { key: 'reports', label: 'Laporan', icon: BarChart3 },
-              ].map(tab => {
+            <nav className="-mb-px flex space-x-125 px-3 sm:px-6 justify-center overflow-x-auto">
+              {navigationItems.map(tab => {
                 const IconComponent = tab.icon;
                 return (
                   <button
@@ -349,20 +403,42 @@ const AdminDashboard = () => {
         )}
 
         {/* Staff Management Tab */}
-        {activeTab === 'staff' && (
+        {activeTab === "staff" && (
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
-                <h3 className="text-lg font-semibold text-gray-900">Daftar Staff</h3>
-                <button
-                  onClick={handleAddStaff}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Staff Baru</span>
-                </button>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  {/* Title */}
+                  <h3 className="text-lg font-semibold text-gray-900">Daftar Staff</h3>
+
+                  {/* Search + Button */}
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Cari staff..."
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    </div>
+
+                    {/* Add Staff Button */}
+                    <button
+                      onClick={handleAddStaff}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Staff Baru
+                    </button>
+                  </div>
+                </div>
               </div>
 
+              {/* Isi Card */}
               {loading ? (
                 <div className="flex justify-center items-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
@@ -412,7 +488,11 @@ const AdminDashboard = () => {
                               {person.name}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getRoleColor(person.role)}`}>
+                              <span
+                                className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getRoleColor(
+                                  person.role
+                                )}`}
+                              >
                                 {getRoleDisplayName(person.role)}
                               </span>
                             </td>
@@ -435,7 +515,9 @@ const AdminDashboard = () => {
                                 <span>Edit</span>
                               </button>
                               <button
-                                onClick={() => handleDeleteStaff(person.id, person.name)}
+                                onClick={() =>
+                                  handleDeleteStaff(person.id, person.name)
+                                }
                                 className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -446,8 +528,13 @@ const AdminDashboard = () => {
                         ))}
                         {filteredStaff.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                              {searchTerm ? 'Tidak ada staff yang ditemukan' : 'Belum ada data staff'}
+                            <td
+                              colSpan={5}
+                              className="px-6 py-8 text-center text-gray-500"
+                            >
+                              {searchTerm
+                                ? "Tidak ada staff yang ditemukan"
+                                : "Belum ada data staff"}
                             </td>
                           </tr>
                         )}
@@ -458,14 +545,25 @@ const AdminDashboard = () => {
                   {/* Mobile Card Layout */}
                   <div className="lg:hidden space-y-4 p-4">
                     {filteredStaff.map((person) => (
-                      <div key={person.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                      <div
+                        key={person.id}
+                        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                      >
                         {/* Header dengan nama dan ID */}
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 text-lg">{person.name}</h4>
-                            <p className="text-sm text-gray-600">ID: {person.employeeId}</p>
+                            <h4 className="font-semibold text-gray-900 text-lg">
+                              {person.name}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              ID: {person.employeeId}
+                            </p>
                           </div>
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(person.role)}`}>
+                          <span
+                            className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(
+                              person.role
+                            )}`}
+                          >
                             {getRoleDisplayName(person.role)}
                           </span>
                         </div>
@@ -505,7 +603,11 @@ const AdminDashboard = () => {
                     {filteredStaff.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
                         <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p>{searchTerm ? 'Tidak ada staff yang ditemukan' : 'Belum ada data staff'}</p>
+                        <p>
+                          {searchTerm
+                            ? "Tidak ada staff yang ditemukan"
+                            : "Belum ada data staff"}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -514,56 +616,8 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
-        {/* Reports Tab */}
-        {activeTab === 'reports' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Laporan Sistem</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-lg border border-blue-200">
-                  <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-0">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-blue-900 text-sm sm:text-base">Laporan Aktivitas User</h4>
-                      <p className="text-xs sm:text-sm text-blue-700 mt-1">Login & logout tracking</p>
-                    </div>
-                    <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 ml-2" />
-                  </div>
-                  <button className="mt-3 sm:mt-4 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded text-sm hover:bg-blue-700 w-full sm:w-auto">
-                    Generate
-                  </button>
-                </div>
 
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-lg border border-green-200">
-                  <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-0">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-green-900 text-sm sm:text-base">Laporan Penggunaan Sistem</h4>
-                      <p className="text-xs sm:text-sm text-green-700 mt-1">Feature usage analytics</p>
-                    </div>
-                    <BarChart3 className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 ml-2" />
-                  </div>
-                  <button className="mt-3 sm:mt-4 bg-green-600 text-white px-3 sm:px-4 py-2 rounded text-sm hover:bg-green-700 w-full sm:w-auto">
-                    Generate
-                  </button>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 sm:p-6 rounded-lg border border-purple-200">
-                  <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-0">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-purple-900 text-sm sm:text-base">Laporan Security</h4>
-                      <p className="text-xs sm:text-sm text-purple-700 mt-1">Access logs & security events</p>
-                    </div>
-                    <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 ml-2" />
-                  </div>
-                  <button className="mt-3 sm:mt-4 bg-purple-600 text-white px-3 sm:px-4 py-2 rounded text-sm hover:bg-purple-700 w-full sm:w-auto">
-                    Generate
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Staff Form Modal - UNCHANGED */}
+        {/* Staff Form Modal */}
         <StaffForm
           isOpen={showStaffForm}
           onClose={handleCloseStaffForm}

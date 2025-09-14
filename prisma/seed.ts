@@ -161,6 +161,34 @@ async function main() {
     },
   });
 
+  const administrasi = await prisma.user.upsert({
+    where: { username: 'administrasi' },
+    update: {},
+    create: {
+      email: 'administrasi@pantinugroho.com',
+      username: 'administrasi',
+      password: await hashPassword('administrasi123'), // Hashed password
+      name: 'Ahmad Syahputra, S.Kep',
+      role: 'ADMINISTRASI',
+      employeeId: 'AS001',
+      department: 'Administrasi',
+    },
+  });
+
+  const manajerial = await prisma.user.upsert({
+    where: { username: 'manajer' },
+    update: {},
+    create: {
+      email: 'manajer@pantinugroho.com',
+      username: 'manajer',
+      password: await hashPassword('manajer123'), // Hashed password
+      name: 'Dr Sudohyono',
+      role: 'MANAJER',
+      employeeId: 'MN001',
+      department: 'Manajer',
+    },
+  });
+
   // Insert Patients
   const patient1 = await prisma.patient.upsert({
     where: { mrNumber: 'RM1001' },

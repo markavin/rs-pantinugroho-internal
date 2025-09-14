@@ -24,7 +24,7 @@ async function checkLoginLogTable() {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || (session.user as any).role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -44,13 +44,13 @@ export async function GET(request: NextRequest) {
 
     // Check if LoginLog table exists
     const loginLogStatus = await checkLoginLogTable();
-    
+
     let dailyLogins = 0;
     let weeklyActivity = [];
 
     if (loginLogStatus.exists && loginLogStatus.count > 0) {
       console.log('Using real LoginLog data');
-      
+
       try {
         // Get today's actual login count
         dailyLogins = await prisma.loginLog.count({
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
           const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
           const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
           const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-          
+
           const logins = await prisma.loginLog.count({
             where: {
               loginTime: {
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
           const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
           const isToday = dayStart.toDateString() === now.toDateString();
-          
+
           weeklyActivity.push({
             day: dayNames[date.getDay()],
             date: date.toISOString().split('T')[0],
@@ -94,15 +94,15 @@ export async function GET(request: NextRequest) {
 
       } catch (queryError) {
         console.error('Error querying LoginLog data:', queryError);
-        
+
         // If query fails, set to 0 to show no data available
         dailyLogins = 0;
-        
+
         const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
         for (let i = 6; i >= 0; i--) {
           const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
           const isToday = date.toDateString() === now.toDateString();
-          
+
           weeklyActivity.push({
             day: dayNames[date.getDay()],
             date: date.toISOString().split('T')[0],
@@ -113,15 +113,15 @@ export async function GET(request: NextRequest) {
       }
     } else {
       console.log('LoginLog table not available, no login data');
-      
+
       // No LoginLog table = no login tracking data
       dailyLogins = 0;
-      
+
       const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
         const isToday = date.toDateString() === now.toDateString();
-        
+
         weeklyActivity.push({
           day: dayNames[date.getDay()],
           date: date.toISOString().split('T')[0],
@@ -145,6 +145,8 @@ export async function GET(request: NextRequest) {
       'PERAWAT_RUANGAN': 'Perawat Ruangan',
       'PERAWAT_POLI': 'Perawat Poli',
       'FARMASI': 'Farmasi',
+      'ADMINISTRASI': 'Administrasi',
+      'MANAJER': 'Manajer',
       'AHLI_GIZI': 'Ahli Gizi'
     };
 
@@ -153,6 +155,8 @@ export async function GET(request: NextRequest) {
       'PERAWAT_RUANGAN': 'bg-teal-500',
       'PERAWAT_POLI': 'bg-cyan-500',
       'FARMASI': 'bg-emerald-500',
+      'ADMINISTRASI': 'bg-gray-500',
+      'MANAJER': 'bg-amber-500',
       'AHLI_GIZI': 'bg-green-500'
     };
 
@@ -186,8 +190,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error fetching admin stats:', error);
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Failed to fetch stats',
       details: error.message
     }, { status: 500 });

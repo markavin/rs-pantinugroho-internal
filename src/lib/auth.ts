@@ -2,22 +2,26 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// Define the new role types for RS Pantinugroho
-export type UserRole = 
-  | 'SUPER_ADMIN'       // Manajerial
-  | 'DOKTER_SPESIALIS'  // Dokter Spesialis Penyakit Dalam
-  | 'PERAWAT_RUANGAN'   // Perawat Ruangan
-  | 'PERAWAT_POLI'      // Perawat Poli
-  | 'AHLI_GIZI'         // Ahli Gizi
-  | 'FARMASI';          
 
-// Role display names in Indonesian
+export type UserRole =
+  | 'SUPER_ADMIN'
+  | 'DOKTER_SPESIALIS'
+  | 'PERAWAT_RUANGAN'
+  | 'PERAWAT_POLI'
+  | 'AHLI_GIZI'
+  | 'ADMINISTRASI'
+  | 'MANAJER'
+  | 'FARMASI';
+
+
 export const ROLE_NAMES: Record<UserRole, string> = {
   SUPER_ADMIN: 'Admin',
   DOKTER_SPESIALIS: 'Dokter Spesialis Penyakit Dalam',
   PERAWAT_RUANGAN: 'Perawat Ruangan',
   PERAWAT_POLI: 'Perawat Poli',
   AHLI_GIZI: 'Ahli Gizi',
+  ADMINISTRASI: 'Administrasi Pasien',
+  MANAJER: 'Manajer',
   FARMASI: 'Farmasi'
 };
 
@@ -28,6 +32,8 @@ export const ROLE_PERMISSIONS = {
   PERAWAT_RUANGAN: ['patients', 'medications', 'vital_signs', 'lab_results', 'education'],
   PERAWAT_POLI: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
   AHLI_GIZI: ['nutrition', 'diet_monitoring', 'food_recall', 'patient_metrics', 'allergies'],
+  ADMINISTRASI: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
+  MANAJER: ['all'],
   FARMASI: ['prescriptions', 'medications', 'drug_interactions', 'patient_conditions', 'inventory']
 };
 
@@ -39,15 +45,15 @@ export async function getSession() {
 // Helper function for requiring authentication
 export async function requireAuth(allowedRoles: UserRole[] = []) {
   const session = await getSession();
-  
+
   if (!session?.user) {
     return null;
   }
-  
+
   if (allowedRoles.length > 0 && !allowedRoles.includes((session.user as any).role)) {
     return null;
   }
-  
+
   return session;
 }
 
@@ -65,20 +71,20 @@ export function hasAnyRole(session: any, roles: UserRole[]): boolean {
 export function hasPermission(session: any, permission: string): boolean {
   const userRole = session?.user?.role as UserRole;
   if (!userRole) return false;
-  
+
   const permissions = ROLE_PERMISSIONS[userRole];
   return permissions.includes('all') || permissions.includes(permission);
 }
 
 // Type guard untuk memastikan user ada
-export function isAuthenticated(session: any): session is { 
-  user: { 
-    id: string; 
-    email: string; 
-    name: string; 
-    role: UserRole; 
-    username: string 
-  } 
+export function isAuthenticated(session: any): session is {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    username: string
+  }
 } {
   return session?.user?.id && session?.user?.role;
 }
@@ -88,10 +94,12 @@ export function getDashboardPath(role: UserRole): string {
   switch (role) {
     case 'SUPER_ADMIN': return '/dashboard/admin';
     case 'DOKTER_SPESIALIS': return '/dashboard/doctor';
-    case 'PERAWAT_RUANGAN': return '/dashboard/nurse'; // Fixed: was nurse-ward, now nurse
+    case 'PERAWAT_RUANGAN': return '/dashboard/nurse';
     case 'PERAWAT_POLI': return '/dashboard/nurse-poli';
     case 'AHLI_GIZI': return '/dashboard/nutritionist';
     case 'FARMASI': return '/dashboard/pharmacy';
+    case 'ADMINISTRASI': return '/dashboard/administrasi';
+    case 'MANAJER': return '/dashboard/manajer';
     default: return '/dashboard';
   }
 }
@@ -100,46 +108,53 @@ export function getDashboardPath(role: UserRole): string {
 export function getRoleTheme(role: UserRole): { primary: string; gradient: string; icon: string } {
   switch (role) {
     case 'SUPER_ADMIN':
-      return { 
-        primary: 'purple', 
-        gradient: 'from-purple-50 via-blue-50 to-indigo-100',
+      return {
+        primary: 'purple',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🔧'
       };
     case 'DOKTER_SPESIALIS':
-      return { 
-        primary: 'blue', 
-        gradient: 'from-blue-50 via-indigo-50 to-purple-50',
+      return {
+        primary: 'blue',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🩺'
       };
     case 'PERAWAT_RUANGAN':
-      return { 
-        primary: 'teal', 
-        gradient: 'from-teal-50 via-cyan-50 to-blue-50',
+      return {
+        primary: 'teal',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '👩‍⚕️'
       };
     case 'PERAWAT_POLI':
-      return { 
-        primary: 'cyan', 
-        gradient: 'from-cyan-50 via-blue-50 to-indigo-50',
+      return {
+        primary: 'cyan',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '💉'
       };
     case 'AHLI_GIZI':
-      return { 
-        primary: 'green', 
+      return {
+        primary: 'green',
         gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🥗'
       };
     case 'FARMASI':
-      return { 
-        primary: 'emerald', 
-        gradient: 'from-emerald-50 via-teal-50 to-cyan-50',
+      return {
+        primary: 'emerald',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '💊'
       };
-    default:
-      return { 
-        primary: 'gray', 
-        gradient: 'from-gray-50 via-slate-50 to-zinc-50',
-        icon: '👤'
+    case 'ADMINISTRASI':
+      return {
+        primary: 'gray',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        icon: '👩‍⚕️'
       };
+    case 'MANAJER':
+      return {
+        primary: 'amber',
+        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        icon: '📊'
+      };
+
   }
 }

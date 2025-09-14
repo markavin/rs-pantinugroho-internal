@@ -3,8 +3,7 @@ import {
   Search, Plus, Filter, TrendingUp, Calendar, Users, FileText, Bell, Settings,
   Eye, Edit3, Download, AlertTriangle, CheckCircle, Clock, Target, Activity,
   Scale, Apple, Utensils, BarChart3, PieChart, LineChart, Bookmark,
-  X,
-  User
+  X, User, Menu
 } from 'lucide-react';
 import { mockPatients, Patient, FoodItem, MealEntry, NutritionPlan, FoodRecall, mockFoodData, mockNutritionPlans, mockMealEntries } from '@/data/mockData';
 
@@ -22,6 +21,7 @@ const NutritionistDashboard = () => {
   const [showPatientDetail, setShowPatientDetail] = useState(false);
   const [showFoodRecall, setShowFoodRecall] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -117,6 +117,22 @@ const NutritionistDashboard = () => {
     const plan = nutritionPlans.find(p => p.patientId === patientId);
     return plan ? plan.compliance : 0;
   };
+
+  const handleTabChange = (tab: 'overview' | 'patients' | 'meal-planning' | 'food-recall' | 'database' | 'analytics' | 'education') => {
+    setActiveTab(tab);
+    setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+  };
+
+  // Navigation items
+  const navigationItems = [
+    { key: 'overview', label: 'Overview', icon: TrendingUp },
+    { key: 'patients', label: 'Pasien', icon: Users },
+    { key: 'meal-planning', label: 'Rencana Makan', icon: Utensils },
+    { key: 'food-recall', label: 'Food Recall', icon: FileText },
+    { key: 'database', label: 'Database Makanan', icon: Apple },
+    { key: 'analytics', label: 'Analisis', icon: BarChart3 },
+    { key: 'education', label: 'Edukasi', icon: Bookmark }
+  ];
 
   const renderOverview = () => (
     <div className="space-y-6">
@@ -1177,53 +1193,83 @@ const NutritionistDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      {/* <div className="bg-white shadow-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-emerald-600 text-white rounded-lg p-2 font-bold text-lg">
-                KD
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">KAWAN DIABETES</h1>
-                <p className="text-sm text-gray-600">Dashboard Ahli Gizi</p>
-              </div>
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
+        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Sidebar Navigation */}
+        <nav className="p-4 space-y-2">
+          {navigationItems.map(item => {
+            const IconComponent = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleTabChange(item.key as any)}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
+                  activeTab === item.key
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <IconComponent className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Mobile Header with Menu Button */}
+        <div className="flex items-center justify-between mb-4 lg:hidden">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <Menu className="h-5 w-5 text-gray-600" />
+          </button>
+          
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <Bell className="w-6 h-6 text-gray-400 hover:text-gray-600 cursor-pointer" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                3
+              </span>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Bell className="w-6 h-6 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  3
-                </span>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                <User className="w-5 h-5 text-emerald-600" />
               </div>
-
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-emerald-600" />
-                </div>
-                <span className="text-sm font-medium text-gray-700">Ahli Gizi</span>
-              </div>
+              <span className="text-sm font-medium text-gray-700 hidden sm:inline">Ahli Gizi</span>
             </div>
           </div>
         </div>
-      </div> */}
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Navigation Tabs */}
-        <div className="bg-white rounded-2xl shadow-sm mb-6 border border-emerald-100">
+        {/* Navigation Tabs - Desktop Only */}
+        <div className="bg-white rounded-2xl shadow-sm mb-6 border border-emerald-100 hidden lg:block">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8 px-6">
-              {[
-                { key: 'overview', label: 'Overview', icon: TrendingUp },
-                { key: 'patients', label: 'Pasien', icon: Users },
-                { key: 'meal-planning', label: 'Rencana Makan', icon: Utensils },
-                { key: 'food-recall', label: 'Food Recall', icon: FileText },
-                { key: 'database', label: 'Database Makanan', icon: Apple },
-                { key: 'analytics', label: 'Analisis', icon: BarChart3 },
-                { key: 'education', label: 'Edukasi', icon: Bookmark }
-              ].map(tab => {
+              {navigationItems.map(tab => {
                 const IconComponent = tab.icon;
                 return (
                   <button

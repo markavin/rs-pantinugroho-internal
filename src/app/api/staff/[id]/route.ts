@@ -14,9 +14,9 @@ export async function GET(
 ) {
   try {
     const staff = await prisma.user.findUnique({
-      where: { 
+      where: {
         id: params.id,
-        isActive: true 
+        isActive: true
       },
       select: {
         id: true,
@@ -49,7 +49,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -59,9 +59,9 @@ export async function PUT(
 
     // Check if staff exists
     const existingStaff = await prisma.user.findUnique({
-      where: { 
+      where: {
         id: params.id,
-        isActive: true 
+        isActive: true
       }
     });
 
@@ -86,8 +86,8 @@ export async function PUT(
     });
 
     if (duplicateUser) {
-      return NextResponse.json({ 
-        error: 'Username, email, or employee ID already exists' 
+      return NextResponse.json({
+        error: 'Username, email, or employee ID already exists'
       }, { status: 400 });
     }
 
@@ -97,6 +97,8 @@ export async function PUT(
       'PERAWAT_RUANGAN': 'Keperawatan Ruangan',
       'PERAWAT_POLI': 'Poliklinik',
       'FARMASI': 'Farmasi',
+      'ADMINISTRASI': 'Administrasi',
+      'MANAJER': 'Manajer',
       'AHLI_GIZI': 'Gizi'
     };
 
@@ -147,7 +149,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -171,7 +173,7 @@ export async function DELETE(
         where: { id: params.id }
       });
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: 'Staff deleted permanently from database',
         deletedStaff: {
           id: existingStaff.id,
@@ -182,11 +184,11 @@ export async function DELETE(
     } catch (deleteError: any) {
       // If foreign key constraint error, provide meaningful message
       if (deleteError.code === 'P2003') {
-        return NextResponse.json({ 
-          error: 'Cannot delete staff because they have associated records (patients, medications, etc.). Please remove related records first or contact system administrator.' 
+        return NextResponse.json({
+          error: 'Cannot delete staff because they have associated records (patients, medications, etc.). Please remove related records first or contact system administrator.'
         }, { status: 400 });
       }
-      
+
       // Re-throw other errors
       throw deleteError;
     }

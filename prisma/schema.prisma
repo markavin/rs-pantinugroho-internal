@@ -533,6 +533,8 @@ enum UserRole {
   AHLI_GIZI
   FARMASI
   PATIENT
+  MANAJER
+  ADMINISTRASI
 }
 
 enum Gender {

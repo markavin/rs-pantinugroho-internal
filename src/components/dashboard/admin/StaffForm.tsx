@@ -30,6 +30,8 @@ const ROLES = [
   { value: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
   { value: 'PERAWAT_POLI', label: 'Perawat Poli' },
   { value: 'FARMASI', label: 'Farmasi' },
+  { value: 'ADMINISTRASI', label: 'Administrasi' },
+  { value: 'MANAJER', label: 'Manajer' },
   { value: 'AHLI_GIZI', label: 'Ahli Gizi' }
 ];
 
@@ -72,6 +74,8 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
       'PERAWAT_RUANGAN': 'NUR',
       'PERAWAT_POLI': 'NUP',
       'FARMASI': 'PHA',
+      'ADMINISTRASI': 'AS',
+      'MANAJER': 'MN',
       'AHLI_GIZI': 'NUT'
     };
 

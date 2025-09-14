@@ -145,6 +145,8 @@ export async function GET(request: NextRequest) {
       'PERAWAT_RUANGAN': 'Perawat Ruangan',
       'PERAWAT_POLI': 'Perawat Poli',
       'FARMASI': 'Farmasi',
+      'ADMINISTRASI': 'Administrasi',
+      'MANAJER': 'Manajer',
       'AHLI_GIZI': 'Ahli Gizi'
     };
 
@@ -153,6 +155,8 @@ export async function GET(request: NextRequest) {
       'PERAWAT_RUANGAN': 'bg-teal-500',
       'PERAWAT_POLI': 'bg-cyan-500',
       'FARMASI': 'bg-emerald-500',
+      'ADMINISTRASI': 'bg-gray-500',
+      'MANAJER': 'bg-amber-500',
       'AHLI_GIZI': 'bg-green-500'
     };
 
