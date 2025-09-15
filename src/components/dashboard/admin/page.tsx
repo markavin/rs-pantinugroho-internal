@@ -4,7 +4,7 @@ import StaffForm from './StaffForm';
 import { useStaffManagement } from './useStaffManagement';
 
 const AdminDashboard = () => {
-  const { staff, loading, error, refetchStaff, deleteStaff } = useStaffManagement();
+  const { staff, setStaff, loading, error, refetchStaff, deleteStaff } = useStaffManagement();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'system'>('dashboard');
   const [showStaffForm, setShowStaffForm] = useState(false);
@@ -41,6 +41,7 @@ const AdminDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+
   const getRoleDisplayName = (role: string) => {
     const roleNames: { [key: string]: string } = {
       'DOKTER_SPESIALIS': 'Dokter Spesialis',
@@ -66,6 +67,23 @@ const AdminDashboard = () => {
     };
     return roleColors[role] || 'text-gray-700 bg-gray-50 border-gray-200';
   };
+
+  const refreshData = async () => {
+    const fetchData = async () => {
+      try {
+        const staffResponse = await fetch('api/dashboard?type=staff');
+        if (staffResponse.ok) {
+          const staffData = await staffResponse.json();
+          setStaff(staffData);
+        }
+      } catch (error) {
+        console.error('Error Refreshing data:', error)
+      }
+    };
+
+    await fetchData();
+  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const filteredStaff = staff.filter(person =>
     person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,16 +147,15 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-m font-semibold text-gray-900">Menu Admin</h2>
@@ -158,11 +175,10 @@ const AdminDashboard = () => {
               <button
                 key={item.key}
                 onClick={() => handleTabChange(item.key as any)}
-                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                  activeTab === item.key
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
                     ? 'bg-green-100 text-green-700 border border-green-200'
                     : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <IconComponent className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -180,19 +196,57 @@ const AdminDashboard = () => {
             className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
           >
             <Menu className="h-5 w-5 text-gray-600" />
-            {/* <span className="text-sm font-medium text-gray-700">Menu</span> */}
           </button>
 
-          <button className="flex items-center bg-white px-4 py-2 rounded-lg shadow-sm border border-green-300 text-sm text-gray-600 hover:bg-green-300 transition-colors">
-            System Status
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await refreshData();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                <span>Refresh</span>
+              </>
+            )}
           </button>
         </div>
 
-        {/* Real-time Status Indicator - Desktop Only */}
-        <div className="hidden lg:flex items-center justify-center md:justify-end space-x-2 md:space-x-3 mb-4">
-          <button className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-green-300 text-xs md:text-sm text-gray-600 hover:bg-green-300 transition-colors">
-            System Status
-          </button>
+        {/* Desktop Header */}
+        <div className="hidden lg:flex items-center justify-end mb-6">
+          <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                await refreshData();
+                setIsRefreshing(false);
+              }}
+              disabled={isRefreshing}
+              className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
+                       text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+            >
+              {isRefreshing ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                  <span>Refresh Data</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Navigation Tabs - Desktop Only */}

@@ -67,7 +67,6 @@ const DoctorDashboard = () => {
     fetchData();
   }, []);
 
-  // You might also want to add a refresh function
   const refreshData = async () => {
     const fetchData = async () => {
       try {
@@ -181,10 +180,9 @@ const DoctorDashboard = () => {
 
   const handleTabChange = (tab: 'dashboard' | 'patients' | 'nutrition' | 'pharmacy' | 'nursing') => {
     setActiveTab(tab);
-    setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+    setIsMobileSidebarOpen(false); 
   };
 
-  // Get analytics data using utility functions
   const nutritionAnalytics = {
     averageCompliance: getAverageCompliance(),
     patientsWithPlan: getPatientsWithNutritionPlan().length,

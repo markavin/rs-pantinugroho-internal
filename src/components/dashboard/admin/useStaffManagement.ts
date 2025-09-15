@@ -117,6 +117,7 @@ export const useStaffManagement = () => {
 
   return {
     staff,
+    setStaff,
     loading,
     error,
     refetchStaff: fetchStaff,

@@ -64,7 +64,24 @@ const NutritionistDashboard = () => {
 
     fetchData();
   }, []);
+  
+  const refreshData = async () => {
+    const fetchData = async () => {
+      try {
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
 
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+
+    await fetchData();
+  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800 border-green-200';
@@ -1195,16 +1212,15 @@ const NutritionistDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-m font-semibold text-gray-900">Menu Gizi</h2>
@@ -1224,11 +1240,10 @@ const NutritionistDashboard = () => {
               <button
                 key={item.key}
                 onClick={() => handleTabChange(item.key as any)}
-                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                  activeTab === item.key
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <IconComponent className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -1247,7 +1262,7 @@ const NutritionistDashboard = () => {
           >
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
-          
+
           <div className="flex items-center space-x-4">
             <div className="relative">
               <Bell className="w-6 h-6 text-gray-400 hover:text-gray-600 cursor-pointer" />

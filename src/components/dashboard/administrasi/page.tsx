@@ -98,6 +98,24 @@ const AdministrasiDashboard = () => {
     patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const refreshData = async () => {
+    const fetchData = async () => {
+      try {
+        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData);
+        }
+
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+
+    await fetchData();
+  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const formatDate = (date: Date | string) => {
     if (!date) return '-';
     return new Date(date).toLocaleDateString('id-ID');
@@ -246,8 +264,57 @@ const AdministrasiDashboard = () => {
           >
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await refreshData();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                <span>Refresh</span>
+              </>
+            )}
+          </button>
         </div>
 
+        {/* Desktop Header */}
+        <div className="hidden lg:flex items-center justify-end mb-6">
+          <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                await refreshData();
+                setIsRefreshing(false);
+              }}
+              disabled={isRefreshing}
+              className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
+               text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+            >
+              {isRefreshing ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                  <span>Refresh Data</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+        
         <div className="space-y-6">
           {/* Navigation Tabs - Desktop */}
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
