@@ -1,3 +1,4 @@
+
 // src/app/api/patient-complaints/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -6,7 +7,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// GET patient complaints
+// GET patient complaints - All roles can view
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST new patient complaint
+// POST new patient complaint - ONLY ADMINISTRASI can add complaints
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -60,14 +61,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to create complaints (PERAWAT_POLI only)
+    // Only ADMINISTRASI can create complaints (during registration or later)
     const userRole = (session.user as any).role;
-    if (userRole !== 'PERAWAT_POLI' && userRole !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can add patient complaints.' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { patientId, complaint, severity } = body;
+    const { patientId, complaint, severity, notes } = body;
 
     // Validate required fields
     if (!patientId || !complaint || !severity) {
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
         complaint: complaint.trim(),
         severity,
         status: 'BARU',
+        notes: notes?.trim() || null,
         date: new Date()
       },
       include: {

@@ -1,22 +1,27 @@
+
 // src/app/api/patients/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, hasPermission, isAuthenticated } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// GET single patient
+// GET single patient - PERAWAT_POLI can view for lab purposes
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth(['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN']);
-    if (!session) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!hasPermission(session, 'patients')) {
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
+    
+    if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -47,19 +52,21 @@ export async function GET(
   }
 }
 
-// PUT update patient
+// PUT update patient - ONLY ADMINISTRASI
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth(['PERAWAT_POLI']);
-    if (!session || !isAuthenticated(session)) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!hasPermission(session, 'patients')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    // Only ADMINISTRASI can update patients
+    const userRole = (session.user as any).role;
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can update patients.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -73,6 +80,8 @@ export async function PUT(
       weight,
       diabetesType,
       insuranceType,
+      allergies,
+      medicalHistory
     } = body;
 
     // Validate required fields
@@ -95,32 +104,36 @@ export async function PUT(
         weight: weight ? parseFloat(weight) : null,
         diabetesType: diabetesType || null,
         insuranceType,
+        allergies: allergies && allergies.length > 0 ? allergies : null,
+        medicalHistory: medicalHistory || null,
       }
     });
 
     return NextResponse.json(patient);
   } catch (error) {
     console.error('Error updating patient:', error);
-    if (error.code === 'P2025') {
+    if ((error as any).code === 'P2025') {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// DELETE patient
+// DELETE patient - ONLY ADMINISTRASI
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth(['PERAWAT_POLI', 'SUPER_ADMIN']);
-    if (!session || !isAuthenticated(session)) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!hasPermission(session, 'patients')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    // Only ADMINISTRASI and SUPER_ADMIN can delete patients
+    const userRole = (session.user as any).role;
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
     // Check if patient exists

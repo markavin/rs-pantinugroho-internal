@@ -61,7 +61,7 @@ model Patient {
   id        String    @id @default(cuid())
   mrNumber  String    @unique
   name      String
-  birthDate DateTime?
+  birthDate DateTime
   gender    Gender
   phone     String?
   address   String?
@@ -71,7 +71,8 @@ model Patient {
   weight    Float?
   bmi       Float?
   bloodType String?
-  allergies String[]
+  allergies String[] // Array of allergy strings
+  medicalHistory String? // Medical history as text
 
   // Diabetes specific
   diabetesType  String?
@@ -170,17 +171,21 @@ model VitalSign {
 }
 
 model LabResult {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   patientId   String
   testDate    DateTime
   testType    String
   value       String
   normalRange String?
   status      LabStatus?
+  notes       String? // Added notes field for lab results
 
   patient Patient @relation(fields: [patientId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@index([patientId])
+  @@index([testDate])
 
   @@map("lab_results")
 }
@@ -444,20 +449,29 @@ model DrugData {
 }
 
 model PatientComplaint {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   patientId String
   date      DateTime
   complaint String
   severity  ComplaintSeverity
-  status    ComplaintStatus
+  status    ComplaintStatus   @default(BARU)
+  notes     String? // Added notes field for additional information
 
   patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([date])
+  @@index([severity])
+  @@index([status])
 
   @@map("patient_complaints")
 }
 
 model PharmacyNote {
-  id         String              @id @default(cuid())
+  id         String               @id @default(cuid())
   patientId  String
   date       DateTime
   note       String
@@ -470,7 +484,7 @@ model PharmacyNote {
 }
 
 model BloodSugarHistory {
-  id        String          @id @default(cuid())
+  id        String           @id @default(cuid())
   patientId String
   value     Int
   date      DateTime

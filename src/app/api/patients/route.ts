@@ -1,3 +1,4 @@
+
 // src/app/api/patients/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -16,7 +17,8 @@ export async function GET() {
 
     // Check if user has permission to access patients
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN'];
+    // PERAWAT_POLI can view patients for lab purposes, ADMINISTRASI can manage patients
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
     
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -42,7 +44,7 @@ export async function GET() {
   }
 }
 
-// POST new patient
+// POST new patient - ONLY ADMINISTRASI
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -50,10 +52,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to create patients (PERAWAT_POLI only)
+    // Only ADMINISTRASI can create patients
     const userRole = (session.user as any).role;
-    if (userRole !== 'PERAWAT_POLI' && userRole !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can register patients.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -67,6 +69,8 @@ export async function POST(request: Request) {
       weight,
       diabetesType,
       insuranceType,
+      allergies,
+      medicalHistory,
       complaint,
       complaintSeverity
     } = body;
@@ -105,12 +109,14 @@ export async function POST(request: Request) {
         weight: weight ? parseFloat(weight) : null,
         diabetesType: diabetesType || null,
         insuranceType,
+        allergies: allergies && allergies.length > 0 ? allergies : null,
+        medicalHistory: medicalHistory || null,
         status: 'ACTIVE',
         createdBy: (session.user as any).id,
       }
     });
 
-    // Add complaint if provided
+    // Add complaint if provided (ADMINISTRASI can add initial complaint)
     if (complaint && complaint.trim()) {
       await prisma.patientComplaint.create({
         data: {

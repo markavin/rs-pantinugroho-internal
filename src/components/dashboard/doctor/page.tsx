@@ -217,7 +217,7 @@ const DoctorDashboard = () => {
       }`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+          <h2 className="text-m font-semibold text-gray-900">Menu Dokter</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
