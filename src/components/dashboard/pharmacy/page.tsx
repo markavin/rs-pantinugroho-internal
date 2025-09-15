@@ -74,7 +74,7 @@ const PharmacyDashboard = () => {
                     setAlerts(alertsData.filter(alert => alert.category === 'medication'))
                 } else {
                     console.error('Failed to fetch alerts:', alertsResponse.status);
-                    setAlerts(mockAlerts.filter(alert => alert.category === 'medication')); 
+                    setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
                 }
 
             } catch (error) {
@@ -151,16 +151,15 @@ const PharmacyDashboard = () => {
         <div className="min-h-screen bg-gray-50">
             {/* Mobile Sidebar Overlay */}
             {isMobileSidebarOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
                     onClick={() => setIsMobileSidebarOpen(false)}
                 />
             )}
 
             {/* Mobile Sidebar */}
-            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-                isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}>
+            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}>
                 {/* Sidebar Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h2 className="text-m font-semibold text-gray-900">Menu Farmasi</h2>
@@ -180,11 +179,10 @@ const PharmacyDashboard = () => {
                             <button
                                 key={item.key}
                                 onClick={() => handleTabChange(item.key as any)}
-                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                                    activeTab === item.key
-                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                        : 'text-gray-700 hover:bg-gray-100'
-                                }`}
+                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
                             >
                                 <IconComponent className="h-5 w-5" />
                                 <span>{item.label}</span>
@@ -195,38 +193,30 @@ const PharmacyDashboard = () => {
             </div>
 
             <div className="max-w-7xl mx-auto px-6 py-6">
-                {/* Header */}
-                <div className="mb-6">
-                    {/* Mobile Header with Menu Button */}
-                    <div className="flex items-center justify-between mb-4 lg:hidden">
-                        <button
-                            onClick={() => setIsMobileSidebarOpen(true)}
-                            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
-                        >
-                            <Menu className="h-5 w-5 text-gray-600" />
-                        </button>
-                    </div>
 
-                    {/* Desktop Header */}
-                    <div className="hidden lg:block">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard Farmasi</h1>
-                        <p className="text-gray-600">Manajemen obat dan asuhan kefarmasian terintegrasi</p>
-                    </div>
+                {/* Mobile Header with Menu Button */}
+                <div className="flex items-center justify-between mb-4 lg:hidden">
+                    <button
+                        onClick={() => setIsMobileSidebarOpen(true)}
+                        className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                        <Menu className="h-5 w-5 text-gray-600" />
+                    </button>
                 </div>
 
                 {/* Tab Navigation - Desktop Only */}
                 <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
                     <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-8 px-6">
+                        <nav className="-mb-px flex space-x-35 px-6 justify-center">
                             {navigationItems.map(tab => {
                                 const IconComponent = tab.icon;
                                 return (
                                     <button
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key as any)}
-                                        className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                                            ? 'border-emerald-500 text-emerald-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                        className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
+                                            ? 'border-green-500 text-green-600'
+                                            : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
                                             }`}
                                     >
                                         <IconComponent className="h-5 w-5" />
@@ -247,15 +237,15 @@ const PharmacyDashboard = () => {
                                 <div className="flex-1 relative">
                                     <input
                                         type="text"
-                                        placeholder="Cari pasien..."
-                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full"
+                                        placeholder="Cari Pasien..."
+                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                     <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {[
                                         { key: 'all', label: 'Semua' },
                                         { key: 'allergies', label: 'Ada Alergi' },
@@ -266,8 +256,8 @@ const PharmacyDashboard = () => {
                                             key={filter.key}
                                             onClick={() => setActiveFilter(filter.key as any)}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeFilter === filter.key
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-emerald-100'
                                                 }`}
                                         >
                                             {filter.label}
@@ -282,44 +272,47 @@ const PharmacyDashboard = () => {
                             <div className="px-6 py-4 border-b border-gray-200">
                                 <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
                             </div>
-                            <div className="divide-y divide-gray-200">
+
+                            {/* Desktop List View */}
+                            <div className="hidden md:block divide-y divide-gray-200">
                                 {filteredPatients.map((patient) => (
-                                    <div key={patient.id} className="px-6 py-4 hover:bg-gray-50">
+                                    <div key={patient.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
-                                                <div className="flex items-center space-x-3">
+                                                <div className="flex items-center space-x-3 mb-3">
                                                     <div>
-                                                        <p className="font-medium text-gray-900">{patient.name}</p>
+                                                        <p className="font-semibold text-gray-900 text-lg">{patient.name}</p>
                                                         <p className="text-sm text-gray-600">{patient.mrNumber} • {patient.age} tahun • {patient.gender}</p>
                                                     </div>
                                                     {patient.allergies && patient.allergies.length > 0 && (
-                                                        <div className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                                                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
                                                             ALERGI
-                                                        </div>
+                                                        </span>
                                                     )}
                                                 </div>
 
-                                                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                                <div className="grid grid-cols-4 gap-6 text-sm">
                                                     <div>
                                                         <span className="text-gray-600">GDS: </span>
-                                                        <span className={`font-medium ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'}`}>
+                                                        <span className={`font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
+                                                            }`}>
                                                             {patient.bloodSugar.value} mg/dL
                                                         </span>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-600">Obat Aktif: </span>
-                                                        <span className="font-medium">{patient.medications?.length || 0}</span>
+                                                        <span className="font-semibold text-gray-900">{patient.medications?.length || 0}</span>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-600">Keluhan: </span>
-                                                        <span className="font-medium">
+                                                        <span className="font-semibold text-gray-900">
                                                             {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length}
                                                         </span>
                                                     </div>
                                                     <div>
                                                         <span className="text-gray-600">Risiko: </span>
-                                                        <span className={`font-medium ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
-                                                            patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
+                                                        <span className={`font-semibold ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
+                                                                patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
                                                             }`}>
                                                             {patient.riskLevel}
                                                         </span>
@@ -329,14 +322,100 @@ const PharmacyDashboard = () => {
 
                                             <button
                                                 onClick={() => setSelectedPatient(patient)}
-                                                className="text-emerald-600 hover:text-emerald-900 text-sm font-medium"
+                                                className="ml-4 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center space-x-2"
                                             >
-                                                Lihat Detail
+                                                <Eye className="h-4 w-4" />
+                                                <span>Lihat Detail</span>
                                             </button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Mobile Card View */}
+                            <div className="md:hidden space-y-4 p-4">
+                                {filteredPatients.map((patient) => (
+                                    <div
+                                        key={patient.id}
+                                        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                                    >
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                                                    {patient.name}
+                                                </h4>
+                                                <p className="text-sm text-gray-600 mb-2">
+                                                    {patient.mrNumber} • {patient.age} tahun • {patient.gender}
+                                                </p>
+                                                {patient.allergies && patient.allergies.length > 0 && (
+                                                    <span className="inline-flex bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                                                        ALERGI
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Patient Information */}
+                                        <div className="mb-4 space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">GDS:</span>
+                                                <span className={`text-sm font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
+                                                    }`}>
+                                                    {patient.bloodSugar.value} mg/dL
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">Obat Aktif:</span>
+                                                <span className="text-sm font-semibold text-gray-900">
+                                                    {patient.medications?.length || 0} obat
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">Keluhan Baru:</span>
+                                                <span className="text-sm font-semibold text-gray-900">
+                                                    {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length} keluhan
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">Level Risiko:</span>
+                                                <span className={`text-sm font-semibold px-2 py-1 rounded-full ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                        patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-700' :
+                                                            'bg-green-100 text-green-700'
+                                                    }`}>
+                                                    {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                                                        patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Button */}
+                                        <button
+                                            onClick={() => setSelectedPatient(patient)}
+                                            className="w-full bg-emerald-100 text-emerald-700 py-3 px-4 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            <span>Lihat Detail Pasien</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Empty State */}
+                            {filteredPatients.length === 0 && (
+                                <div className="text-center py-12 px-4">
+                                    <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                        {searchTerm ? "Tidak ada pasien yang ditemukan" : "Belum ada data pasien"}
+                                    </h3>
+                                    <p className="text-gray-600 max-w-md mx-auto">
+                                        {searchTerm
+                                            ? "Coba gunakan kata kunci yang berbeda atau hapus filter yang aktif."
+                                            : "Pasien akan muncul di sini setelah data ditambahkan ke sistem."
+                                        }
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -356,7 +435,8 @@ const PharmacyDashboard = () => {
                                 </button>
                             </div>
 
-                            <div className="overflow-x-auto">
+                            {/* Desktop Table Layout */}
+                            <div className="hidden lg:block overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
@@ -387,6 +467,12 @@ const PharmacyDashboard = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.expiryDate}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                                                     <button
+                                                        // onClick={() => setEditingDrug(drug)}
+                                                        className="text-gray-600 hover:text-gray-900"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </button>
+                                                    <button
                                                         onClick={() => setEditingDrug(drug)}
                                                         className="text-blue-600 hover:text-blue-900"
                                                     >
@@ -404,6 +490,80 @@ const PharmacyDashboard = () => {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Mobile Card Layout */}
+                            <div className="lg:hidden space-y-4 p-4">
+                                {drugData.map((drug) => (
+                                    <div
+                                        key={drug.id}
+                                        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                                    >
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                                                    {drug.name}
+                                                </h4>
+                                                <p className="text-sm text-gray-600 mb-1">{drug.dosageForm} - {drug.manufacturer}</p>
+                                                <p className="text-sm text-gray-600">Kategori: {drug.category}</p>
+                                            </div>
+                                            <div className="text-right ml-3">
+                                                <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                                    {drug.strength}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Drug Information */}
+                                        <div className="mb-4 space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">Stok:</span>
+                                                <span className={`text-sm font-semibold ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                                                    {drug.stock} unit
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-600">Kedaluwarsa:</span>
+                                                <span className="text-sm text-gray-900">{drug.expiryDate}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex space-x-2">
+                                            <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
+                                                <Eye className="h-4 w-4" />
+                                                <span>Detail</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingDrug(drug)}
+                                                className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                                <span>Edit</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteDrug(drug.id)}
+                                                className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                <span>Hapus</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Empty State */}
+                                {drugData.length === 0 && (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <div className="h-12 w-12 mx-auto mb-3 opacity-50 bg-gray-100 rounded-full flex items-center justify-center">
+                                            <Plus className="h-6 w-6" />
+                                        </div>
+                                        <p className="text-lg font-medium mb-1">Belum ada data obat</p>
+                                        <p className="text-sm">Klik tombol "Tambah Obat" untuk menambah data obat baru</p>
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
                     </div>
                 )}
@@ -447,55 +607,165 @@ const PharmacyDashboard = () => {
                 )}
 
                 {/* Lab Results Tab */}
-                {activeTab === 'lab-results' && (
-                    <div className="bg-white rounded-lg shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-900">Hasil Laboratorium</h3>
+{activeTab === 'lab-results' && (
+    <div className="space-y-6">
+        {/* Lab Results */}
+        <div className="bg-white rounded-lg shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Hasil Laboratorium</h3>
+                <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span>Tambah Hasil Lab</span>
+                </button>
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hasil</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Normal Range</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {labResults.map((result) => {
+                            const patient = patients.find(p => p.id === result.patientId);
+                            return (
+                                <tr key={result.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">{patient?.name}</p>
+                                            <p className="text-sm text-gray-500">{patient?.mrNumber}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.testType}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{result.value}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{result.normalRange}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.date}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                                            result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                                            result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-green-100 text-green-800'
+                                        }`}>
+                                            {result.status === 'CRITICAL' ? 'Kritis' :
+                                             result.status === 'HIGH' ? 'Tinggi' :
+                                             result.status === 'LOW' ? 'Rendah' :
+                                             'Normal'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                        <button className="text-blue-600 hover:text-blue-900">
+                                            <Eye className="h-4 w-4" />
+                                        </button>
+                                        <button className="text-emerald-600 hover:text-emerald-900">
+                                            <Edit className="h-4 w-4" />
+                                        </button>
+                                        <button className="text-red-600 hover:text-red-900">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4 p-4">
+                {labResults.map((result) => {
+                    const patient = patients.find(p => p.id === result.patientId);
+                    return (
+                        <div
+                            key={result.id}
+                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                        >
+                            {/* Header */}
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                                        {patient?.name}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 mb-2">{patient?.mrNumber}</p>
+                                    <p className="text-sm font-medium text-gray-700">{result.testType}</p>
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                                    result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                                    result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                }`}>
+                                    {result.status === 'CRITICAL' ? 'Kritis' :
+                                     result.status === 'HIGH' ? 'Tinggi' :
+                                     result.status === 'LOW' ? 'Rendah' :
+                                     'Normal'}
+                                </span>
+                            </div>
+
+                            {/* Lab Results Information */}
+                            <div className="mb-4 space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-gray-600">Hasil:</span>
+                                    <span className="text-sm font-semibold text-gray-900">{result.value}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-gray-600">Normal Range:</span>
+                                    <span className="text-sm text-gray-700">{result.normalRange}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-gray-600">Tanggal Test:</span>
+                                    <span className="text-sm text-gray-900">{result.date}</span>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex space-x-2">
+                                <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
+                                    <Eye className="h-4 w-4" />
+                                    <span>Detail</span>
+                                </button>
+                                <button className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1">
+                                    <Edit className="h-4 w-4" />
+                                    <span>Edit</span>
+                                </button>
+                                <button className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1">
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Hapus</span>
+                                </button>
+                            </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hasil</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Normal Range</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {labResults.map((result) => {
-                                        const patient = patients.find(p => p.id === result.patientId);
-                                        return (
-                                            <tr key={result.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div>
-                                                        <p className="text-sm font-medium text-gray-900">{patient?.name}</p>
-                                                        <p className="text-sm text-gray-500">{patient?.mrNumber}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.testType}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{result.value}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{result.normalRange}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.date}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                        result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                            result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-green-100 text-green-800'
-                                                        }`}>
-                                                        {result.status}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Empty State */}
+            {labResults.length === 0 && (
+                <div className="text-center py-12 px-4">
+                    <div className="h-16 w-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                        <div className="h-8 w-8 bg-gray-300 rounded"></div>
                     </div>
-                )}
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Belum ada hasil laboratorium
+                    </h3>
+                    <p className="text-gray-600 max-w-md mx-auto mb-4">
+                        Hasil laboratorium akan muncul di sini setelah data ditambahkan ke sistem.
+                    </p>
+                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
+                        Tambah Hasil Lab Pertama
+                    </button>
+                </div>
+            )}
+        </div>
+    </div>
+)}
 
                 {/* Pharmacy Notes Tab */}
                 {activeTab === 'notes' && (

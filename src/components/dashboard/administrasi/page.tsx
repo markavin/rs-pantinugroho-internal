@@ -374,35 +374,35 @@ const AdministrasiDashboard = () => {
           {activeTab === 'patients' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                {/* Title */}
-                                <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
-              
-                                {/* Search + Button */}
-                                <div className="flex items-center gap-3 w-full sm:w-auto">
-                                  {/* Search Input */}
-                                  <div className="relative flex-1">
-                                    <input
-                                      type="text"
-                                      placeholder="Cari Pasien..."
-                                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
-                                      value={searchTerm}
-                                      onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
-                                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                                  </div>
-              
-                                  {/* Add Staff Button */}
-                                  <button
-                                    onClick={handleAddPatient}
-                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                    Pasien Baru
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  {/* Title */}
+                  <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
+
+                  {/* Search + Button */}
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Cari Pasien..."
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    </div>
+
+                    {/* Add Staff Button */}
+                    <button
+                      onClick={handleAddPatient}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Pasien Baru
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Desktop Table View */}
               <div className="hidden lg:block overflow-x-auto">
