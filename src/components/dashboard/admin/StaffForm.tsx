@@ -12,7 +12,6 @@ interface StaffData {
   password: string;
   role: string;
   employeeId: string;
-  department?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -314,17 +313,6 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
                     Kosongkan jika tidak ingin mengubah password
                   </p>
                 )}
-              </div>
-            )}
-
-            {mode === 'view' && formData.department && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Department
-                </label>
-                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                  {formData.department}
-                </div>
               </div>
             )}
 

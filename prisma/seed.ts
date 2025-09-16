@@ -4,69 +4,69 @@ import bcrypt from 'bcryptjs';
 
 
 const prisma = new PrismaClient();
-async function seedLoginLogs() {
-  console.log('🔄 Seeding login logs...');
+// async function seedLoginLogs() {
+//   console.log('🔄 Seeding login logs...');
 
-  // Get all users
-  const users = await prisma.user.findMany();
+//   // Get all users
+//   const users = await prisma.user.findMany();
 
-  if (users.length === 0) {
-    console.log('No users found, skipping login logs');
-    return;
-  }
+//   if (users.length === 0) {
+//     console.log('No users found, skipping login logs');
+//     return;
+//   }
 
-  try {
-    // Generate login logs for the past 7 days
-    const now = new Date();
-    const loginLogs = [];
+//   try {
+//     // Generate login logs for the past 7 days
+//     const now = new Date();
+//     const loginLogs = [];
 
-    for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - dayOffset);
+//     for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
+//       const date = new Date(now);
+//       date.setDate(date.getDate() - dayOffset);
 
-      // Generate 3-15 login logs per day
-      const loginsPerDay = Math.floor(Math.random() * 13) + 3;
+//       // Generate 3-15 login logs per day
+//       const loginsPerDay = Math.floor(Math.random() * 13) + 3;
 
-      for (let i = 0; i < loginsPerDay; i++) {
-        const user = users[Math.floor(Math.random() * users.length)];
+//       for (let i = 0; i < loginsPerDay; i++) {
+//         const user = users[Math.floor(Math.random() * users.length)];
 
-        // Random time during the day (6 AM to 10 PM)
-        const loginTime = new Date(date);
-        loginTime.setHours(
-          Math.floor(Math.random() * 16) + 6,
-          Math.floor(Math.random() * 60),
-          Math.floor(Math.random() * 60)
-        );
+//         // Random time during the day (6 AM to 10 PM)
+//         const loginTime = new Date(date);
+//         loginTime.setHours(
+//           Math.floor(Math.random() * 16) + 6,
+//           Math.floor(Math.random() * 60),
+//           Math.floor(Math.random() * 60)
+//         );
 
-        // Some sessions are still active (no logout time)
-        const isActive = dayOffset === 0 && Math.random() < 0.3; // 30% of today's sessions are active
-        const logoutTime = isActive ? null : new Date(loginTime.getTime() + Math.random() * 8 * 60 * 60 * 1000); // 0-8 hours later
+//         // Some sessions are still active (no logout time)
+//         const isActive = dayOffset === 0 && Math.random() < 0.3; // 30% of today's sessions are active
+//         const logoutTime = isActive ? null : new Date(loginTime.getTime() + Math.random() * 8 * 60 * 60 * 1000); // 0-8 hours later
 
-        const sessionId = `${user.id}_${loginTime.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+//         const sessionId = `${user.id}_${loginTime.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        loginLogs.push({
-          userId: user.id,
-          loginTime,
-          logoutTime,
-          sessionId,
-          ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        });
-      }
-    }
+//         loginLogs.push({
+//           userId: user.id,
+//           loginTime,
+//           logoutTime,
+//           sessionId,
+//           ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
+//           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+//         });
+//       }
+//     }
 
-    // Create login logs
-    for (const log of loginLogs) {
-      await prisma.loginLog.create({
-        data: log
-      });
-    }
+//     // Create login logs
+//     for (const log of loginLogs) {
+//       await prisma.loginLog.create({
+//         data: log
+//       });
+//     }
 
-    console.log(`✅ Created ${loginLogs.length} login logs`);
-  } catch (error) {
-    console.log('⚠️ LoginLog table not available, skipping login logs:', error.message);
-  }
-}
+//     console.log(`✅ Created ${loginLogs.length} login logs`);
+//   } catch (error) {
+//     console.log('⚠️ LoginLog table not available, skipping login logs:', error.message);
+//   }
+// }
 
 async function main() {
   console.log('🌱 Start seeding...');
@@ -87,7 +87,6 @@ async function main() {
       name: 'Dr. Bambang Sutrisno',
       role: 'SUPER_ADMIN',
       employeeId: 'ADM001',
-      department: 'Management',
     },
   });
 
@@ -101,7 +100,6 @@ async function main() {
       name: 'Dr. Sarah Wijayanti, Sp.PD',
       role: 'DOKTER_SPESIALIS',
       employeeId: 'DOC001',
-      department: 'Penyakit Dalam',
     },
   });
 
@@ -115,7 +113,6 @@ async function main() {
       name: 'Sari Indrawati, S.Kep',
       role: 'PERAWAT_RUANGAN',
       employeeId: 'NUR001',
-      department: 'Keperawatan Ruangan',
     },
   });
 
@@ -129,7 +126,6 @@ async function main() {
       name: 'Rina Kartika, S.Kep',
       role: 'PERAWAT_POLI',
       employeeId: 'NUP001',
-      department: 'Poliklinik',
     },
   });
 
@@ -143,7 +139,6 @@ async function main() {
       name: 'Dewi Sartika, S.Gz',
       role: 'AHLI_GIZI',
       employeeId: 'NUT001',
-      department: 'Gizi',
     },
   });
 
@@ -157,7 +152,6 @@ async function main() {
       name: 'Budi Santoso, S.Farm, Apt',
       role: 'FARMASI',
       employeeId: 'PHA001',
-      department: 'Farmasi',
     },
   });
 
@@ -171,7 +165,6 @@ async function main() {
       name: 'Ahmad Syahputra, S.Kep',
       role: 'ADMINISTRASI',
       employeeId: 'AS001',
-      department: 'Administrasi',
     },
   });
 
@@ -185,7 +178,6 @@ async function main() {
       name: 'Dr Sudohyono',
       role: 'MANAJER',
       employeeId: 'MN001',
-      department: 'Manajer',
     },
   });
 
@@ -906,7 +898,7 @@ async function main() {
     ],
   });
 
-  await seedLoginLogs();
+  // await seedLoginLogs();
 
   console.log('✅ Seeding finished!');
   console.log(`Created users: Admin, Doctor, Nurse, Nutritionist, Pharmacist`);

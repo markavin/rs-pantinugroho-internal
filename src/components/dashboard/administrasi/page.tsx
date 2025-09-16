@@ -95,6 +95,9 @@ const AdministrasiDashboard = () => {
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.gender.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.insuranceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
     patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -206,7 +209,6 @@ const AdministrasiDashboard = () => {
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Data Pasien', icon: Users },
-    { key: 'registration', label: 'Registrasi Baru', icon: Plus },
     { key: 'complaints', label: 'Keluhan Pasien', icon: AlertCircle }
   ];
 
@@ -319,7 +321,7 @@ const AdministrasiDashboard = () => {
           {/* Navigation Tabs - Desktop */}
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-45 px-6 justify-center">
+              <nav className="-mb-px flex space-x-85 px-6 justify-center">
                 {navigationItems.map(tab => {
                   const IconComponent = tab.icon;
                   return (
@@ -442,12 +444,8 @@ const AdministrasiDashboard = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  {/* Title */}
                   <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
-
-                  {/* Search + Button */}
                   <div className="flex items-center gap-3 w-full sm:w-auto">
-                    {/* Search Input */}
                     <div className="relative flex-1">
                       <input
                         type="text"
@@ -459,7 +457,6 @@ const AdministrasiDashboard = () => {
                       <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                     </div>
 
-                    {/* Add Staff Button */}
                     <button
                       onClick={handleAddPatient}
                       className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
@@ -642,13 +639,6 @@ const AdministrasiDashboard = () => {
                 )}
               </div>
             </div>
-          )}
-
-          {/* Registration Tab */}
-          {activeTab === 'registration' && (
-            <PatientRegistrationForm
-              onPatientAdded={fetchDashboardData}
-            />
           )}
 
           {/* Complaints Tab */}

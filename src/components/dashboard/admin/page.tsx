@@ -88,6 +88,8 @@ const AdminDashboard = () => {
   const filteredStaff = staff.filter(person =>
     person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     person.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     person.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -140,7 +142,7 @@ const AdminDashboard = () => {
   // Navigation items
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
-    { key: 'staff', label: 'Staff', icon: Users },
+    { key: 'staff', label: 'Data Staff', icon: Users },
   ];
 
   return (
@@ -157,13 +159,13 @@ const AdminDashboard = () => {
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-m font-semibold text-gray-900">Menu Admin</h2>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-green-500 to-green-600 text-white">
+          <h2 className="text-lg font-bold text-white-900">Menu Admin</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors flex-shrink-0"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -176,8 +178,8 @@ const AdminDashboard = () => {
                 key={item.key}
                 onClick={() => handleTabChange(item.key as any)}
                 className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
-                    ? 'bg-green-100 text-green-700 border border-green-200'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'text-gray-700 hover:bg-gray-100'
                   }`}
               >
                 <IconComponent className="h-5 w-5" />

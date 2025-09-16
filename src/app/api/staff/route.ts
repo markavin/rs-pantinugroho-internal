@@ -41,7 +41,6 @@ export async function GET() {
         username: true,
         role: true,
         employeeId: true,
-        department: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -151,18 +150,7 @@ export async function POST(request: NextRequest) {
 
     console.log('🏷️ Generated Employee ID:', generatedEmployeeId);
 
-    // Auto-generate department based on role
-    const departmentMapping: { [key: string]: string } = {
-      'DOKTER_SPESIALIS': 'Penyakit Dalam',
-      'PERAWAT_RUANGAN': 'Keperawatan Ruangan',
-      'PERAWAT_POLI': 'Poliklinik',
-      'FARMASI': 'Farmasi',
-      'ADMINISTRASI': 'Administrasi',
-      'MANAJER': 'Manajemen',
-      'AHLI_GIZI': 'Gizi'
-    };
-
-    const department = departmentMapping[role] || 'Umum';
+  
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password.trim(), 12);
@@ -176,7 +164,6 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         role,
         employeeId: generatedEmployeeId,
-        department,
         isActive: true
       },
       select: {
@@ -186,7 +173,6 @@ export async function POST(request: NextRequest) {
         username: true,
         role: true,
         employeeId: true,
-        department: true,
         createdAt: true,
       }
     });

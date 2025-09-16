@@ -178,7 +178,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-900 mb-2">
               Nama Lengkap {formMode !== 'view' && <span className="text-red-500">*</span>}
             </label>
             {formMode === 'view' ? (
@@ -189,7 +189,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               <input
                 type="text"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="Masukkan nama lengkap"
                 value={patientData.name}
                 onChange={(e) => setPatientData({ ...patientData, name: e.target.value })}
@@ -210,12 +210,12 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                 <input
                   type="date"
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                   value={patientData.birthDate}
                   onChange={(e) => setPatientData({ ...patientData, birthDate: e.target.value })}
                 />
                 {patientData.birthDate && (
-                  <div className="mt-1 text-sm text-gray-600">
+                  <div className="mt-1 text-sm text-gray-700">
                     Umur: {calculateAge(patientData.birthDate)}
                   </div>
                 )}
@@ -228,13 +228,13 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               Jenis Kelamin {formMode !== 'view' && <span className="text-red-500">*</span>}
             </label>
             {formMode === 'view' ? (
-              <div className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-900">
+              <div className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700">
                 {selectedPatient?.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}
               </div>
             ) : (
               <select
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 value={patientData.gender}
                 onChange={(e) => setPatientData({ ...patientData, gender: e.target.value as 'MALE' | 'FEMALE' })}
               >
@@ -249,13 +249,13 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               Jenis Penjamin {formMode !== 'view' && <span className="text-red-500">*</span>}
             </label>
             {formMode === 'view' ? (
-              <div className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-900">
+              <div className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700">
                 {selectedPatient?.insuranceType}
               </div>
             ) : (
               <select
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 value={patientData.insuranceType}
                 onChange={(e) => setPatientData({ ...patientData, insuranceType: e.target.value })}
               >
@@ -288,7 +288,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             ) : (
               <input
                 type="tel"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="08xxxxxxxxxx"
                 value={patientData.phone}
                 onChange={(e) => setPatientData({ ...patientData, phone: e.target.value })}
@@ -306,7 +306,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               </div>
             ) : (
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="Masukkan alamat lengkap"
                 rows={3}
                 value={patientData.address}
@@ -336,7 +336,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             ) : (
               <input
                 type="number"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="contoh: 165"
                 value={patientData.height}
                 onChange={(e) => setPatientData({ ...patientData, height: e.target.value })}
@@ -355,7 +355,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             ) : (
               <input
                 type="number"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="contoh: 65"
                 value={patientData.weight}
                 onChange={(e) => setPatientData({ ...patientData, weight: e.target.value })}
@@ -373,7 +373,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               </div>
             ) : (
               <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 value={patientData.diabetesType}
                 onChange={(e) => setPatientData({ ...patientData, diabetesType: e.target.value })}
               >
@@ -396,7 +396,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               </div>
             ) : (
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="Masukkan riwayat penyakit (contoh: hipertensi, kolesterol tinggi, dll)"
                 rows={3}
                 value={patientData.medicalHistory}
@@ -433,7 +433,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             <div className="flex space-x-2">
               <input
                 type="text"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="Tambah alergi (contoh: Sulfa, Penisilin, Makanan laut)"
                 value={newAllergy}
                 onChange={(e) => setNewAllergy(e.target.value)}
@@ -482,7 +482,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                 Keluhan Saat Ini
               </label>
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 placeholder="Masukkan keluhan pasien (opsional)"
                 rows={3}
                 value={patientData.complaint}
@@ -494,7 +494,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                 Tingkat Keparahan
               </label>
               <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
                 value={patientData.complaintSeverity}
                 onChange={(e) => setPatientData({ ...patientData, complaintSeverity: e.target.value as any })}
               >
@@ -580,7 +580,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-900 transition-colors"
             >
               <X className="h-6 w-6" />
             </button>

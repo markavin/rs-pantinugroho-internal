@@ -107,10 +107,20 @@ const DoctorDashboard = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPatients = patients.filter(patient => {
+    const searchLower = searchTerm.toLowerCase().trim();
+
+    const matchesSearch = patient.name.toLowerCase().includes(searchLower) ||
+      patient.mrNumber.toLowerCase().includes(searchLower) ||
+      patient.age.toString().includes(searchTerm.trim()) ||
+      patient.gender.toLowerCase().includes(searchLower) ||
+      patient.insuranceType.toLowerCase().includes(searchLower) ||
+      patient.status.toLowerCase().includes(searchLower) ||
+      patient.bloodSugar.value.toString().includes(searchTerm.trim());
+
+      return matchesSearch;
+    
+  });
 
   const handleAddPatient = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +190,7 @@ const DoctorDashboard = () => {
 
   const handleTabChange = (tab: 'dashboard' | 'patients' | 'nutrition' | 'pharmacy' | 'nursing') => {
     setActiveTab(tab);
-    setIsMobileSidebarOpen(false); 
+    setIsMobileSidebarOpen(false);
   };
 
   const nutritionAnalytics = {
@@ -203,16 +213,15 @@ const DoctorDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-m font-semibold text-gray-900">Menu Dokter</h2>
@@ -232,11 +241,10 @@ const DoctorDashboard = () => {
               <button
                 key={item.key}
                 onClick={() => handleTabChange(item.key as any)}
-                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                  activeTab === item.key
-                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  : 'text-gray-700 hover:bg-gray-100'
+                  }`}
               >
                 <IconComponent className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -604,6 +612,15 @@ const DoctorDashboard = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredPatients.map((patient) => (
                         <tr key={patient.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {patient.mrNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {patient.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {patient.age}/{patient.gender}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {patient.insuranceType}
                           </td>

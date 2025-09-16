@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Calendar, Activity, TrendingUp, AlertCircle, FileText, Thermometer, Heart, Droplets, Weight, Clock, Stethoscope, Clipboard, User, Edit3, Save, X, Users, HeartPulse, Menu } from 'lucide-react';
+import { Search, Plus, Calendar, Activity, TrendingUp, AlertCircle, FileText, Thermometer, Heart, Droplets, Weight, Clock, Stethoscope, Clipboard, User, Edit3, Save, X, Users, HeartPulse, Menu, Eye } from 'lucide-react';
 import {
     mockPatients,
     mockAlerts,
@@ -159,10 +159,20 @@ const NurseDashboard = () => {
     };
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const filteredPatients = patients.filter(patient =>
-        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredPatients = patientLogs.filter(patientLogs => {
+    const searchLower = searchTerm.toLowerCase().trim();
+
+    const matchesSearch = patientLogs.id.toLowerCase().includes(searchLower) ||
+      patientLogs.patientId.toLowerCase().includes(searchLower) ||
+      patientLogs.roomNumber.toString().includes(searchTerm.trim()) ||
+    //   patientLogs.gender.toLowerCase().includes(searchLower) ||
+    //   patientLogs.insuranceType.toLowerCase().includes(searchLower) ||
+    //   patientLogs.status.toLowerCase().includes(searchLower) ||
+      patientLogs.bedNumber.toString().includes(searchTerm.trim());
+
+      return matchesSearch;
+    
+  });
 
     const handleVitalInput = (field: keyof VitalSigns, value: string) => {
         setVitalInputs(prev => ({
@@ -250,7 +260,7 @@ const NurseDashboard = () => {
 
     const handleTabChange = (tab: 'dashboard' | 'inpatients' | 'visitation' | 'vitals' | 'education') => {
         setActiveTab(tab);
-        setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+        setIsMobileSidebarOpen(false);
     };
 
     // Navigation items
@@ -308,7 +318,7 @@ const NurseDashboard = () => {
 
             <div className="max-w-7xl mx-auto px-6 py-6">
                 {/* Mobile Header with Menu Button and Shift Selector */}
-                <div className="flex items-center justify-between mb-4 lg:hidden">
+                <div className="flex items-center justify-between mb-2 lg:hidden">
                     <button
                         onClick={() => setIsMobileSidebarOpen(true)}
                         className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -339,7 +349,7 @@ const NurseDashboard = () => {
                 </div>
 
                 {/* Desktop Header */}
-                <div className="hidden lg:flex items-center justify-end mb-6">
+                <div className="hidden lg:flex items-center justify-end mb-2">
                     <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
                         <button
                             onClick={async () => {
@@ -494,91 +504,201 @@ const NurseDashboard = () => {
 
                 {/* Inpatients Tab */}
                 {activeTab === 'inpatients' && (
-                    <div className="bg-white rounded-lg shadow-sm">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
+                    <div className="space-y-6">
+
+                        {/* Inpatients List */}
+                        <div className="bg-white rounded-lg shadow-sm">
+                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien Rawat Inap</h3>
                                 <div className="flex items-center gap-3 w-full sm:w-auto">
                                     <div className="relative flex-1">
                                         <input
                                             type="text"
-                                            placeholder="Cari pasien..."
-                                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                                            placeholder="Cari Pasien..."
+                                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                         <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                                     </div>
-                                    {/* <button
-                                            onClick={() => setShowAddPatient(true)}
-                                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                            Pasien Baru
-                                        </button> */}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="divide-y divide-gray-200">
-                            {patientLogs.map((log) => {
-                                const patient = patients.find(p => p.id === log.patientId);
-                                if (!patient) return null;
 
-                                return (
-                                    <div key={log.id} className="px-4 sm:px-6 py-4 hover:bg-gray-50">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center space-x-4">
-                                                    <div className="bg-blue-100 p-2 rounded-lg">
-                                                        <User className="h-6 w-6 text-blue-600" />
+                                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2">
+                                        <Plus className="h-4 w-4" />
+                                        <span>Tambah Pasien</span>
+                                    </button>
+                                </div>
+
+                            </div>
+
+                            {/* Desktop Table View */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kamar/Bed</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Diagnosis</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Komorbid</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">GDS/Risiko</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredPatients.map((log) => {
+                                            const patient = patients.find(p => p.id === log.patientId);
+                                            if (!patient) return null;
+
+                                            return (
+                                                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center space-x-3">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900">{patient.name}</p>
+                                                                <p className="text-sm text-gray-500">{patient.mrNumber}</p>
+                                                                <p className="text-xs text-gray-400">Masuk: {log.admissionDate}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        {log.roomNumber}-{log.bedNumber}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-sm text-gray-900 max-w-xs">{log.diagnosis}</div>
+                                                        {log.allergies.length > 0 && (
+                                                            <div className="text-xs text-red-600 font-medium mt-1">
+                                                                Alergi: {log.allergies.join(', ')}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        {log.comorbidities.length > 0 ? log.comorbidities.join(', ') : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm font-medium text-gray-900">{patient.bloodSugar.value} mg/dL</div>
+                                                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
+                                                            patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
+                                                                'bg-green-100 text-green-800'
+                                                            }`}>
+                                                            {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                                                                patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedPatient(patient);
+                                                                setSelectedLog(log);
+                                                            }}
+                                                            className="text-gray-600 hover:text-gray-900"
+                                                        >
+                                                            <Eye className="h-5 w-5" />
+                                                        </button>
+                                                        {/* <button className="text-emerald-600 hover:text-emerald-900">
+                                            <Edit className="h-4 w-4" />
+                                        </button>
+                                        <button className="text-red-600 hover:text-red-900">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button> */}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Card View */}
+                            <div className="lg:hidden space-y-4 p-4">
+                                {filteredPatients.map((log) => {
+                                    const patient = patients.find(p => p.id === log.patientId);
+                                    if (!patient) return null;
+
+                                    return (
+                                        <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                            {/* Header */}
+                                            <div className="flex items-start space-x-3 mb-4">
+                                                <div className="flex-1 min-w-0 mb-4">
+                                                    <h4 className="font-semibold text-gray-900 text-lg  ">{patient.name}</h4>
+                                                    <p className="text-sm text-gray-600 mb-1">{patient.mrNumber}</p>
+                                                    <p className="text-sm text-gray-600">Kamar {log.roomNumber}-{log.bedNumber}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">Masuk: {log.admissionDate}</p>
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
+                                                    patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
+                                                        'bg-green-100 text-green-800'
+                                                    }`}>
+                                                    {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                                                        patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                                                </span>
+                                            </div>
+
+                                            {/* Patient Information */}
+                                            <div className="space-y-3 mb-4">
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Diagnosis</p>
+                                                    <p className="text-sm text-gray-900">{log.diagnosis}</p>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">GDS</p>
+                                                        <p className="text-sm font-semibold text-gray-900">{patient.bloodSugar.value} mg/dL</p>
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-semibold text-gray-900">{patient.name}</h4>
-                                                        <p className="text-sm text-gray-600">{patient.mrNumber} • {log.roomNumber}-{log.bedNumber}</p>
-                                                        <p className="text-xs text-gray-500">Masuk: {log.admissionDate}</p>
+                                                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Komorbid</p>
+                                                        <p className="text-sm text-gray-900">{log.comorbidities.length > 0 ? log.comorbidities.join(', ') : '-'}</p>
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                    <div>
-                                                        <p className="text-xs font-medium text-gray-500">DIAGNOSIS</p>
-                                                        <p className="text-sm text-gray-900">{log.diagnosis}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-medium text-gray-500">KOMORBID</p>
-                                                        <p className="text-sm text-gray-900">{log.comorbidities.join(', ') || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-medium text-gray-500">ALERGI</p>
-                                                        <p className="text-sm text-red-600">{log.allergies.join(', ') || 'Tidak ada'}</p>
-                                                    </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Alergi</p>
+                                                    <p className={`text-sm font-medium ${log.allergies.length > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                                        {log.allergies.length > 0 ? log.allergies.join(', ') : 'Tidak ada'}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center space-x-2">
-                                                <div className="text-right mr-4">
-                                                    <p className="text-sm  text-gray-700 font-medium">GDS: {patient.bloodSugar.value}</p>
-                                                    <p className={`text-xs px-2 py-1 rounded-full ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
-                                                        patient.riskLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-green-100 text-green-800'
-                                                        }`}>
-                                                        {patient.riskLevel}
-                                                    </p>
-                                                </div>
+                                            {/* Actions */}
+                                            <div className="flex space-x-2">
                                                 <button
                                                     onClick={() => {
                                                         setSelectedPatient(patient);
                                                         setSelectedLog(log);
                                                     }}
-                                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                                    className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                                                 >
-                                                    Detail
+                                                    <Eye className="h-4 w-4" />
+                                                    <span>Detail</span>
                                                 </button>
+                                                {/* <button className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1">
+                                    <Edit className="h-4 w-4" />
+                                    <span>Edit</span>
+                                </button>
+                                <button className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1">
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Hapus</span>
+                                </button> */}
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
+
+                            {/* Empty State */}
+                            {patientLogs.length === 0 && (
+                                <div className="text-center py-12 px-4">
+                                    <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                        {searchTerm ? "Tidak ada pasien yang ditemukan" : "Belum ada pasien rawat inap"}
+                                    </h3>
+                                    <p className="text-gray-600 max-w-md mx-auto">
+                                        {searchTerm
+                                            ? "Coba gunakan kata kunci yang berbeda untuk mencari pasien."
+                                            : "Pasien rawat inap akan muncul di sini setelah data ditambahkan ke sistem."
+                                        }
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -7,7 +7,6 @@ export interface NewStaff {
     username: string;
     email: string;
     employeeId: string;
-    department: string;
     password: string;
 }
 
@@ -353,7 +352,7 @@ export const mockPatients: Patient[] = [
         gender: 'P',
         diabetesType: 'Tipe 1',
         lastVisit: '2024-08-12',
-        bloodSugar: { value: 110, date: '10/08/2025', trend: 'stable' },
+        bloodSugar: { value: 110, date: '10 /08/2025', trend: 'stable' },
         riskLevel: 'LOW',
         medications: [
             {

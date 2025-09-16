@@ -109,6 +109,7 @@ const PharmacyDashboard = () => {
         await fetchData();
     };
     const [isRefreshing, setIsRefreshing] = useState(false);
+
     const handleSaveDrug = () => {
         if (editingDrug) {
             setDrugData(prev => prev.map(drug => drug.id === editingDrug.id ? { ...editingDrug } : drug));
@@ -139,9 +140,16 @@ const PharmacyDashboard = () => {
     };
 
     const filteredPatients = patients.filter(patient => {
-        const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase());
+        const searchLower = searchTerm.toLowerCase().trim();
 
+        // Search berdasarkan: nama, MR number, umur, gender, dan gula darah
+        const matchesSearch = patient.name.toLowerCase().includes(searchLower) ||
+            patient.mrNumber.toLowerCase().includes(searchLower) ||
+            patient.age.toString().includes(searchTerm.trim()) ||
+            patient.gender.toLowerCase().includes(searchLower) ||
+            patient.bloodSugar.value.toString().includes(searchTerm.trim());
+
+        // Apply filter setelah search
         switch (activeFilter) {
             case 'allergies':
                 return matchesSearch && patient.allergies && patient.allergies.length > 0;
@@ -153,6 +161,29 @@ const PharmacyDashboard = () => {
                 return matchesSearch;
         }
     });
+
+    const filteredDrug = drugData.filter(drug => {
+        const searchLower = searchTerm.toLowerCase().trim();
+
+        const matchesText = drug.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            drug.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            drug.strength.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            drug.manufacturer.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesNumber = searchTerm.trim() !== '' && (
+            drug.stock.toString().includes(searchTerm.trim()) ||
+            (searchLower.includes('low') || searchLower.includes('rendah')) && drug.stock < 50 ||
+            (searchLower.includes('high') || searchLower.includes('tinggi')) && drug.stock >= 100
+        );
+
+        // Search berdasarkan tanggal kedaluwarsa
+        const matchesDate = drug.expiryDate.includes(searchTerm.trim());
+
+        return matchesText || matchesNumber || matchesDate;
+    });
+
+
+
 
     const handleTabChange = (tab: 'patients' | 'drugs' | 'complaints' | 'lab-results' | 'notes') => {
         setActiveTab(tab);
@@ -304,6 +335,7 @@ const PharmacyDashboard = () => {
                     <div className="space-y-6">
                         {/* Search and Filter */}
                         <div className="bg-white rounded-lg shadow-sm p-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Daftar Pasien</h3>
                             <div className="flex flex-col sm:flex-row gap-4">
                                 <div className="flex-1 relative">
                                     <input
@@ -336,140 +368,138 @@ const PharmacyDashboard = () => {
                                     ))}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Patient List */}
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
-                            </div>
 
-                            {/* Desktop List View */}
-                            <div className="hidden md:block divide-y divide-gray-200">
-                                {filteredPatients.map((patient) => (
-                                    <div key={patient.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center space-x-3 mb-3">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 text-lg">{patient.name}</p>
-                                                        <p className="text-sm text-gray-600">{patient.mrNumber} • {patient.age} tahun • {patient.gender}</p>
+                            {/* Patient List */}
+                            <div className="bg-white rounded-lg shadow-sm mt-4">
+                                {/* Desktop List View */}
+                                <div className="hidden md:block divide-y divide-gray-200">
+                                    {filteredPatients.map((patient) => (
+                                        <div key={patient.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center space-x-3 mb-3">
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900 text-lg">{patient.name}</p>
+                                                            <p className="text-sm text-gray-600">{patient.mrNumber} • {patient.age} tahun • {patient.gender}</p>
+                                                        </div>
+                                                        {patient.allergies && patient.allergies.length > 0 && (
+                                                            <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                                                                ALERGI
+                                                            </span>
+                                                        )}
                                                     </div>
+
+                                                    <div className="grid grid-cols-4 gap-6 text-sm">
+                                                        <div>
+                                                            <span className="text-gray-600">GDS: </span>
+                                                            <span className={`font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
+                                                                }`}>
+                                                                {patient.bloodSugar.value} mg/dL
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-600">Obat Aktif: </span>
+                                                            <span className="font-semibold text-gray-900">{patient.medications?.length || 0}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-600">Keluhan: </span>
+                                                            <span className="font-semibold text-gray-900">
+                                                                {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-600">Risiko: </span>
+                                                            <span className={`font-semibold ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
+                                                                patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
+                                                                }`}>
+                                                                {patient.riskLevel}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => setSelectedPatient(patient)}
+                                                    className="ml-4 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center space-x-2"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                    <span>Lihat Detail</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Mobile Card View */}
+                                <div className="md:hidden space-y-4 p-4">
+                                    {filteredPatients.map((patient) => (
+                                        <div
+                                            key={patient.id}
+                                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                                        >
+                                            {/* Header */}
+                                            <div className="flex items-start justify-between mb-4">
+                                                <div className="flex-1">
+                                                    <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                                                        {patient.name}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-600 mb-2">
+                                                        {patient.mrNumber} • {patient.age} tahun • {patient.gender}
+                                                    </p>
                                                     {patient.allergies && patient.allergies.length > 0 && (
-                                                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                                                        <span className="inline-flex bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
                                                             ALERGI
                                                         </span>
                                                     )}
                                                 </div>
+                                            </div>
 
-                                                <div className="grid grid-cols-4 gap-6 text-sm">
-                                                    <div>
-                                                        <span className="text-gray-600">GDS: </span>
-                                                        <span className={`font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
-                                                            }`}>
-                                                            {patient.bloodSugar.value} mg/dL
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-600">Obat Aktif: </span>
-                                                        <span className="font-semibold text-gray-900">{patient.medications?.length || 0}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-600">Keluhan: </span>
-                                                        <span className="font-semibold text-gray-900">
-                                                            {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length}
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-600">Risiko: </span>
-                                                        <span className={`font-semibold ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
-                                                            patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
-                                                            }`}>
-                                                            {patient.riskLevel}
-                                                        </span>
-                                                    </div>
+                                            {/* Patient Information */}
+                                            <div className="mb-4 space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-600">GDS:</span>
+                                                    <span className={`text-sm font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
+                                                        }`}>
+                                                        {patient.bloodSugar.value} mg/dL
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-600">Obat Aktif:</span>
+                                                    <span className="text-sm font-semibold text-gray-900">
+                                                        {patient.medications?.length || 0} obat
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-600">Keluhan Baru:</span>
+                                                    <span className="text-sm font-semibold text-gray-900">
+                                                        {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length} keluhan
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-600">Level Risiko:</span>
+                                                    <span className={`text-sm font-semibold px-2 py-1 rounded-full ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                        patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-700' :
+                                                            'bg-green-100 text-green-700'
+                                                        }`}>
+                                                        {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                                                            patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                                                    </span>
                                                 </div>
                                             </div>
 
+                                            {/* Action Button */}
                                             <button
                                                 onClick={() => setSelectedPatient(patient)}
-                                                className="ml-4 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center space-x-2"
+                                                className="w-full bg-emerald-100 text-emerald-700 py-3 px-4 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
                                             >
                                                 <Eye className="h-4 w-4" />
-                                                <span>Lihat Detail</span>
+                                                <span>Lihat Detail Pasien</span>
                                             </button>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
 
-                            {/* Mobile Card View */}
-                            <div className="md:hidden space-y-4 p-4">
-                                {filteredPatients.map((patient) => (
-                                    <div
-                                        key={patient.id}
-                                        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
-                                    >
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-gray-900 text-lg mb-1">
-                                                    {patient.name}
-                                                </h4>
-                                                <p className="text-sm text-gray-600 mb-2">
-                                                    {patient.mrNumber} • {patient.age} tahun • {patient.gender}
-                                                </p>
-                                                {patient.allergies && patient.allergies.length > 0 && (
-                                                    <span className="inline-flex bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                                                        ALERGI
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Patient Information */}
-                                        <div className="mb-4 space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">GDS:</span>
-                                                <span className={`text-sm font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
-                                                    }`}>
-                                                    {patient.bloodSugar.value} mg/dL
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">Obat Aktif:</span>
-                                                <span className="text-sm font-semibold text-gray-900">
-                                                    {patient.medications?.length || 0} obat
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">Keluhan Baru:</span>
-                                                <span className="text-sm font-semibold text-gray-900">
-                                                    {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length} keluhan
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">Level Risiko:</span>
-                                                <span className={`text-sm font-semibold px-2 py-1 rounded-full ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' :
-                                                    patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-700' :
-                                                        'bg-green-100 text-green-700'
-                                                    }`}>
-                                                    {patient.riskLevel === 'HIGH' ? 'Tinggi' :
-                                                        patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Button */}
-                                        <button
-                                            onClick={() => setSelectedPatient(patient)}
-                                            className="w-full bg-emerald-100 text-emerald-700 py-3 px-4 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
-                                        >
-                                            <Eye className="h-4 w-4" />
-                                            <span>Lihat Detail Pasien</span>
-                                        </button>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Empty State */}
@@ -497,13 +527,26 @@ const PharmacyDashboard = () => {
                         <div className="bg-white rounded-lg shadow-sm">
                             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                                 <h3 className="text-lg font-semibold text-gray-900">Manajemen Data Obat</h3>
-                                <button
-                                    onClick={() => setShowDrugForm(true)}
-                                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
-                                >
-                                    <Plus className="h-4 w-4" />
-                                    <span>Tambah Obat</span>
-                                </button>
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <div className="flex-1 relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Cari obat..."
+                                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                        <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                                    </div>
+
+                                    <button
+                                        onClick={() => setShowDrugForm(true)}
+                                        className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        <span>Tambah Obat</span>
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Desktop Table Layout */}
@@ -520,7 +563,7 @@ const PharmacyDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {drugData.map((drug) => (
+                                        {filteredDrug.map((drug) => (
                                             <tr key={drug.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div>
@@ -564,7 +607,7 @@ const PharmacyDashboard = () => {
 
                             {/* Mobile Card Layout */}
                             <div className="lg:hidden space-y-4 p-4">
-                                {drugData.map((drug) => (
+                                {filteredDrug.map((drug) => (
                                     <div
                                         key={drug.id}
                                         className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"

@@ -25,7 +25,6 @@ export async function GET(
         username: true,
         role: true,
         employeeId: true,
-        department: true,
         createdAt: true,
         updatedAt: true,
       }
@@ -55,7 +54,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, email, username, password, role, employeeId, department } = body;
+    const { name, email, username, password, role, employeeId } = body;
 
     // Check if staff exists
     const existingStaff = await prisma.user.findUnique({
@@ -91,18 +90,7 @@ export async function PUT(
       }, { status: 400 });
     }
 
-    // Auto-generate department based on role if not provided
-    const departmentMapping: { [key: string]: string } = {
-      'DOKTER_SPESIALIS': 'Penyakit Dalam',
-      'PERAWAT_RUANGAN': 'Keperawatan Ruangan',
-      'PERAWAT_POLI': 'Poliklinik',
-      'FARMASI': 'Farmasi',
-      'ADMINISTRASI': 'Administrasi',
-      'MANAJER': 'Manajer',
-      'AHLI_GIZI': 'Gizi'
-    };
-
-    const finalDepartment = department || departmentMapping[role] || 'Umum';
+ 
 
     // Prepare update data
     const updateData: any = {
@@ -110,8 +98,7 @@ export async function PUT(
       email,
       username,
       role,
-      employeeId,
-      department: finalDepartment
+      employeeId
     };
 
     // Only hash and update password if provided
@@ -130,7 +117,6 @@ export async function PUT(
         username: true,
         role: true,
         employeeId: true,
-        department: true,
         updatedAt: true,
       }
     });

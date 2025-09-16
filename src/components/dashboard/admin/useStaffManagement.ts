@@ -10,7 +10,6 @@ interface Staff {
   username: string;
   role: string;
   employeeId: string;
-  department: string;
   createdAt: string;
   updatedAt: string;
 }
