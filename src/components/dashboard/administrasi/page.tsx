@@ -1,6 +1,6 @@
 // src/components/dashboard/admin/page.tsx
 import React, { useState, useEffect } from 'react';
-import { Search, User, Calendar, Activity, FileText, Users, Menu, X, Plus, Edit, Trash2, Eye, AlertCircle } from 'lucide-react';
+import { Search, User, Calendar, Activity, FileText, Users, Menu, X, Plus, Edit, Trash2, Eye, AlertCircle, Filter } from 'lucide-react';
 import PatientRegistrationForm from './PatientRegistrationForm';
 import PatientComplaintForm from './PatientComplaintForm';
 
@@ -30,6 +30,10 @@ interface PatientComplaint {
   severity: 'RINGAN' | 'SEDANG' | 'BERAT';
   status: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
   date: Date;
+  patient?: {
+    name: string;
+    mrNumber: string;
+  };
 }
 
 interface DashboardStats {
@@ -37,18 +41,23 @@ interface DashboardStats {
   todayRegistrations: number;
   activeComplaints: number;
   pendingRegistrations: number;
+  activePatients: number;
+  rujukBalikPatients: number;
 }
 
 const AdministrasiDashboard = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [complaints, setComplaints] = useState<PatientComplaint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'registration' | 'complaints'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'registration'>('dashboard');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<'ACTIVE' | 'RUJUK_BALIK' | 'SELESAI' | 'ALL'>('ACTIVE');
   const [stats, setStats] = useState<DashboardStats>({
     totalPatients: 0,
     todayRegistrations: 0,
     activeComplaints: 0,
-    pendingRegistrations: 0
+    pendingRegistrations: 0,
+    activePatients: 0,
+    rujukBalikPatients: 0
   });
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -65,21 +74,18 @@ const AdministrasiDashboard = () => {
     try {
       setLoading(true);
 
-      // Fetch patients
       const patientsResponse = await fetch('/api/patients');
       if (patientsResponse.ok) {
         const patientsData = await patientsResponse.json();
         setPatients(patientsData);
       }
 
-      // Fetch complaints
       const complaintsResponse = await fetch('/api/patient-complaints');
       if (complaintsResponse.ok) {
         const complaintsData = await complaintsResponse.json();
         setComplaints(complaintsData);
       }
 
-      // Fetch stats
       const statsResponse = await fetch('/api/dashboard/admin-stats');
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
@@ -93,21 +99,40 @@ const AdministrasiDashboard = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.gender.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.insuranceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getFilteredPatients = () => {
+    let statusFiltered = patients;
+    
+    if (patientStatusFilter !== 'ALL') {
+      statusFiltered = patients.filter(patient => {
+        const status = patient.status || 'ACTIVE';
+        return status === patientStatusFilter;
+      });
+    }
+
+    return statusFiltered.filter(patient =>
+      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.gender.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.insuranceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (patient.status || 'ACTIVE').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  const filteredPatients = getFilteredPatients();
 
   const refreshData = async () => {
     const fetchData = async () => {
       try {
-        const patientsResponse = await fetch('/api/dashboard?type=patients');
+        const patientsResponse = await fetch('/api/patients');
         if (patientsResponse.ok) {
           const patientsData = await patientsResponse.json();
           setPatients(patientsData);
+        }
+
+        const complaintsResponse = await fetch('/api/patient-complaints');
+        if (complaintsResponse.ok) {
+          const complaintsData = await complaintsResponse.json();
+          setComplaints(complaintsData);
         }
 
       } catch (error) {
@@ -117,6 +142,7 @@ const AdministrasiDashboard = () => {
 
     await fetchData();
   };
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const formatDate = (date: Date | string) => {
@@ -135,7 +161,7 @@ const AdministrasiDashboard = () => {
     return age;
   };
 
-  const handleTabChange = (tab: 'dashboard' | 'patients' | 'registration' | 'complaints') => {
+  const handleTabChange = (tab: 'dashboard' | 'patients' | 'registration') => {
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
   };
@@ -196,7 +222,7 @@ const AdministrasiDashboard = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getComplaintStatusColor = (status: string) => {
     switch (status) {
       case 'BARU': return 'text-blue-700 bg-blue-50 border-blue-200';
       case 'DALAM_PROSES': return 'text-orange-700 bg-orange-50 border-orange-200';
@@ -205,16 +231,41 @@ const AdministrasiDashboard = () => {
     }
   };
 
-  // Navigation items
+  const getPatientStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'bg-green-100 text-green-800';
+      case 'RUJUK_BALIK': return 'bg-blue-100 text-blue-800';
+      case 'SELESAI': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-green-100 text-green-800';
+    }
+  };
+
+  const getPatientStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'Aktif';
+      case 'RUJUK_BALIK': return 'Rujuk Balik';
+      case 'SELESAI': return 'Selesai';
+      default: return 'Aktif';
+    }
+  };
+
+  const getStatusCounts = () => {
+    const activeCount = patients.filter(p => !p.status || p.status === 'ACTIVE').length;
+    const rujukBalikCount = patients.filter(p => p.status === 'RUJUK_BALIK').length;
+    const selesaiCount = patients.filter(p => p.status === 'SELESAI').length;
+    
+    return { activeCount, rujukBalikCount, selesaiCount };
+  };
+
+  const { activeCount, rujukBalikCount, selesaiCount } = getStatusCounts();
+
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Data Pasien', icon: Users },
-    { key: 'complaints', label: 'Keluhan Pasien', icon: AlertCircle }
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -222,7 +273,6 @@ const AdministrasiDashboard = () => {
         />
       )}
 
-      {/* Mobile Sidebar */}
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -250,7 +300,6 @@ const AdministrasiDashboard = () => {
                   <IconComponent className="h-5 w-5" />
                   <span>{item.label}</span>
                 </button>
-
               </div>
             );
           })}
@@ -258,7 +307,6 @@ const AdministrasiDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Mobile Header */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -289,7 +337,6 @@ const AdministrasiDashboard = () => {
           </button>
         </div>
 
-        {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
@@ -318,7 +365,6 @@ const AdministrasiDashboard = () => {
         </div>
         
         <div className="space-y-6">
-          {/* Navigation Tabs - Desktop */}
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-85 px-6 justify-center">
@@ -342,7 +388,6 @@ const AdministrasiDashboard = () => {
             </div>
           </div>
 
-          {/* Dashboard Tab */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
               {loading ? (
@@ -366,8 +411,8 @@ const AdministrasiDashboard = () => {
                   <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-green-600">Registrasi Hari Ini</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.todayRegistrations}</p>
+                        <p className="text-sm font-medium text-green-600">Pasien Aktif</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">{activeCount}</p>
                       </div>
                       <div className="bg-green-100 p-3 rounded-full">
                         <Calendar className="h-8 w-8 text-green-600" />
@@ -379,7 +424,7 @@ const AdministrasiDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-orange-600">Keluhan Aktif</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.activeComplaints}</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">{complaints.filter(c => c.status !== 'SELESAI').length}</p>
                       </div>
                       <div className="bg-orange-100 p-3 rounded-full">
                         <AlertCircle className="h-8 w-8 text-orange-600" />
@@ -390,8 +435,8 @@ const AdministrasiDashboard = () => {
                   <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-purple-600">Pending Registrasi</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.pendingRegistrations}</p>
+                        <p className="text-sm font-medium text-purple-600">Rujuk Balik</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">{rujukBalikCount}</p>
                       </div>
                       <div className="bg-purple-100 p-3 rounded-full">
                         <FileText className="h-8 w-8 text-purple-600" />
@@ -401,7 +446,6 @@ const AdministrasiDashboard = () => {
                 </div>
               )}
 
-              {/* Recent Registrations */}
               <div className="bg-white rounded-lg shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">Registrasi Terbaru</h3>
@@ -436,10 +480,47 @@ const AdministrasiDashboard = () => {
                   )}
                 </div>
               </div>
+
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Keluhan Terbaru</h3>
+                </div>
+                <div className="p-6">
+                  {complaints.length > 0 ? (
+                    <div className="space-y-4">
+                      {complaints.slice(0, 5).map((complaint) => (
+                        <div key={complaint.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">{complaint.complaint}</p>
+                              <p className="text-sm text-gray-600">
+                                Pasien: {complaint.patient?.name || 'Unknown'} ({complaint.patient?.mrNumber})
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityColor(complaint.severity)}`}>
+                                {complaint.severity}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-medium border ${getComplaintStatusColor(complaint.status)}`}>
+                                {complaint.status.replace('_', ' ')}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">{formatDate(complaint.date)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Belum ada keluhan pasien</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Patients Tab */}
           {activeTab === 'patients' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
@@ -468,7 +549,51 @@ const AdministrasiDashboard = () => {
                 </div>
               </div>
 
-              {/* Desktop Table View */}
+              <div className="border-b border-gray-200 px-6">
+                <div className="flex space-x-8 py-3">
+                  <button
+                    onClick={() => setPatientStatusFilter('ACTIVE')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      patientStatusFilter === 'ACTIVE'
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Aktif ({activeCount})
+                  </button>
+                  <button
+                    onClick={() => setPatientStatusFilter('RUJUK_BALIK')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      patientStatusFilter === 'RUJUK_BALIK'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Rujuk Balik ({rujukBalikCount})
+                  </button>
+                  <button
+                    onClick={() => setPatientStatusFilter('SELESAI')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      patientStatusFilter === 'SELESAI'
+                        ? 'border-gray-500 text-gray-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Selesai ({selesaiCount})
+                  </button>
+                  <button
+                    onClick={() => setPatientStatusFilter('ALL')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      patientStatusFilter === 'ALL'
+                        ? 'border-purple-500 text-purple-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Semua ({patients.length})
+                  </button>
+                </div>
+              </div>
+
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -512,18 +637,8 @@ const AdministrasiDashboard = () => {
                           {patient.insuranceType}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${patient.status === 'ACTIVE' || !patient.status
-                            ? 'bg-green-100 text-green-800'
-                            : patient.status === 'RUJUK_BALIK'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
-                            }`}>
-                            {patient.status === 'ACTIVE' || !patient.status
-                              ? 'Aktif'
-                              : patient.status === 'RUJUK_BALIK'
-                                ? 'Rujuk Balik'
-                                : patient.status
-                            }
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'ACTIVE')}`}>
+                            {getPatientStatusLabel(patient.status || 'ACTIVE')}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -565,7 +680,6 @@ const AdministrasiDashboard = () => {
                 </table>
               </div>
 
-              {/* Mobile Card View */}
               <div className="lg:hidden space-y-4 p-4">
                 {filteredPatients.map((patient) => (
                   <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -574,11 +688,8 @@ const AdministrasiDashboard = () => {
                         <h4 className="font-semibold text-gray-900 text-lg">{patient.name}</h4>
                         <p className="text-sm text-gray-600">RM: {patient.mrNumber}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${patient.status === 'ACTIVE' || !patient.status
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-blue-100 text-blue-800'
-                        }`}>
-                        {patient.status === 'ACTIVE' || !patient.status ? 'Aktif' : 'Rujuk Balik'}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'ACTIVE')}`}>
+                        {getPatientStatusLabel(patient.status || 'ACTIVE')}
                       </span>
                     </div>
 
@@ -641,50 +752,9 @@ const AdministrasiDashboard = () => {
             </div>
           )}
 
-          {/* Complaints Tab */}
-          {activeTab === 'complaints' && (
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Keluhan Pasien</h3>
-              </div>
-              <div className="p-6">
-                {complaints.length > 0 ? (
-                  <div className="space-y-4">
-                    {complaints.map((complaint) => (
-                      <div key={complaint.id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{complaint.complaint}</p>
-                            <p className="text-sm text-gray-600">
-                              Pasien: {(complaint as any).patient?.name || 'Unknown'}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityColor(complaint.severity)}`}>
-                              {complaint.severity}
-                            </span>
-                            <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(complaint.status)}`}>
-                              {complaint.status.replace('_', ' ')}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500">{formatDate(complaint.date)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Belum ada keluhan pasien</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Patient Form Modal */}
       {showPatientForm && (
         <PatientRegistrationForm
           selectedPatient={selectedPatient}
@@ -697,7 +767,6 @@ const AdministrasiDashboard = () => {
         />
       )}
 
-      {/* Complaint Form Modal */}
       {showComplaintForm && selectedPatient && (
         <PatientComplaintForm
           patient={selectedPatient}

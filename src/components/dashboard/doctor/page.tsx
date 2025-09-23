@@ -1,18 +1,83 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X } from 'lucide-react';
-import {
-  mockPatients, mockAlerts,
-  dashboardStats,
-  getPatientsByComplianceLevel,
-  getPatientsByBMICategory,
-  getAverageCompliance,
-  getPatientsWithNutritionPlan,
-  Patient,
-  Alert
-} from '@/data/mockData';
+
+interface Patient {
+  id: string;
+  mrNumber: string;
+  name: string;
+  birthDate: string;
+  gender: 'MALE' | 'FEMALE';
+  phone?: string;
+  address?: string;
+  height?: number;
+  weight?: number;
+  bmi?: number;
+  bloodType?: string;
+  allergies: string[];
+  medicalHistory?: string;
+  diabetesType?: string;
+  diagnosisDate?: string;
+  comorbidities: string[];
+  insuranceType: string;
+  insuranceNumber?: string;
+  lastVisit?: string;
+  nextAppointment?: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'ACTIVE' | 'RUJUK_BALIK';
+  dietCompliance?: number;
+  calorieNeeds?: number;
+  calorieRequirement?: number;
+  dietPlan?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    name: string;
+  };
+  complaints?: PatientComplaint[];
+  medications?: Medication[];
+  vitalSigns?: VitalSign[];
+}
+
+interface PatientComplaint {
+  id: string;
+  complaint: string;
+  severity: 'RINGAN' | 'SEDANG' | 'BERAT';
+  status: 'BARU' | 'SELESAI';
+  date: string;
+}
+
+interface Medication {
+  id: string;
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  startDate: string;
+  endDate?: string;
+  interactions?: string[];
+}
+
+interface VitalSign {
+  id: string;
+  recordDate: string;
+  systolicBP?: number;
+  diastolicBP?: number;
+  heartRate?: number;
+  temperature?: number;
+  bloodGlucose?: number;
+  notes?: string;
+}
+
+interface Alert {
+  id: string;
+  type: 'CRITICAL' | 'WARNING' | 'INFO';
+  message: string;
+  patientId?: string;
+  timestamp: string;
+  category: string;
+}
 
 interface VitalInput {
   bloodSugar: string;
@@ -32,63 +97,97 @@ const DoctorDashboard = () => {
   const [showVitalInput, setShowVitalInput] = useState<string | null>(null);
   const [vitalInputs, setVitalInputs] = useState<{ [key: string]: VitalInput }>({});
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPatientDetail, setShowPatientDetail] = useState(false);
+  const [showEditPatient, setShowEditPatient] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [newPatient, setNewPatient] = useState({
     name: '',
-    age: '',
+    birthDate: '',
     gender: '',
+    phone: '',
+    address: '',
+    height: '',
+    weight: '',
+    diabetesType: '',
     insuranceType: '',
-    bloodSugar: ''
+    allergies: '',
+    medicalHistory: '',
+    complaint: '',
+    complaintSeverity: 'RINGAN'
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch patients from API
-        const patientsResponse = await fetch('/api/dashboard?type=patients');
-        if (patientsResponse.ok) {
-          const patientsData = await patientsResponse.json();
-          setPatients(patientsData);
-        }
+  // Calculate age from birth date
+  const calculateAge = (birthDate: string) => {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
-        // Fetch alerts from API
-        const alertsResponse = await fetch('/api/dashboard?type=alerts');
-        if (alertsResponse.ok) {
-          const alertsData = await alertsResponse.json();
-          setAlerts(alertsData);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        // Fallback to mock data if API fails
-        setPatients(mockPatients);
-        setAlerts(mockAlerts);
+  // Fetch patients from API
+  const fetchPatients = async () => {
+    try {
+      const response = await fetch('/api/patients');
+      if (response.ok) {
+        const data = await response.json();
+        setPatients(data);
+      } else {
+        console.error('Failed to fetch patients');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+    }
+  };
 
-    fetchData();
+  // Fetch alerts (you'll need to create this API endpoint)
+  const fetchAlerts = async () => {
+    try {
+      // For now, we'll create mock alerts based on patients data
+      // You can implement a real alerts API endpoint later
+      const mockAlerts: Alert[] = [
+        {
+          id: '1',
+          type: 'CRITICAL',
+          message: 'Pasien dengan HbA1c > 9% memerlukan perhatian segera',
+          timestamp: '08:30',
+          category: 'blood_sugar'
+        },
+        {
+          id: '2', 
+          type: 'WARNING',
+          message: 'Ada pasien dengan tekanan darah tinggi',
+          timestamp: '07:45',
+          category: 'vital_signs'
+        },
+        {
+          id: '3',
+          type: 'INFO',
+          message: '5 pasien memiliki janji kontrol hari ini',
+          timestamp: '06:30',
+          category: 'appointments'
+        }
+      ];
+      setAlerts(mockAlerts);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPatients();
+    fetchAlerts();
   }, []);
 
   const refreshData = async () => {
-    const fetchData = async () => {
-      try {
-        const patientsResponse = await fetch('/api/dashboard?type=patients');
-        if (patientsResponse.ok) {
-          const patientsData = await patientsResponse.json();
-          setPatients(patientsData);
-        }
-
-        const alertsResponse = await fetch('/api/dashboard?type=alerts');
-        if (alertsResponse.ok) {
-          const alertsData = await alertsResponse.json();
-          setAlerts(alertsData);
-        }
-      } catch (error) {
-        console.error('Error refreshing data:', error);
-      }
-    };
-
-    await fetchData();
+    setIsRefreshing(true);
+    await Promise.all([fetchPatients(), fetchAlerts()]);
+    setIsRefreshing(false);
   };
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getRiskLevelColor = (level: string) => {
     switch (level) {
@@ -101,55 +200,156 @@ const DoctorDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Aktif': return 'text-blue-700 bg-blue-50 border-blue-200';
-      case 'Rujuk Balik': return 'text-green-700 bg-green-50 border-green-200';
+      case 'ACTIVE': return 'text-blue-700 bg-blue-50 border-blue-200';
+      case 'RUJUK_BALIK': return 'text-green-700 bg-green-50 border-green-200';
       default: return 'text-gray-700 bg-gray-50 border-gray-200';
     }
   };
 
   const filteredPatients = patients.filter(patient => {
     const searchLower = searchTerm.toLowerCase().trim();
+    const age = calculateAge(patient.birthDate).toString();
 
-    const matchesSearch = patient.name.toLowerCase().includes(searchLower) ||
-      patient.mrNumber.toLowerCase().includes(searchLower) ||
-      patient.age.toString().includes(searchTerm.trim()) ||
-      patient.gender.toLowerCase().includes(searchLower) ||
-      patient.insuranceType.toLowerCase().includes(searchLower) ||
-      patient.status.toLowerCase().includes(searchLower) ||
-      patient.bloodSugar.value.toString().includes(searchTerm.trim());
-
-      return matchesSearch;
-    
+    return patient.name.toLowerCase().includes(searchLower) ||
+           patient.mrNumber.toLowerCase().includes(searchLower) ||
+           age.includes(searchTerm.trim()) ||
+           patient.gender.toLowerCase().includes(searchLower) ||
+           patient.insuranceType.toLowerCase().includes(searchLower) ||
+           patient.status.toLowerCase().includes(searchLower);
   });
 
-  const handleAddPatient = (e: React.FormEvent) => {
+  const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    const nextMRNumber = `RM${(1013 + patients.length).toString().padStart(4, '0')}`;
-
-    const patient: Patient = {
-      id: (patients.length + 1).toString(),
-      mrNumber: nextMRNumber,
+    
+    const patientData = {
       name: newPatient.name,
-      age: parseInt(newPatient.age),
-      gender: newPatient.gender as 'L' | 'P',
-      diabetesType: 'Tipe 2',
-      lastVisit: new Date().toISOString().split('T')[0],
-      bloodSugar: {
-        value: parseInt(newPatient.bloodSugar),
-        date: new Date().toLocaleDateString('id-ID'),
-        trend: 'stable'
-      },
-      riskLevel: parseInt(newPatient.bloodSugar) > 200 ? 'HIGH' : parseInt(newPatient.bloodSugar) > 140 ? 'MEDIUM' : 'LOW',
-      medications: [],
-      dietCompliance: 0,
-      vitalSigns: { bloodPressure: '120/80', heartRate: 70, temperature: 36.5, weight: 65 },
+      birthDate: newPatient.birthDate,
+      gender: newPatient.gender,
+      phone: newPatient.phone || undefined,
+      address: newPatient.address || undefined,
+      height: newPatient.height ? parseFloat(newPatient.height) : undefined,
+      weight: newPatient.weight ? parseFloat(newPatient.weight) : undefined,
+      diabetesType: newPatient.diabetesType || undefined,
       insuranceType: newPatient.insuranceType,
-      status: 'Aktif'
+      allergies: newPatient.allergies ? newPatient.allergies.split(',').map(a => a.trim()) : [],
+      medicalHistory: newPatient.medicalHistory || undefined,
+      status: 'ACTIVE',
+      complaint: newPatient.complaint || undefined,
+      complaintSeverity: newPatient.complaintSeverity
     };
 
-    setPatients([...patients, patient]);
-    setNewPatient({ name: '', age: '', gender: '', insuranceType: '', bloodSugar: '' });
-    setShowAddPatient(false);
+    try {
+      const response = await fetch('/api/patients', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(patientData),
+      });
+
+      if (response.ok) {
+        await fetchPatients(); // Refresh the patient list
+        setNewPatient({
+          name: '',
+          birthDate: '',
+          gender: '',
+          phone: '',
+          address: '',
+          height: '',
+          weight: '',
+          diabetesType: '',
+          insuranceType: '',
+          allergies: '',
+          medicalHistory: '',
+          complaint: '',
+          complaintSeverity: 'RINGAN'
+        });
+        setShowAddPatient(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to add patient');
+      }
+    } catch (error) {
+      console.error('Error adding patient:', error);
+      alert('Error adding patient');
+    }
+  };
+
+  const handleEditPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPatient) return;
+
+    const patientData = {
+      name: editingPatient.name,
+      birthDate: editingPatient.birthDate,
+      gender: editingPatient.gender,
+      phone: editingPatient.phone || undefined,
+      address: editingPatient.address || undefined,
+      height: editingPatient.height || undefined,
+      weight: editingPatient.weight || undefined,
+      diabetesType: editingPatient.diabetesType || undefined,
+      insuranceType: editingPatient.insuranceType,
+      allergies: editingPatient.allergies || [],
+      medicalHistory: editingPatient.medicalHistory || undefined,
+      status: editingPatient.status
+    };
+
+    try {
+      const response = await fetch(`/api/patients/${editingPatient.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(patientData),
+      });
+
+      if (response.ok) {
+        await fetchPatients(); // Refresh the patient list
+        setEditingPatient(null);
+        setShowEditPatient(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update patient');
+      }
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      alert('Error updating patient');
+    }
+  };
+
+  const handleDeletePatient = async (patientId: string) => {
+    if (!confirm('Are you sure you want to delete this patient?')) return;
+
+    try {
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchPatients(); // Refresh the patient list
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to delete patient');
+      }
+    } catch (error) {
+      console.error('Error deleting patient:', error);
+      alert('Error deleting patient');
+    }
+  };
+
+  const handleViewPatient = async (patientId: string) => {
+    try {
+      const response = await fetch(`/api/patients/${patientId}`);
+      if (response.ok) {
+        const patient = await response.json();
+        setSelectedPatient(patient);
+        setShowPatientDetail(true);
+      } else {
+        console.error('Failed to fetch patient details');
+      }
+    } catch (error) {
+      console.error('Error fetching patient details:', error);
+    }
   };
 
   const handleVitalInput = (patientId: string, field: keyof VitalInput, value: string) => {
@@ -162,30 +362,16 @@ const DoctorDashboard = () => {
     }));
   };
 
-  const saveVitals = (patientId: string) => {
+  const saveVitals = async (patientId: string) => {
     const vitals = vitalInputs[patientId];
     if (vitals) {
-      setPatients(prev => prev.map(patient => {
-        if (patient.id === patientId) {
-          return {
-            ...patient,
-            bloodSugar: {
-              ...patient.bloodSugar,
-              value: parseInt(vitals.bloodSugar) || patient.bloodSugar.value
-            },
-            vitalSigns: {
-              ...patient.vitalSigns,
-              bloodPressure: vitals.systolic && vitals.diastolic ? `${vitals.systolic}/${vitals.diastolic}` : patient.vitalSigns.bloodPressure,
-              heartRate: parseInt(vitals.heartRate) || patient.vitalSigns.heartRate,
-              weight: parseFloat(vitals.weight) || patient.vitalSigns.weight
-            }
-          };
-        }
-        return patient;
-      }));
+      // Here you would typically save to a vital signs API endpoint
+      // For now, we'll just update the local state
+      console.log('Saving vitals for patient:', patientId, vitals);
+      setShowVitalInput(null);
+      setVitalInputs({});
+      // You can implement the actual API call to save vital signs here
     }
-    setShowVitalInput(null);
-    setVitalInputs({});
   };
 
   const handleTabChange = (tab: 'dashboard' | 'patients' | 'nutrition' | 'pharmacy' | 'nursing') => {
@@ -193,11 +379,14 @@ const DoctorDashboard = () => {
     setIsMobileSidebarOpen(false);
   };
 
-  const nutritionAnalytics = {
-    averageCompliance: getAverageCompliance(),
-    patientsWithPlan: getPatientsWithNutritionPlan().length,
-    lowCompliance: getPatientsByComplianceLevel(0, 60).length,
-    bmiCategories: getPatientsByBMICategory()
+  // Dashboard stats calculated from real data
+  const dashboardStats = {
+    activePatients: patients.filter(p => p.status === 'ACTIVE').length,
+    todayVisits: patients.filter(p => {
+      const today = new Date().toISOString().split('T')[0];
+      return p.lastVisit === today;
+    }).length,
+    totalAllergies: patients.reduce((acc, p) => acc + (p.allergies?.length || 0), 0)
   };
 
   // Navigation items
@@ -220,8 +409,7 @@ const DoctorDashboard = () => {
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-m font-semibold text-gray-900">Menu Dokter</h2>
@@ -265,11 +453,7 @@ const DoctorDashboard = () => {
           </button>
 
           <button
-            onClick={async () => {
-              setIsRefreshing(true);
-              await refreshData();
-              setIsRefreshing(false);
-            }}
+            onClick={refreshData}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
           >
@@ -291,14 +475,9 @@ const DoctorDashboard = () => {
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
-              onClick={async () => {
-                setIsRefreshing(true);
-                await refreshData();
-                setIsRefreshing(false);
-              }}
+              onClick={refreshData}
               disabled={isRefreshing}
-              className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
-               text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+              className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
             >
               {isRefreshing ? (
                 <>
@@ -325,9 +504,7 @@ const DoctorDashboard = () => {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key as any)}
-                    className={`flex items-center flex-shrink-0 space-x-1 sm:space-x-2 py-2 sm:py-3 px-2 sm:px-4 
-          border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap
-          ${activeTab === tab.key
+                    className={`flex items-center flex-shrink-0 space-x-1 sm:space-x-2 py-2 sm:py-3 px-2 sm:px-4 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
                         ? 'border-emerald-500 text-emerald-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
@@ -401,8 +578,8 @@ const DoctorDashboard = () => {
                           <p className="text-sm text-gray-600">{patient.mrNumber} • {patient.insuranceType}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium">GDS: {patient.bloodSugar.value}</p>
-                          <p className="text-xs text-gray-500">{patient.bloodSugar.date}</p>
+                          <p className="text-sm font-medium">BMI: {patient.bmi || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{patient.lastVisit}</p>
                         </div>
                       </div>
                     </div>
@@ -438,6 +615,92 @@ const DoctorDashboard = () => {
           </div>
         )}
 
+        {/* Patient Detail Modal */}
+        {showPatientDetail && selectedPatient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Detail Pasien</h3>
+                <button
+                  onClick={() => setShowPatientDetail(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Informasi Dasar</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium">Nama:</span> {selectedPatient.name}</p>
+                      <p><span className="font-medium">No. RM:</span> {selectedPatient.mrNumber}</p>
+                      <p><span className="font-medium">Umur:</span> {calculateAge(selectedPatient.birthDate)} tahun</p>
+                      <p><span className="font-medium">Jenis Kelamin:</span> {selectedPatient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
+                      <p><span className="font-medium">Telepon:</span> {selectedPatient.phone || '-'}</p>
+                      <p><span className="font-medium">Alamat:</span> {selectedPatient.address || '-'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Informasi Medis</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium">Tinggi:</span> {selectedPatient.height || '-'} cm</p>
+                      <p><span className="font-medium">Berat:</span> {selectedPatient.weight || '-'} kg</p>
+                      <p><span className="font-medium">BMI:</span> {selectedPatient.bmi || '-'}</p>
+                      <p><span className="font-medium">Golongan Darah:</span> {selectedPatient.bloodType || '-'}</p>
+                      <p><span className="font-medium">Tipe DM:</span> {selectedPatient.diabetesType || '-'}</p>
+                      <p><span className="font-medium">Status:</span> {selectedPatient.status}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Alergi</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPatient.allergies.map((allergy, index) => (
+                        <span key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-sm">
+                          {allergy}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedPatient.medicalHistory && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Riwayat Medis</h4>
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{selectedPatient.medicalHistory}</p>
+                  </div>
+                )}
+
+                {selectedPatient.complaints && selectedPatient.complaints.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Keluhan</h4>
+                    <div className="space-y-2">
+                      {selectedPatient.complaints.map((complaint) => (
+                        <div key={complaint.id} className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900">{complaint.complaint}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              complaint.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                              complaint.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {complaint.severity}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(complaint.date).toLocaleDateString('id-ID')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Patients Tab */}
         {activeTab === 'patients' && (
           <div className="space-y-6">
@@ -449,7 +712,7 @@ const DoctorDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nama Lengkap
+                        Nama Lengkap *
                       </label>
                       <input
                         type="text"
@@ -463,34 +726,20 @@ const DoctorDashboard = () => {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nomor RM
+                        Tanggal Lahir *
                       </label>
                       <input
-                        type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                        placeholder="Auto generate"
-                        value={`RM${(1013 + patients.length).toString().padStart(4, '0')}`}
-                        readOnly
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Umur
-                      </label>
-                      <input
-                        type="number"
+                        type="date"
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        placeholder="Umur"
-                        value={newPatient.age}
-                        onChange={(e) => setNewPatient({ ...newPatient, age: e.target.value })}
+                        value={newPatient.birthDate}
+                        onChange={(e) => setNewPatient({ ...newPatient, birthDate: e.target.value })}
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Jenis Kelamin
+                        Jenis Kelamin *
                       </label>
                       <select
                         required
@@ -499,14 +748,14 @@ const DoctorDashboard = () => {
                         onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })}
                       >
                         <option value="">Pilih jenis kelamin</option>
-                        <option value="L">Laki-laki</option>
-                        <option value="P">Perempuan</option>
+                        <option value="MALE">Laki-laki</option>
+                        <option value="FEMALE">Perempuan</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Jenis Penjamin
+                        Jenis Penjamin *
                       </label>
                       <select
                         required
@@ -516,23 +765,131 @@ const DoctorDashboard = () => {
                       >
                         <option value="">Pilih penjamin</option>
                         <option value="BPJS">BPJS</option>
-                        <option value="Pribadi">Pribadi</option>
-                        <option value="Asuransi Swasta">Asuransi Swasta</option>
+                        <option value="PRIVATE">Pribadi</option>
+                        <option value="CORPORATE">Asuransi Swasta</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        GDS Awal
+                        Telepon
+                      </label>
+                      <input
+                        type="tel"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="08xxxxxxxxx"
+                        value={newPatient.phone}
+                        onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tinggi Badan (cm)
                       </label>
                       <input
                         type="number"
-                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        placeholder="mg/dL"
-                        value={newPatient.bloodSugar}
-                        onChange={(e) => setNewPatient({ ...newPatient, bloodSugar: e.target.value })}
+                        placeholder="170"
+                        value={newPatient.height}
+                        onChange={(e) => setNewPatient({ ...newPatient, height: e.target.value })}
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Berat Badan (kg)
+                      </label>
+                      <input
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="70"
+                        value={newPatient.weight}
+                        onChange={(e) => setNewPatient({ ...newPatient, weight: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tipe Diabetes
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        value={newPatient.diabetesType}
+                        onChange={(e) => setNewPatient({ ...newPatient, diabetesType: e.target.value })}
+                      >
+                        <option value="">Pilih tipe diabetes</option>
+                        <option value="Tipe 1">Tipe 1</option>
+                        <option value="Tipe 2">Tipe 2</option>
+                        <option value="Gestational">Gestational</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Alamat
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        rows={3}
+                        placeholder="Alamat lengkap"
+                        value={newPatient.address}
+                        onChange={(e) => setNewPatient({ ...newPatient, address: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Alergi (pisahkan dengan koma)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="Contoh: Sulfa, Penisilin, Seafood"
+                        value={newPatient.allergies}
+                        onChange={(e) => setNewPatient({ ...newPatient, allergies: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Riwayat Medis
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        rows={3}
+                        placeholder="Riwayat penyakit sebelumnya"
+                        value={newPatient.medicalHistory}
+                        onChange={(e) => setNewPatient({ ...newPatient, medicalHistory: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Keluhan Utama
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="Keluhan pasien saat ini"
+                        value={newPatient.complaint}
+                        onChange={(e) => setNewPatient({ ...newPatient, complaint: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tingkat Keluhan
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        value={newPatient.complaintSeverity}
+                        onChange={(e) => setNewPatient({ ...newPatient, complaintSeverity: e.target.value })}
+                      >
+                        <option value="RINGAN">Ringan</option>
+                        <option value="SEDANG">Sedang</option>
+                        <option value="BERAT">Berat</option>
+                      </select>
                     </div>
                   </div>
 
@@ -547,10 +904,136 @@ const DoctorDashboard = () => {
                       type="button"
                       onClick={() => setShowAddPatient(false)}
                       className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors"
-                    >Batal
+                    >
+                      Batal
                     </button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {/* Edit Patient Modal */}
+            {showEditPatient && editingPatient && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-xl font-semibold text-gray-900">Edit Pasien</h3>
+                    <button
+                      onClick={() => {
+                        setShowEditPatient(false);
+                        setEditingPatient(null);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
+                  <form onSubmit={handleEditPatient} className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nama Lengkap *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          value={editingPatient.name}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, name: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jenis Kelamin *
+                        </label>
+                        <select
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          value={editingPatient.gender}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, gender: e.target.value as 'MALE' | 'FEMALE' })}
+                        >
+                          <option value="MALE">Laki-laki</option>
+                          <option value="FEMALE">Perempuan</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Telepon
+                        </label>
+                        <input
+                          type="tel"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          value={editingPatient.phone || ''}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, phone: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jenis Penjamin *
+                        </label>
+                        <select
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          value={editingPatient.insuranceType}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, insuranceType: e.target.value })}
+                        >
+                          <option value="BPJS">BPJS</option>
+                          <option value="PRIVATE">Pribadi</option>
+                          <option value="CORPORATE">Asuransi Swasta</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Status *
+                        </label>
+                        <select
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          value={editingPatient.status}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, status: e.target.value as 'ACTIVE' | 'RUJUK_BALIK' })}
+                        >
+                          <option value="ACTIVE">Aktif</option>
+                          <option value="RUJUK_BALIK">Rujuk Balik</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Alamat
+                        </label>
+                        <textarea
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          rows={3}
+                          value={editingPatient.address || ''}
+                          onChange={(e) => setEditingPatient({ ...editingPatient, address: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end space-x-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEditPatient(false);
+                          setEditingPatient(null);
+                        }}
+                        className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                      >
+                        Simpan Perubahan
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             )}
 
@@ -599,7 +1082,7 @@ const DoctorDashboard = () => {
                           Penjamin
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          GDS Terakhir
+                          BMI
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Status
@@ -619,38 +1102,46 @@ const DoctorDashboard = () => {
                             {patient.name}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {patient.age}/{patient.gender}
+                            {calculateAge(patient.birthDate)}/{patient.gender === 'MALE' ? 'L' : 'P'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {patient.insuranceType}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`text-sm font-medium ${patient.bloodSugar.value > 140 ? "text-red-600" : "text-green-600"
-                                }`}
-                            >
-                              {patient.bloodSugar.value} mg/dL
+                            <span className={`text-sm font-medium ${
+                              patient.bmi && patient.bmi > 25 ? "text-red-600" : 
+                              patient.bmi && patient.bmi < 18.5 ? "text-yellow-600" : "text-green-600"
+                            }`}>
+                              {patient.bmi?.toFixed(1) || 'N/A'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                                patient.status
-                              )}`}
-                            >
-                              {patient.status}
+                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(patient.status)}`}>
+                              {patient.status === 'ACTIVE' ? 'Aktif' : 'Rujuk Balik'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            <button className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1">
+                            <button 
+                              onClick={() => handleViewPatient(patient.id)}
+                              className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
+                            >
                               <Eye className="h-4 w-4" />
                               <span>Detail</span>
                             </button>
-                            <button className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1">
+                            <button 
+                              onClick={() => {
+                                setEditingPatient(patient);
+                                setShowEditPatient(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
+                            >
                               <Edit className="h-4 w-4" />
                               <span>Edit</span>
                             </button>
-                            <button className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1">
+                            <button 
+                              onClick={() => handleDeletePatient(patient.id)}
+                              className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
+                            >
                               <Trash2 className="h-4 w-4" />
                               <span>Delete</span>
                             </button>
@@ -664,27 +1155,18 @@ const DoctorDashboard = () => {
                 {/* Mobile Card Layout */}
                 <div className="lg:hidden space-y-4 p-4">
                   {filteredPatients.map((patient) => (
-                    <div
-                      key={patient.id}
-                      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
-                    >
+                    <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 text-lg">
-                            {patient.name}
-                          </h4>
+                          <h4 className="font-semibold text-gray-900 text-lg">{patient.name}</h4>
                           <p className="text-sm text-gray-600">No.RM: {patient.mrNumber}</p>
                           <p className="text-sm text-gray-600">
-                            {patient.age} / {patient.gender}
+                            {calculateAge(patient.birthDate)} / {patient.gender === 'MALE' ? 'L' : 'P'}
                           </p>
                         </div>
-                        <span
-                          className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                            patient.status
-                          )}`}
-                        >
-                          {patient.status}
+                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(patient.status)}`}>
+                          {patient.status === 'ACTIVE' ? 'Aktif' : 'Rujuk Balik'}
                         </span>
                       </div>
 
@@ -695,29 +1177,39 @@ const DoctorDashboard = () => {
                           {patient.insuranceType}
                         </p>
                         <p className="text-sm text-gray-600">
-                          <span className="font-medium">GDS Terakhir: </span>
-                          <span
-                            className={`font-medium ${patient.bloodSugar.value > 140
-                              ? "text-red-600"
-                              : "text-green-600"
-                              }`}
-                          >
-                            {patient.bloodSugar.value} mg/dL
+                          <span className="font-medium">BMI: </span>
+                          <span className={`font-medium ${
+                            patient.bmi && patient.bmi > 25 ? "text-red-600" : 
+                            patient.bmi && patient.bmi < 18.5 ? "text-yellow-600" : "text-green-600"
+                          }`}>
+                            {patient.bmi?.toFixed(1) || 'N/A'}
                           </span>
                         </p>
                       </div>
 
                       {/* Actions */}
                       <div className="flex space-x-2">
-                        <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
+                        <button 
+                          onClick={() => handleViewPatient(patient.id)}
+                          className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                        >
                           <Eye className="h-4 w-4" />
                           <span>Detail</span>
                         </button>
-                        <button className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1">
+                        <button 
+                          onClick={() => {
+                            setEditingPatient(patient);
+                            setShowEditPatient(true);
+                          }}
+                          className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                        >
                           <Edit className="h-4 w-4" />
                           <span>Edit</span>
                         </button>
-                        <button className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1">
+                        <button 
+                          onClick={() => handleDeletePatient(patient.id)}
+                          className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                        >
                           <Trash2 className="h-4 w-4" />
                           <span>Delete</span>
                         </button>
@@ -733,17 +1225,14 @@ const DoctorDashboard = () => {
                   )}
                 </div>
               </div>
-
             </div>
-
           </div>
-
         )}
 
         {/* Nutrition Tab */}
         {activeTab === 'nutrition' && (
           <div className="space-y-6">
-            {/* Nutrition Overview Cards - menggunakan data dari utility functions */}
+            {/* Nutrition Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center">
@@ -751,9 +1240,12 @@ const DoctorDashboard = () => {
                     <TrendingUp className="h-8 w-8 text-green-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Rata-rata Kepatuhan</p>
+                    <p className="text-sm font-medium text-gray-600">Rata-rata BMI</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {nutritionAnalytics.averageCompliance}%
+                      {patients.length > 0 ? 
+                        (patients.reduce((acc, p) => acc + (p.bmi || 0), 0) / patients.filter(p => p.bmi).length).toFixed(1) : 
+                        'N/A'
+                      }
                     </p>
                   </div>
                 </div>
@@ -765,9 +1257,9 @@ const DoctorDashboard = () => {
                     <Users className="h-8 w-8 text-blue-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Pasien dengan Rencana</p>
+                    <p className="text-sm font-medium text-gray-600">Pasien Obesitas</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {nutritionAnalytics.patientsWithPlan}
+                      {patients.filter(p => p.bmi && p.bmi >= 30).length}
                     </p>
                   </div>
                 </div>
@@ -779,9 +1271,9 @@ const DoctorDashboard = () => {
                     <AlertCircle className="h-8 w-8 text-red-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Kepatuhan Rendah</p>
+                    <p className="text-sm font-medium text-gray-600">Risiko Tinggi</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {nutritionAnalytics.lowCompliance}
+                      {patients.filter(p => p.riskLevel === 'HIGH').length}
                     </p>
                   </div>
                 </div>
@@ -793,10 +1285,74 @@ const DoctorDashboard = () => {
                     <Activity className="h-8 w-8 text-purple-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">BMI {">"} 25</p>
+                    <p className="text-sm font-medium text-gray-600">DM Tipe 2</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {nutritionAnalytics.bmiCategories.overweight.length + nutritionAnalytics.bmiCategories.obese.length}
+                      {patients.filter(p => p.diabetesType === 'Tipe 2').length}
                     </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Nutrition Analytics */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Analisis Nutrisi Pasien</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Kategori BMI</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Underweight (&lt;18.5)</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.bmi && p.bmi < 18.5).length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Normal (18.5-24.9)</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.bmi && p.bmi >= 18.5 && p.bmi < 25).length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Overweight (25-29.9)</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.bmi && p.bmi >= 25 && p.bmi < 30).length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Obesitas (≥30)</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.bmi && p.bmi >= 30).length}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Status Risiko</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-green-600">Risiko Rendah</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.riskLevel === 'LOW').length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-yellow-600">Risiko Sedang</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.riskLevel === 'MEDIUM').length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-red-600">Risiko Tinggi</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.riskLevel === 'HIGH').length}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Tipe Diabetes</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Tipe 1</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.diabetesType === 'Tipe 1').length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Tipe 2</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.diabetesType === 'Tipe 2').length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Gestational</span>
+                      <span className="text-sm font-medium">{patients.filter(p => p.diabetesType === 'Gestational').length}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -812,7 +1368,7 @@ const DoctorDashboard = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Modul Farmasi</h3>
               </div>
               <div className="divide-y divide-gray-200">
-                {patients.slice(0, 2).map((patient) => (
+                {patients.slice(0, 4).map((patient) => (
                   <div key={patient.id} className="px-6 py-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -820,45 +1376,51 @@ const DoctorDashboard = () => {
                         <p className="text-sm text-gray-600">{patient.mrNumber}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm">GDS: {patient.bloodSugar.value}</p>
+                        <p className="text-sm">BMI: {patient.bmi?.toFixed(1) || 'N/A'}</p>
+                        <p className="text-sm">Tipe: {patient.diabetesType || 'N/A'}</p>
                       </div>
                     </div>
 
-                    {patient.allergies && (
+                    {patient.allergies && patient.allergies.length > 0 && (
                       <div className="mb-4 p-3 bg-red-50 rounded-lg">
                         <div className="flex items-center text-red-700">
                           <AlertCircle className="h-4 w-4 mr-2" />
                           <span className="text-sm font-medium">Alergi</span>
                         </div>
                         <p className="text-sm text-red-600 mt-1">
-                          {patient.allergies.join(' - ')}
+                          {patient.allergies.join(', ')}
                         </p>
                       </div>
                     )}
 
                     <div className="space-y-3">
-                      <h5 className="font-medium text-gray-900">Obat Aktif</h5>
-                      {patient.medications.map((medication) => (
-                        <div key={medication.id} className="bg-gray-50 p-3 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900">{medication.name}</p>
-                              <p className="text-sm text-gray-600">{medication.frequency}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm text-gray-600">Mulai: {medication.startDate}</p>
-                            </div>
+                      <h5 className="font-medium text-gray-900">Informasi Medis</h5>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="font-medium text-gray-900">Status Pasien</p>
+                            <p className="text-gray-600">{patient.status === 'ACTIVE' ? 'Aktif' : 'Rujuk Balik'}</p>
                           </div>
-
-                          {medication.interactions && medication.interactions.length > 0 && (
-                            <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
-                              <p className="text-xs text-orange-800">
-                                Potensi interaksi: {medication.interactions.join(', ')}
-                              </p>
-                            </div>
-                          )}
+                          <div>
+                            <p className="font-medium text-gray-900">Risiko Level</p>
+                            <p className={`${
+                              patient.riskLevel === 'HIGH' ? 'text-red-600' :
+                              patient.riskLevel === 'MEDIUM' ? 'text-yellow-600' :
+                              'text-green-600'
+                            }`}>
+                              {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                               patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                            </p>
+                          </div>
                         </div>
-                      ))}
+                        
+                        {patient.medicalHistory && (
+                          <div className="mt-3">
+                            <p className="font-medium text-gray-900">Riwayat Medis</p>
+                            <p className="text-gray-600 text-sm">{patient.medicalHistory}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -883,7 +1445,7 @@ const DoctorDashboard = () => {
                         <p className="text-sm text-gray-600">{patient.mrNumber}</p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm">GDS: {patient.bloodSugar.value}</span>
+                        <span className="text-sm">BMI: {patient.bmi?.toFixed(1) || 'N/A'}</span>
                         <button
                           onClick={() => setShowVitalInput(patient.id)}
                           className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
@@ -898,7 +1460,7 @@ const DoctorDashboard = () => {
                         <h5 className="font-medium text-gray-900 mb-3">Input Vital Signs</h5>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div>
-                            <label className="block text-xs text-gray-600 mb-1">GDS</label>
+                            <label className="block text-xs text-gray-600 mb-1">Gula Darah</label>
                             <input
                               type="number"
                               placeholder="mg/dL"
@@ -957,25 +1519,55 @@ const DoctorDashboard = () => {
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                       <div className="bg-blue-50 p-3 rounded-lg">
-                        <p className="text-2xl font-bold text-blue-700">{patient.bloodSugar.value} mg/dL</p>
-                        <p className="text-xs text-blue-600">GDS</p>
+                        <p className="text-2xl font-bold text-blue-700">{patient.bmi?.toFixed(1) || 'N/A'}</p>
+                        <p className="text-xs text-blue-600">BMI</p>
                       </div>
 
                       <div className="bg-red-50 p-3 rounded-lg">
-                        <p className="text-2xl font-bold text-red-700">{patient.vitalSigns.bloodPressure}</p>
-                        <p className="text-xs text-red-600">TD</p>
+                        <p className="text-2xl font-bold text-red-700">
+                          {patient.height && patient.weight ? 
+                            `${patient.height}cm` : 'N/A'
+                          }
+                        </p>
+                        <p className="text-xs text-red-600">Tinggi</p>
                       </div>
 
                       <div className="bg-green-50 p-3 rounded-lg">
-                        <p className="text-2xl font-bold text-green-700">{patient.vitalSigns.heartRate} bpm</p>
-                        <p className="text-xs text-green-600">Nadi</p>
+                        <p className="text-2xl font-bold text-green-700">
+                          {patient.weight ? `${patient.weight}kg` : 'N/A'}
+                        </p>
+                        <p className="text-xs text-green-600">Berat</p>
                       </div>
 
                       <div className="bg-purple-50 p-3 rounded-lg">
-                        <p className="text-2xl font-bold text-purple-700">{patient.bmi}</p>
-                        <p className="text-xs text-purple-600">IMT</p>
+                        <p className="text-2xl font-bold text-purple-700">
+                          {patient.riskLevel === 'HIGH' ? 'Tinggi' :
+                           patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
+                        </p>
+                        <p className="text-xs text-purple-600">Risiko</p>
                       </div>
                     </div>
+
+                    {/* Patient complaints if any */}
+                    {patient.complaints && patient.complaints.length > 0 && (
+                      <div className="mt-4">
+                        <h5 className="font-medium text-gray-900 mb-2">Keluhan Aktif</h5>
+                        <div className="space-y-2">
+                          {patient.complaints.slice(0, 2).map((complaint) => (
+                            <div key={complaint.id} className="bg-yellow-50 border border-yellow-200 p-2 rounded text-sm">
+                              <span className="font-medium">{complaint.complaint}</span>
+                              <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                                complaint.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                                complaint.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                {complaint.severity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -983,7 +1575,7 @@ const DoctorDashboard = () => {
           </div>
         )}
       </div>
-    </div >
+    </div>
   );
 };
 

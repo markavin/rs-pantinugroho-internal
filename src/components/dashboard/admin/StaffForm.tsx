@@ -48,7 +48,6 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
 
   useEffect(() => {
     if (mode === 'add') {
-      // Reset form completely for add mode
       setFormData({
         name: '',
         email: '',
@@ -58,10 +57,9 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
         employeeId: ''
       });
     } else if (editingStaff && (mode === 'edit' || mode === 'view')) {
-      // Set form data for edit/view mode
       setFormData({
         ...editingStaff,
-        password: ''  // Always clear password for security
+        password: ''
       });
     }
     setError('');
@@ -81,12 +79,10 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
     const prefix = prefixes[role] || 'EMP';
 
     try {
-      // Fetch existing staff to count role-specific employees
       const response = await fetch('/api/staff');
       if (response.ok) {
         const staffList = await response.json();
-        // Filter by role and exclude current staff member if editing
-        const sameRoleStaff = staffList.filter((staff: any) => 
+        const sameRoleStaff = staffList.filter((staff: any) =>
           staff.role === role && staff.id !== excludeCurrentId
         );
         const nextNumber = (sameRoleStaff.length + 1).toString().padStart(3, '0');
@@ -96,16 +92,14 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
       console.error('Error generating employee ID:', error);
     }
 
-    // Fallback
     const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     return `${prefix}${randomNum}`;
   };
 
   const handleRoleChange = async (role: string) => {
-    // Generate new employee ID for both add and edit modes
     const excludeId = mode === 'edit' && editingStaff ? editingStaff.id : undefined;
     const employeeId = await generateEmployeeId(role, excludeId);
-    
+
     setFormData(prev => ({
       ...prev,
       role,
@@ -195,7 +189,9 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Role {mode !== 'view' && '*'}
+                Role {mode !== "view" && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               {mode === 'view' ? (
                 <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
@@ -235,7 +231,9 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nama Lengkap {mode !== 'view' && '*'}
+                Nama Lengkap {mode !== "view" && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               {mode === 'view' ? (
                 <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
@@ -255,7 +253,9 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email {mode !== 'view' && '*'}
+                Email {mode !== "view" && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               {mode === 'view' ? (
                 <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
@@ -275,7 +275,9 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username {mode !== 'view' && '*'}
+                Username {mode !== "view" && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               {mode === 'view' ? (
                 <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
@@ -297,7 +299,8 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
             {mode !== 'view' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password {mode === 'add' && '*'}
+                  Password {mode === 'add' && <span className="text-red-500">*</span>}
+
                 </label>
                 <input
                   type="password"
@@ -336,9 +339,10 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
 
           {mode !== 'view' && (
             <div className="text-xs text-gray-500 mt-4">
-              * Field wajib diisi
+              <span className="text-red-500">*</span> Field wajib diisi
             </div>
           )}
+
 
           <div className="mt-6 flex justify-end space-x-4">
             <button

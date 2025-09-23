@@ -1,4 +1,3 @@
-
 // src/app/api/patients/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -7,7 +6,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// GET single patient - PERAWAT_POLI can view for lab purposes
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -52,7 +50,6 @@ export async function GET(
   }
 }
 
-// PUT update patient - ONLY ADMINISTRASI
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
@@ -63,7 +60,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only ADMINISTRASI can update patients
     const userRole = (session.user as any).role;
     if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can update patients.' }, { status: 403 });
@@ -81,15 +77,22 @@ export async function PUT(
       diabetesType,
       insuranceType,
       allergies,
-      medicalHistory
+      medicalHistory,
+      status
     } = body;
 
-    // Validate required fields
     if (!name || !birthDate || !gender || !insuranceType) {
       return NextResponse.json(
         { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
         { status: 400 }
       );
+    }
+
+    let bmi = null;
+    if (height && weight) {
+      const heightInMeters = parseFloat(height) / 100;
+      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
+      bmi = Math.round(bmi * 100) / 100;
     }
 
     const patient = await prisma.patient.update({
@@ -102,24 +105,34 @@ export async function PUT(
         address: address || null,
         height: height ? parseFloat(height) : null,
         weight: weight ? parseFloat(weight) : null,
+        bmi: bmi,
         diabetesType: diabetesType || null,
         insuranceType,
-        allergies: allergies && allergies.length > 0 ? allergies : null,
+        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
+        status: status || 'ACTIVE',
       }
     });
 
     return NextResponse.json(patient);
   } catch (error) {
     console.error('Error updating patient:', error);
+    
     if ((error as any).code === 'P2025') {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json({ error: 'Duplicate data constraint violation' }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
   }
 }
 
-// DELETE patient - ONLY ADMINISTRASI
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -130,29 +143,91 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only ADMINISTRASI and SUPER_ADMIN can delete patients
     const userRole = (session.user as any).role;
     if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
-    // Check if patient exists
     const existingPatient = await prisma.patient.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        medicalRecords: true,
+        appointments: true,
+        vitalSigns: true,
+        labResults: true,
+        medications: true,
+        nutritionPlans: true,
+        educationNotes: true,
+        foodIntakes: true,
+        medicationLogs: true,
+        complaints: true,
+        bloodSugars: true,
+        patientLogs: true,
+        pharmacyNotes: true,
+        alerts: true,
+        mealEntries: true,
+        foodRecalls: true,
+        visitations: true
+      }
     });
 
     if (!existingPatient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Delete patient (this will cascade delete related records due to foreign key constraints)
-    await prisma.patient.delete({
-      where: { id: params.id }
+    const hasRelatedData = 
+      existingPatient.medicalRecords.length > 0 ||
+      existingPatient.appointments.length > 0 ||
+      existingPatient.vitalSigns.length > 0 ||
+      existingPatient.labResults.length > 0 ||
+      existingPatient.medications.length > 0 ||
+      existingPatient.nutritionPlans.length > 0 ||
+      existingPatient.educationNotes.length > 0 ||
+      existingPatient.foodIntakes.length > 0 ||
+      existingPatient.medicationLogs.length > 0 ||
+      existingPatient.bloodSugars.length > 0 ||
+      existingPatient.patientLogs.length > 0 ||
+      existingPatient.pharmacyNotes.length > 0 ||
+      existingPatient.alerts.length > 0 ||
+      existingPatient.mealEntries.length > 0 ||
+      existingPatient.foodRecalls.length > 0 ||
+      existingPatient.visitations.length > 0;
+
+    if (hasRelatedData) {
+      return NextResponse.json({ 
+        error: 'Cannot delete patient with existing medical data. Please archive the patient instead.' 
+      }, { status: 400 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (existingPatient.complaints.length > 0) {
+        await tx.patientComplaint.deleteMany({
+          where: { patientId: params.id }
+        });
+      }
+
+      await tx.patient.delete({
+        where: { id: params.id }
+      });
     });
 
     return NextResponse.json({ message: 'Patient deleted successfully' });
   } catch (error) {
     console.error('Error deleting patient:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+    
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Cannot delete patient due to existing related data. Please remove or archive related records first.' 
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
   }
 }

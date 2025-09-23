@@ -1,4 +1,3 @@
-
 // src/app/api/patients/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -7,7 +6,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// GET all patients
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -15,9 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to access patients
     const userRole = (session.user as any).role;
-    // PERAWAT_POLI can view patients for lab purposes, ADMINISTRASI can manage patients
     const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
     
     if (!allowedRoles.includes(userRole)) {
@@ -44,7 +40,6 @@ export async function GET() {
   }
 }
 
-// POST new patient - ONLY ADMINISTRASI
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -52,7 +47,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only ADMINISTRASI can create patients
     const userRole = (session.user as any).role;
     if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can register patients.' }, { status: 403 });
@@ -71,11 +65,11 @@ export async function POST(request: Request) {
       insuranceType,
       allergies,
       medicalHistory,
+      status,
       complaint,
       complaintSeverity
     } = body;
 
-    // Validate required fields
     if (!name || !birthDate || !gender || !insuranceType) {
       return NextResponse.json(
         { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
@@ -83,7 +77,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate MR Number
     const lastPatient = await prisma.patient.findFirst({
       orderBy: { createdAt: 'desc' },
       select: { mrNumber: true }
@@ -96,7 +89,13 @@ export async function POST(request: Request) {
     }
     const mrNumber = `RM${nextNumber.toString().padStart(4, '0')}`;
 
-    // Create patient
+    let bmi = null;
+    if (height && weight) {
+      const heightInMeters = parseFloat(height) / 100;
+      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
+      bmi = Math.round(bmi * 100) / 100;
+    }
+
     const patient = await prisma.patient.create({
       data: {
         mrNumber,
@@ -107,16 +106,17 @@ export async function POST(request: Request) {
         address: address || null,
         height: height ? parseFloat(height) : null,
         weight: weight ? parseFloat(weight) : null,
+        bmi: bmi,
         diabetesType: diabetesType || null,
         insuranceType,
-        allergies: allergies && allergies.length > 0 ? allergies : null,
+        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
-        status: 'ACTIVE',
+        comorbidities: [],
+        status: status || 'ACTIVE',
         createdBy: (session.user as any).id,
       }
     });
 
-    // Add complaint if provided (ADMINISTRASI can add initial complaint)
     if (complaint && complaint.trim()) {
       await prisma.patientComplaint.create({
         data: {
@@ -132,6 +132,18 @@ export async function POST(request: Request) {
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {
     console.error('Error creating patient:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json({ error: 'Patient with this MR Number already exists' }, { status: 400 });
+    }
+    
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({ error: 'Invalid reference data provided' }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
   }
 }

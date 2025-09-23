@@ -601,7 +601,7 @@ enum PatientStatus {
   ACTIVE
   INACTIVE
   RUJUK_BALIK
-  MONITORING
+  SELESAI
   FOLLOW_UP
 }
 
