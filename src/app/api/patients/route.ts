@@ -15,7 +15,7 @@ export async function GET() {
 
     const userRole = (session.user as any).role;
     const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
-    
+
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
         comorbidities: [],
-        status: status || 'ACTIVE',
+        status: status || 'AKTIF', 
         createdBy: (session.user as any).id,
       }
     });
@@ -132,16 +132,16 @@ export async function POST(request: Request) {
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {
     console.error('Error creating patient:', error);
-    
+
     if ((error as any).code === 'P2002') {
       return NextResponse.json({ error: 'Patient with this MR Number already exists' }, { status: 400 });
     }
-    
+
     if ((error as any).code === 'P2003') {
       return NextResponse.json({ error: 'Invalid reference data provided' }, { status: 400 });
     }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     }, { status: 500 });

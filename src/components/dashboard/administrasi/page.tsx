@@ -50,7 +50,9 @@ const AdministrasiDashboard = () => {
   const [complaints, setComplaints] = useState<PatientComplaint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'registration'>('dashboard');
-  const [patientStatusFilter, setPatientStatusFilter] = useState<'ACTIVE' | 'RUJUK_BALIK' | 'SELESAI' | 'ALL'>('ACTIVE');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<
+    'ALL' | 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL'
+  >('ALL');
   const [stats, setStats] = useState<DashboardStats>({
     totalPatients: 0,
     todayRegistrations: 0,
@@ -101,20 +103,19 @@ const AdministrasiDashboard = () => {
 
   const getFilteredPatients = () => {
     let statusFiltered = patients;
-    
+
     if (patientStatusFilter !== 'ALL') {
       statusFiltered = patients.filter(patient => {
-        const status = patient.status || 'ACTIVE';
-        return status === patientStatusFilter;
+        // Remove the statusMap - use direct enum values instead
+        return patient.status === patientStatusFilter;
       });
     }
 
     return statusFiltered.filter(patient =>
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.gender.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       patient.insuranceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (patient.status || 'ACTIVE').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      (patient.diabetesType && patient.diabetesType.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   };
 
@@ -233,31 +234,41 @@ const AdministrasiDashboard = () => {
 
   const getPatientStatusColor = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'bg-green-100 text-green-800';
-      case 'RUJUK_BALIK': return 'bg-blue-100 text-blue-800';
-      case 'SELESAI': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-green-100 text-green-800';
+      case 'AKTIF': return 'bg-green-100 text-green-800';
+      case 'RAWAT_JALAN': return 'bg-blue-100 text-blue-800';
+      case 'RAWAT_INAP': return 'bg-yellow-100 text-yellow-800';
+      case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800';
+      case 'PULANG': return 'bg-gray-100 text-green-800';
+      case 'PULANG_PAKSA': return 'bg-red-100 text-red-800';
+      case 'MENINGGAL': return 'bg-black text-white';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPatientStatusLabel = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'Aktif';
-      case 'RUJUK_BALIK': return 'Rujuk Balik';
-      case 'SELESAI': return 'Selesai';
-      default: return 'Aktif';
+      case 'AKTIF': return 'Aktif';
+      case 'RAWAT_JALAN': return 'Rawat Jalan';
+      case 'RAWAT_INAP': return 'Rawat Inap';
+      case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+      case 'PULANG': return 'Pulang';
+      case 'PULANG_PAKSA': return 'Pulang Paksa';
+      case 'MENINGGAL': return 'Meninggal';
+      default: return 'Tidak Diketahui';
     }
   };
 
   const getStatusCounts = () => {
-    const activeCount = patients.filter(p => !p.status || p.status === 'ACTIVE').length;
-    const rujukBalikCount = patients.filter(p => p.status === 'RUJUK_BALIK').length;
-    const selesaiCount = patients.filter(p => p.status === 'SELESAI').length;
-    
-    return { activeCount, rujukBalikCount, selesaiCount };
+    const activeCount = patients.filter(p => p.status === 'AKTIF').length;
+    const rawatJalanCount = patients.filter(p => p.status === 'RAWAT_JALAN').length;
+    const rawatInapCount = patients.filter(p => p.status === 'RAWAT_INAP').length;
+    const rujukKeluarCount = patients.filter(p => p.status === 'RUJUK_KELUAR').length;
+    const pulangCount = patients.filter(p => p.status === 'PULANG' || p.status === 'PULANG_PAKSA' || p.status === 'MENINGGAL').length;
+
+    return { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount };
   };
 
-  const { activeCount, rujukBalikCount, selesaiCount } = getStatusCounts();
+  const { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount,  pulangCount } = getStatusCounts();
 
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
@@ -363,7 +374,7 @@ const AdministrasiDashboard = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
@@ -395,7 +406,7 @@ const AdministrasiDashboard = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                     <div className="flex items-center justify-between">
                       <div>
@@ -419,24 +430,11 @@ const AdministrasiDashboard = () => {
                       </div>
                     </div>
                   </div>
-
-                  <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-orange-600">Keluhan Aktif</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{complaints.filter(c => c.status !== 'SELESAI').length}</p>
-                      </div>
-                      <div className="bg-orange-100 p-3 rounded-full">
-                        <AlertCircle className="h-8 w-8 text-orange-600" />
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-purple-600">Rujuk Balik</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{rujukBalikCount}</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">{rujukKeluarCount}</p>
                       </div>
                       <div className="bg-purple-100 p-3 rounded-full">
                         <FileText className="h-8 w-8 text-purple-600" />
@@ -481,43 +479,6 @@ const AdministrasiDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Keluhan Terbaru</h3>
-                </div>
-                <div className="p-6">
-                  {complaints.length > 0 ? (
-                    <div className="space-y-4">
-                      {complaints.slice(0, 5).map((complaint) => (
-                        <div key={complaint.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{complaint.complaint}</p>
-                              <p className="text-sm text-gray-600">
-                                Pasien: {complaint.patient?.name || 'Unknown'} ({complaint.patient?.mrNumber})
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityColor(complaint.severity)}`}>
-                                {complaint.severity}
-                              </span>
-                              <span className={`px-2 py-1 rounded text-xs font-medium border ${getComplaintStatusColor(complaint.status)}`}>
-                                {complaint.status.replace('_', ' ')}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500">{formatDate(complaint.date)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>Belum ada keluhan pasien</p>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )}
 
@@ -552,42 +513,56 @@ const AdministrasiDashboard = () => {
               <div className="border-b border-gray-200 px-6">
                 <div className="flex space-x-8 py-3">
                   <button
-                    onClick={() => setPatientStatusFilter('ACTIVE')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      patientStatusFilter === 'ACTIVE'
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                    onClick={() => setPatientStatusFilter('AKTIF')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'AKTIF'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
                   >
                     Aktif ({activeCount})
                   </button>
                   <button
-                    onClick={() => setPatientStatusFilter('RUJUK_BALIK')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      patientStatusFilter === 'RUJUK_BALIK'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                    onClick={() => setPatientStatusFilter('RAWAT_JALAN')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'RAWAT_JALAN'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
                   >
-                    Rujuk Balik ({rujukBalikCount})
+                    Rawat Jalan ({rawatJalanCount})
                   </button>
                   <button
-                    onClick={() => setPatientStatusFilter('SELESAI')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      patientStatusFilter === 'SELESAI'
-                        ? 'border-gray-500 text-gray-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                    onClick={() => setPatientStatusFilter('RAWAT_INAP')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'RAWAT_INAP'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
                   >
-                    Selesai ({selesaiCount})
+                    Rawat Inap ({rawatInapCount})
+                  </button>
+                  <button
+                    onClick={() => setPatientStatusFilter('RUJUK_KELUAR')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'RUJUK_KELUAR'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Rujuk Balik ({rujukKeluarCount})
+                  </button>
+                  <button
+                    onClick={() => setPatientStatusFilter('PULANG')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'PULANG'
+                      ? 'border-gray-500 text-gray-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Selesai ({pulangCount})
                   </button>
                   <button
                     onClick={() => setPatientStatusFilter('ALL')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      patientStatusFilter === 'ALL'
-                        ? 'border-purple-500 text-purple-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${patientStatusFilter === 'ALL'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
                   >
                     Semua ({patients.length})
                   </button>
@@ -660,13 +635,6 @@ const AdministrasiDashboard = () => {
                             <span>Edit</span>
                           </button>
                           <button
-                            onClick={() => handleAddComplaint(patient)}
-                            className="text-green-600 hover:text-green-900 font-medium inline-flex items-center space-x-1"
-                          >
-                            <AlertCircle className="h-4 w-4" />
-                            <span>Keluhan</span>
-                          </button>
-                          <button
                             onClick={() => handleDeletePatient(patient.id, patient.name)}
                             className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                           >
@@ -723,13 +691,6 @@ const AdministrasiDashboard = () => {
                       >
                         <Edit className="h-4 w-4" />
                         <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleAddComplaint(patient)}
-                        className="bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                        <span>Keluhan</span>
                       </button>
                       <button
                         onClick={() => handleDeletePatient(patient.id, patient.name)}

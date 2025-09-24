@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck } from 'lucide-react';
-import HandledPatientForm from './HandledPatientForm'; // Import the separate form component
+import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck, Clock } from 'lucide-react';
+import HandledPatientForm from './HandledPatientForm';
 
 interface Patient {
   id: string;
@@ -24,7 +24,7 @@ interface Patient {
   lastVisit?: string;
   nextAppointment?: string;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-  status: 'ACTIVE' | 'INACTIVE' | 'RUJUK_BALIK' | 'SELESAI' | 'FOLLOW_UP';
+  status: 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL';
   dietCompliance?: number;
   calorieNeeds?: number;
   calorieRequirement?: number;
@@ -34,9 +34,6 @@ interface Patient {
   user?: {
     name: string;
   };
-  complaints?: PatientComplaint[];
-  medications?: Medication[];
-  vitalSigns?: VitalSign[];
 }
 
 interface HandledPatient {
@@ -47,7 +44,7 @@ interface HandledPatient {
   diagnosis?: string;
   treatmentPlan?: string;
   notes?: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'TRANSFERRED' | 'DISCONTINUED' | 'ON_HOLD';
+  status: 'ANTRIAN' | 'SEDANG_DITANGANI' | 'KONSULTASI' | 'OBSERVASI' | 'EMERGENCY' | 'STABIL' | 'RUJUK_KELUAR' | 'SELESAI' | 'MENINGGAL';
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   nextVisitDate?: string;
   estimatedDuration?: string;
@@ -58,36 +55,6 @@ interface HandledPatient {
     role: string;
     employeeId?: string;
   };
-}
-
-interface PatientComplaint {
-  id: string;
-  complaint: string;
-  severity: 'RINGAN' | 'SEDANG' | 'BERAT';
-  status: 'BARU' | 'SELESAI';
-  date: string;
-}
-
-interface Medication {
-  id: string;
-  medicationName: string;
-  dosage: string;
-  frequency: string;
-  route: string;
-  startDate: string;
-  endDate?: string;
-  interactions?: string[];
-}
-
-interface VitalSign {
-  id: string;
-  recordDate: string;
-  systolicBP?: number;
-  diastolicBP?: number;
-  heartRate?: number;
-  temperature?: number;
-  bloodGlucose?: number;
-  notes?: string;
 }
 
 interface Alert {
@@ -108,6 +75,9 @@ const DoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'handled-patients' | 'nutrition' | 'pharmacy' | 'nursing'>('dashboard');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<
+    'ALL' | 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL'
+  >('ALL');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -117,7 +87,6 @@ const DoctorDashboard = () => {
   const [showHandledPatientForm, setShowHandledPatientForm] = useState(false);
   const [handledPatientFormMode, setHandledPatientFormMode] = useState<'add' | 'edit' | 'view'>('add');
 
-  // Mock alerts data
   const mockAlerts: Alert[] = [
     {
       id: '1',
@@ -135,7 +104,6 @@ const DoctorDashboard = () => {
     }
   ];
 
-  // Fetch patients from database
   const fetchPatients = async () => {
     try {
       const response = await fetch('/api/patients');
@@ -150,7 +118,6 @@ const DoctorDashboard = () => {
     }
   };
 
-  // Fetch handled patients from database
   const fetchHandledPatients = async () => {
     try {
       const response = await fetch('/api/handled-patients');
@@ -165,7 +132,6 @@ const DoctorDashboard = () => {
     }
   };
 
-  // Initial data load
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -196,18 +162,59 @@ const DoctorDashboard = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getPatientStatusColor = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'bg-green-100 text-green-800';
-      case 'COMPLETED': return 'bg-green-100 text-green-800';
-      case 'TRANSFERRED': return 'bg-purple-100 text-purple-800';
-      case 'DISCONTINUED': return 'bg-red-100 text-red-800';
-      case 'ON_HOLD': return 'bg-yellow-100 text-yellow-800';
-      case 'INACTIVE': return 'bg-gray-100 text-gray-800';
-      case 'RUJUK_BALIK': return 'bg-blue-100 text-blue-800';
-      case 'SELESAI': return 'bg-green-100 text-green-800';
-      case 'FOLLOW_UP': return 'bg-orange-100 text-orange-800';
+      case 'AKTIF': return 'bg-green-100 text-green-800';
+      case 'RAWAT_JALAN': return 'bg-blue-100 text-blue-800';
+      case 'RAWAT_INAP': return 'bg-yellow-100 text-yellow-800';
+      case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800';
+      case 'PULANG': return 'bg-gray-100 text-gray-800';
+      case 'PULANG_PAKSA': return 'bg-red-100 text-red-800';
+      case 'MENINGGAL': return 'bg-black text-white';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getHandledStatusColor = (status: string) => {
+    switch (status) {
+      case 'ANTRIAN': return 'bg-yellow-100 text-yellow-800';
+      case 'SEDANG_DITANGANI': return 'bg-blue-100 text-blue-800';
+      case 'KONSULTASI': return 'bg-indigo-100 text-indigo-800';
+      case 'OBSERVASI': return 'bg-orange-100 text-orange-800';
+      case 'EMERGENCY': return 'bg-red-100 text-red-800';
+      case 'STABIL': return 'bg-green-100 text-green-800';
+      case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800';
+      case 'SELESAI': return 'bg-gray-100 text-gray-800';
+      case 'MENINGGAL': return 'bg-black text-white';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPatientStatusLabel = (status: string) => {
+    switch (status) {
+      case 'AKTIF': return 'Aktif';
+      case 'RAWAT_JALAN': return 'Rawat Jalan';
+      case 'RAWAT_INAP': return 'Rawat Inap';
+      case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+      case 'PULANG': return 'Pulang';
+      case 'PULANG_PAKSA': return 'Pulang Paksa';
+      case 'MENINGGAL': return 'Meninggal';
+      default: return status || 'Aktif';
+    }
+  };
+
+  const getHandledStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ANTRIAN': return 'Antrian';
+      case 'SEDANG_DITANGANI': return 'Sedang Ditangani';
+      case 'KONSULTASI': return 'Konsultasi';
+      case 'OBSERVASI': return 'Observasi';
+      case 'EMERGENCY': return 'Emergency';
+      case 'STABIL': return 'Stabil';
+      case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+      case 'SELESAI': return 'Selesai';
+      case 'MENINGGAL': return 'Meninggal';
+      default: return status || 'Sedang Ditangani';
     }
   };
 
@@ -221,21 +228,42 @@ const DoctorDashboard = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient => {
-    const searchLower = searchTerm.toLowerCase().trim();
-    return patient.name.toLowerCase().includes(searchLower) ||
-           patient.mrNumber.toLowerCase().includes(searchLower);
-  });
+  const getFilteredPatients = () => {
+    let statusFiltered = patients;
+
+    if (patientStatusFilter !== 'ALL') {
+      statusFiltered = patients.filter(patient => {
+        return patient.status === patientStatusFilter;
+      });
+    }
+
+    return statusFiltered.filter(patient =>
+      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.insuranceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (patient.diabetesType && patient.diabetesType.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  };
+
+  const filteredPatients = getFilteredPatients();
 
   const filteredHandledPatients = handledPatients.filter(handledPatient => {
     const searchLower = handledSearchTerm.toLowerCase().trim();
-    const matchesSearch = handledPatient.patient.name.toLowerCase().includes(searchLower) ||
-                         handledPatient.patient.mrNumber.toLowerCase().includes(searchLower) ||
-                         handledPatient.diagnosis?.toLowerCase().includes(searchLower);
-    
-    const matchesStatus = statusFilter === 'ALL' || handledPatient.status === statusFilter;
+    const matchesSearch = !searchLower || (
+      handledPatient.patient.name.toLowerCase().includes(searchLower) ||
+      handledPatient.patient.mrNumber.toLowerCase().includes(searchLower) ||
+      (handledPatient.diagnosis && handledPatient.diagnosis.toLowerCase().includes(searchLower))
+    );
+
+    let matchesStatus = true;
+    if (statusFilter === 'SEDANG_DITANGANI') {
+      matchesStatus = ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY', 'STABIL'].includes(handledPatient.status);
+    } else if (statusFilter === 'SELESAI') {
+      matchesStatus = ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'].includes(handledPatient.status);
+    }
+
     const matchesPriority = priorityFilter === 'ALL' || handledPatient.priority === priorityFilter;
-    
+
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
@@ -273,9 +301,7 @@ const DoctorDashboard = () => {
       if (handledPatientFormMode === 'add') {
         const response = await fetch('/api/handled-patients', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...formData,
             nextVisitDate: formData.nextVisitDate || undefined
@@ -292,9 +318,7 @@ const DoctorDashboard = () => {
       } else if (handledPatientFormMode === 'edit') {
         const response = await fetch(`/api/handled-patients/${selectedHandledPatient.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...formData,
             nextVisitDate: formData.nextVisitDate || undefined
@@ -302,7 +326,7 @@ const DoctorDashboard = () => {
         });
 
         if (response.ok) {
-          await fetchHandledPatients();
+          await Promise.all([fetchHandledPatients(), fetchPatients()]);
           alert('Data pasien berhasil diperbarui!');
         } else {
           const error = await response.json();
@@ -337,6 +361,18 @@ const DoctorDashboard = () => {
     }
   };
 
+  const getPatientStatusCounts = () => {
+    const activeCount = patients.filter(p => p.status === 'AKTIF').length;
+    const rujukBalikCount = patients.filter(p => p.status === 'RUJUK_KELUAR').length;
+    const selesaiCount = patients.filter(
+      p => p.status === 'PULANG' || p.status === 'PULANG_PAKSA'
+    ).length;
+
+    return { activeCount, rujukBalikCount, selesaiCount };
+  };
+
+  const { activeCount, rujukBalikCount, selesaiCount } = getPatientStatusCounts();
+
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Data Pasien', icon: Users },
@@ -359,7 +395,6 @@ const DoctorDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -367,7 +402,6 @@ const DoctorDashboard = () => {
         />
       )}
 
-      {/* Mobile Sidebar */}
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Menu Dokter</h2>
@@ -403,7 +437,6 @@ const DoctorDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Mobile Header */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -430,7 +463,6 @@ const DoctorDashboard = () => {
           </button>
         </div>
 
-        {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-end mb-6">
           <button
             onClick={refreshData}
@@ -451,7 +483,6 @@ const DoctorDashboard = () => {
           </button>
         </div>
 
-        {/* Navigation Tabs */}
         <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-25 px-6 justify-center">
@@ -475,15 +506,13 @@ const DoctorDashboard = () => {
           </div>
         </div>
 
-        {/* Tab Content */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-600">Total Pasien</p>
+                    <p className="text-sm font-medium text-green-600">Total Pasien Ditangani</p>
                     <p className="text-3xl font-bold text-gray-900 mt-2">{handledPatients.length}</p>
                   </div>
                   <div className="bg-green-100 p-3 rounded-full">
@@ -506,6 +535,18 @@ const DoctorDashboard = () => {
                 </div>
               </div>
 
+              <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Pasien Aktif</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{activeCount}</p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-full">
+                    <Users className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                 <div className="flex items-center justify-between">
                   <div>
@@ -519,7 +560,26 @@ const DoctorDashboard = () => {
               </div>
             </div>
 
-            {/* Alerts Section */}
+            <div className="bg-gradient-to-br from-white to-yellow-50 p-6 rounded-xl shadow-sm border border-yellow-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-yellow-600">Antrian Pasien</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    {patients.filter(p =>
+                      p.status === 'AKTIF' &&
+                      !handledPatients.some(hp =>
+                        hp.patientId === p.id &&
+                        ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY'].includes(hp.status)
+                      )
+                    ).length}
+                  </p>
+                </div>
+                <div className="bg-yellow-100 p-3 rounded-full">
+                  <Clock className="h-8 w-8 text-yellow-600" />
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900">Peringatan & Notifikasi</h3>
@@ -528,11 +588,10 @@ const DoctorDashboard = () => {
                 {alerts.length > 0 ? (
                   <div className="space-y-3">
                     {alerts.map((alert) => (
-                      <div key={alert.id} className={`p-3 rounded-lg border-l-4 ${
-                        alert.type === 'CRITICAL' ? 'bg-red-50 border-red-400' :
+                      <div key={alert.id} className={`p-3 rounded-lg border-l-4 ${alert.type === 'CRITICAL' ? 'bg-red-50 border-red-400' :
                         alert.type === 'WARNING' ? 'bg-yellow-50 border-yellow-400' :
-                        'bg-green-50 border-green-400'
-                      }`}>
+                          'bg-green-50 border-green-400'
+                        }`}>
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-900">{alert.message}</p>
                           <span className="text-xs text-gray-500">{alert.timestamp}</span>
@@ -546,7 +605,6 @@ const DoctorDashboard = () => {
               </div>
             </div>
 
-            {/* Recent Handled Patients */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900">Pasien Ditangani Terbaru</h3>
@@ -608,7 +666,10 @@ const DoctorDashboard = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Pasien
+                      No. RM
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nama Pasien
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Umur/Gender
@@ -617,10 +678,13 @@ const DoctorDashboard = () => {
                       Penjamin
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tipe Diabetes
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Risiko
+                      Tgl Daftar
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Aksi
@@ -630,16 +694,11 @@ const DoctorDashboard = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredPatients.map((patient) => (
                     <tr key={patient.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            <User className="h-5 w-5 text-gray-600" />
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">{patient.name}</p>
-                            <p className="text-xs text-gray-500">{patient.mrNumber}</p>
-                          </div>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {patient.mrNumber}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {patient.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {calculateAge(patient.birthDate)} / {patient.gender === 'MALE' ? 'L' : 'P'}
@@ -647,15 +706,16 @@ const DoctorDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {patient.insuranceType}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(patient.status)}`}>
-                          {patient.status}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {patient.diabetesType || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(patient.riskLevel)}`}>
-                          {patient.riskLevel}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status)}`}>
+                          {getPatientStatusLabel(patient.status)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(patient.createdAt).toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
@@ -676,35 +736,38 @@ const DoctorDashboard = () => {
               {filteredPatients.map((patient) => (
                 <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{patient.name}</h4>
-                        <p className="text-sm text-gray-600">{patient.mrNumber}</p>
-                      </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 text-lg">{patient.name}</h4>
+                      <p className="text-sm text-gray-600">RM: {patient.mrNumber}</p>
                     </div>
-                    <div className="flex space-x-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(patient.status)}`}>
-                        {patient.status}
-                      </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(patient.riskLevel)}`}>
-                        {patient.riskLevel}
-                      </span>
-                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status)}`}>
+                      {getPatientStatusLabel(patient.status)}
+                    </span>
                   </div>
 
-                  <div className="mb-4 space-y-1">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Umur:</span> {calculateAge(patient.birthDate)} tahun
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Gender:</span> {patient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Penjamin:</span> {patient.insuranceType}
-                    </p>
+                  <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                    <div>
+                      <span className="text-gray-600 font-medium">Umur/Gender:</span>
+                      <br />
+                      <span className="text-gray-900">
+                        {calculateAge(patient.birthDate)} tahun / {patient.gender === 'MALE' ? 'L' : 'P'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 font-medium">Penjamin:</span>
+                      <br />
+                      <span className="text-gray-900">{patient.insuranceType}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 font-medium">Diabetes:</span>
+                      <br />
+                      <span className="text-gray-900">{patient.diabetesType || 'Tidak ada'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 font-medium">Tgl Daftar:</span>
+                      <br />
+                      <span className="text-gray-900">{new Date(patient.createdAt).toLocaleDateString('id-ID')}</span>
+                    </div>
                   </div>
 
                   <button
@@ -723,6 +786,93 @@ const DoctorDashboard = () => {
                   <p>Tidak ada pasien yang ditemukan</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {showPatientDetail && selectedPatient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Detail Pasien</h3>
+                <button
+                  onClick={() => setShowPatientDetail(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Informasi Dasar</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium">Nama:</span> {selectedPatient.name}</p>
+                      <p><span className="font-medium">No. RM:</span> {selectedPatient.mrNumber}</p>
+                      <p><span className="font-medium">Umur:</span> {calculateAge(selectedPatient.birthDate)} tahun</p>
+                      <p><span className="font-medium">Jenis Kelamin:</span> {selectedPatient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
+                      <p><span className="font-medium">Telepon:</span> {selectedPatient.phone || '-'}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Informasi Medis</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium">Penjamin:</span> {selectedPatient.insuranceType}</p>
+                      <p><span className="font-medium">Tipe Diabetes:</span> {selectedPatient.diabetesType || '-'}</p>
+                      <p><span className="font-medium">Status:</span>
+                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(selectedPatient.status)}`}>
+                          {getPatientStatusLabel(selectedPatient.status)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPatient.address && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Alamat</h4>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm text-gray-700">{selectedPatient.address}</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                      <AlertCircle className="h-5 w-5 mr-2 text-red-600" />
+                      Alergi
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPatient.allergies.map((allergy, index) => (
+                        <span key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-sm">
+                          {allergy}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedPatient.medicalHistory && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Riwayat Penyakit</h4>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm text-gray-700">{selectedPatient.medicalHistory}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-200 flex justify-end">
+                <button
+                  onClick={() => setShowPatientDetail(false)}
+                  className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -758,45 +908,31 @@ const DoctorDashboard = () => {
               <div className="flex space-x-8 py-3">
                 <button
                   onClick={() => setStatusFilter('ALL')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    statusFilter === 'ALL'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'ALL'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
                 >
                   Semua ({handledPatients.length})
                 </button>
                 <button
-                  onClick={() => setStatusFilter('ACTIVE')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    statusFilter === 'ACTIVE'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
+                  onClick={() => setStatusFilter('SEDANG_DITANGANI')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'SEDANG_DITANGANI'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
                 >
-                  Aktif ({handledPatients.filter(hp => hp.status === 'ACTIVE').length})
+                  Sedang Ditangani ({handledPatients.filter(hp => ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY', 'STABIL'].includes(hp.status)).length})
                 </button>
                 <button
-                  onClick={() => setStatusFilter('COMPLETED')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    statusFilter === 'COMPLETED'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
+                  onClick={() => setStatusFilter('SELESAI')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'SELESAI'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
                 >
-                  Selesai ({handledPatients.filter(hp => hp.status === 'COMPLETED').length})
+                  Riwayat ({handledPatients.filter(hp => ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'].includes(hp.status)).length})
                 </button>
-                <select
-                  className="px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                  value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value)}
-                >
-                  <option value="ALL">Semua Prioritas</option>
-                  <option value="URGENT">Urgent</option>
-                  <option value="HIGH">Tinggi</option>
-                  <option value="NORMAL">Normal</option>
-                  <option value="LOW">Rendah</option>
-                </select>
               </div>
             </div>
 
@@ -817,7 +953,7 @@ const DoctorDashboard = () => {
                       Prioritas
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Kunjungan Berikutnya
+                      Ditangani Sejak
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Aksi
@@ -842,8 +978,8 @@ const DoctorDashboard = () => {
                         {handledPatient.diagnosis || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(handledPatient.status)}`}>
-                          {handledPatient.status.replace('_', ' ')}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getHandledStatusColor(handledPatient.status)}`}>
+                          {getHandledStatusLabel(handledPatient.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -852,10 +988,7 @@ const DoctorDashboard = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {handledPatient.nextVisitDate 
-                          ? new Date(handledPatient.nextVisitDate).toLocaleDateString('id-ID')
-                          : '-'
-                        }
+                        {new Date(handledPatient.handledDate).toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button
@@ -900,8 +1033,8 @@ const DoctorDashboard = () => {
                       </div>
                     </div>
                     <div className="flex space-x-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(handledPatient.status)}`}>
-                        {handledPatient.status.replace('_', ' ')}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getHandledStatusColor(handledPatient.status)}`}>
+                        {getHandledStatusLabel(handledPatient.status)}
                       </span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(handledPatient.priority)}`}>
                         {handledPatient.priority}
@@ -914,11 +1047,7 @@ const DoctorDashboard = () => {
                       <span className="font-medium">Diagnosis:</span> {handledPatient.diagnosis || 'Belum ditetapkan'}
                     </p>
                     <p className="text-sm text-gray-600">
-                      <span className="font-medium">Kunjungan Berikutnya:</span> {
-                        handledPatient.nextVisitDate 
-                          ? new Date(handledPatient.nextVisitDate).toLocaleDateString('id-ID')
-                          : 'Belum dijadwalkan'
-                      }
+                      <span className="font-medium">Ditangani sejak:</span> {new Date(handledPatient.handledDate).toLocaleDateString('id-ID')}
                     </p>
                   </div>
 
@@ -970,91 +1099,6 @@ const DoctorDashboard = () => {
         )}
       </div>
 
-      {/* Patient Detail Modal */}
-      {showPatientDetail && selectedPatient && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">Detail Pasien</h3>
-              <button
-                onClick={() => setShowPatientDetail(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Informasi Dasar</h4>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Nama:</span> {selectedPatient.name}</p>
-                    <p><span className="font-medium">No. RM:</span> {selectedPatient.mrNumber}</p>
-                    <p><span className="font-medium">Umur:</span> {calculateAge(selectedPatient.birthDate)} tahun</p>
-                    <p><span className="font-medium">Jenis Kelamin:</span> {selectedPatient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
-                    <p><span className="font-medium">Telepon:</span> {selectedPatient.phone || '-'}</p>
-                  </div>
-                </div>
-
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Informasi Medis</h4>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Penjamin:</span> {selectedPatient.insuranceType}</p>
-                    <p><span className="font-medium">Tipe Diabetes:</span> {selectedPatient.diabetesType || '-'}</p>
-                    <p><span className="font-medium">Status:</span> 
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedPatient.status)}`}>
-                        {selectedPatient.status}
-                      </span>
-                    </p>
-                    <p><span className="font-medium">Risiko:</span>
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(selectedPatient.riskLevel)}`}>
-                        {selectedPatient.riskLevel}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {selectedPatient.address && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Alamat</h4>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-700">{selectedPatient.address}</p>
-                  </div>
-                </div>
-              )}
-
-              {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
-                    <AlertCircle className="h-5 w-5 mr-2 text-red-600" />
-                    Alergi
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedPatient.allergies.map((allergy, index) => (
-                      <span key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-sm">
-                        {allergy}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedPatient.medicalHistory && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Riwayat Penyakit</h4>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-700">{selectedPatient.medicalHistory}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Handled Patient Form Modal */}
       <HandledPatientForm
         isOpen={showHandledPatientForm}
         onClose={() => setShowHandledPatientForm(false)}
@@ -1062,6 +1106,7 @@ const DoctorDashboard = () => {
         mode={handledPatientFormMode}
         selectedHandledPatient={selectedHandledPatient}
         availablePatients={patients}
+        handledPatients={handledPatients}
         loading={false}
       />
     </div>

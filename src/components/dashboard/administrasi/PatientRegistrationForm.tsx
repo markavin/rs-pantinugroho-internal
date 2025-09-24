@@ -1,6 +1,6 @@
 // src/components/dashboard/admin/PatientRegistrationForm.tsx
-import React, { useState } from 'react';
-import { X, Save, User, Calendar, Phone, MapPin, Heart, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, User, Calendar, Phone, MapPin, Heart, Shield, AlertCircle, Clock } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -18,6 +18,15 @@ interface Patient {
   medicalHistory?: string;
   status?: string;
   createdAt: Date;
+  complaints?: PatientComplaint[];
+}
+
+interface PatientComplaint {
+  id: string;
+  complaint: string;
+  severity: 'RINGAN' | 'SEDANG' | 'BERAT';
+  date: Date;
+  notes?: string;
 }
 
 interface PatientRegistrationFormProps {
@@ -40,6 +49,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
   const [showAllergyInput, setShowAllergyInput] = useState(
     selectedPatient?.allergies && selectedPatient.allergies.length > 0
   );
+  const [patientComplaints, setPatientComplaints] = useState<PatientComplaint[]>([]);
 
   const [patientData, setPatientData] = useState({
     name: selectedPatient?.name || '',
@@ -56,6 +66,27 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     complaint: '',
     complaintSeverity: 'RINGAN' as 'RINGAN' | 'SEDANG' | 'BERAT'
   });
+
+  // Fetch patient complaints when in edit or view mode
+  useEffect(() => {
+    if (selectedPatient && (formMode === 'edit' || formMode === 'view')) {
+      fetchPatientComplaints();
+    }
+  }, [selectedPatient, formMode]);
+
+  const fetchPatientComplaints = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      const response = await fetch(`/api/patient-complaints?patientId=${selectedPatient.id}`);
+      if (response.ok) {
+        const complaints = await response.json();
+        setPatientComplaints(complaints);
+      }
+    } catch (error) {
+      console.error('Error fetching patient complaints:', error);
+    }
+  };
 
   const resetForm = () => {
     setPatientData({
@@ -77,6 +108,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     setNewAllergy('');
     setShowAllergyInput(false);
     setError('');
+    setPatientComplaints([]);
   };
 
   const handleAddAllergy = () => {
@@ -112,7 +144,8 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         medicalHistory: patientData.medicalHistory || undefined,
         status: patientData.status,
         complaint: formMode === 'add' ? (patientData.complaint || undefined) : undefined,
-        complaintSeverity: formMode === 'add' ? patientData.complaintSeverity : undefined
+        complaintSeverity: formMode === 'add' ? patientData.complaintSeverity : undefined,
+        complaints: formMode === 'edit' ? patientComplaints : undefined
       };
 
       const url = formMode === 'edit' && selectedPatient
@@ -138,7 +171,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         }
         alert(
           formMode === 'edit'
-            ? 'Data pasien berhasil diperbarui!'
+            ? 'Data pasien dan keluhan berhasil diperbarui!'
             : 'Pasien berhasil didaftarkan!'
         );
       } else {
@@ -175,22 +208,41 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'bg-green-100 text-green-800 border-green-300';
-      case 'RUJUK_BALIK': return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'SELESAI': return 'bg-gray-100 text-gray-800 border-gray-300';
-      default: return 'bg-green-100 text-green-800 border-green-300';
+  switch (status) {
+    case 'AKTIF': return 'bg-green-100 text-green-800 border-green-300';
+    case 'RAWAT_JALAN': return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'RAWAT_INAP': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800 border-purple-300';
+    case 'PULANG': return 'bg-gray-100 text-gray-800 border-gray-300';
+    case 'PULANG_PAKSA': return 'bg-red-100 text-red-800 border-red-300';
+    case 'MENINGGAL': return 'bg-black text-white border-black';
+    default: return 'bg-green-100 text-green-800 border-green-300';
+  }
+};
+
+ const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'AKTIF': return 'Aktif';
+    case 'RAWAT_JALAN': return 'Rawat Jalan';
+    case 'RAWAT_INAP': return 'Rawat Inap';
+    case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+    case 'PULANG': return 'Pulang';
+    case 'PULANG_PAKSA': return 'Pulang Paksa';
+    case 'MENINGGAL': return 'Meninggal';
+    default: return 'Aktif';
+  }
+};
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'BERAT': return 'bg-red-100 text-red-800 border-red-300';
+      case 'SEDANG': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'RINGAN': return 'bg-green-100 text-green-800 border-green-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'Aktif';
-      case 'RUJUK_BALIK': return 'Rujuk Balik';
-      case 'SELESAI': return 'Selesai';
-      default: return 'Aktif';
-    }
-  };
+
 
   const isModal = !!onClose;
 
@@ -311,8 +363,8 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
           </label>
           {formMode === 'view' ? (
             <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedPatient?.status || 'ACTIVE')}`}>
-                {getStatusLabel(selectedPatient?.status || 'ACTIVE')}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedPatient?.status || 'AKTIF')}`}>
+                {getStatusLabel(selectedPatient?.status || 'AKTIF')}
               </span>
             </div>
           ) : (
@@ -322,15 +374,14 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               value={patientData.status}
               onChange={(e) => setPatientData({ ...patientData, status: e.target.value })}
             >
-              <option value="ACTIVE">Aktif</option>
-              <option value="RUJUK_BALIK">Rujuk Balik</option>
-              <option value="SELESAI">Selesai</option>
+              <option value="AKTIF">Aktif</option>
+              <option value="RAWAT_JALAN">Rawat Jalan</option>
+              <option value="RAWAT_INAP">Rawat Inap</option>
+              <option value="RUJUK_KELUAR">Rujuk Keluar</option>
+              <option value="PULANG">Pulang</option>
+              <option value="PULANG_PAKSA">Pulang Paksa</option>
+              <option value="MENINGGAL">Meninggal</option>
             </select>
-          )}
-          {formMode !== 'view' && (
-            <p className="text-xs text-gray-500 mt-1">
-              Pilih "Aktif" untuk pasien yang masih dalam perawatan, "Rujuk Balik" jika dirujuk ke fasilitas lain, atau "Selesai" jika pengobatan sudah selesai.
-            </p>
           )}
         </div>
 
@@ -539,6 +590,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
           )}
         </div>
 
+        {/* Keluhan section - separate from status */}
         {formMode === 'add' && (
           <>
             <div className="md:col-span-2">
@@ -568,6 +620,156 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               </select>
             </div>
           </>
+        )}
+
+        {/* Display existing complaints in view/edit mode - separate from status */}
+        {(formMode === 'view' || formMode === 'edit') && patientComplaints.length > 0 && (
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <span>Keluhan Pasien</span>
+              </div>
+            </label>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+              {patientComplaints.map((complaint, index) => (
+                <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-3">
+                  {formMode === 'view' ? (
+                    <>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <p className="text-gray-900 font-medium">{complaint.complaint}</p>
+                          {complaint.notes && (
+                            <p className="text-gray-600 text-sm mt-1">Catatan: {complaint.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 ml-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(complaint.severity)}`}>
+                            {complaint.severity}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{new Date(complaint.date).toLocaleDateString('id-ID', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}</span>
+                      </div>
+                    </>
+                  ) : (
+                    // Edit mode - make complaints editable
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Keluhan
+                        </label>
+                        <textarea
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
+                          rows={2}
+                          value={complaint.complaint}
+                          onChange={(e) => {
+                            const updatedComplaints = [...patientComplaints];
+                            updatedComplaints[index] = { ...complaint, complaint: e.target.value };
+                            setPatientComplaints(updatedComplaints);
+                          }}
+                        />
+                      </div>
+
+                      {complaint.notes !== undefined && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Catatan
+                          </label>
+                          <textarea
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
+                            rows={1}
+                            value={complaint.notes || ''}
+                            onChange={(e) => {
+                              const updatedComplaints = [...patientComplaints];
+                              updatedComplaints[index] = { ...complaint, notes: e.target.value };
+                              setPatientComplaints(updatedComplaints);
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Tingkat Keparahan
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
+                            value={complaint.severity}
+                            onChange={(e) => {
+                              const updatedComplaints = [...patientComplaints];
+                              updatedComplaints[index] = { ...complaint, severity: e.target.value as 'RINGAN' | 'SEDANG' | 'BERAT' };
+                              setPatientComplaints(updatedComplaints);
+                            }}
+                          >
+                            <option value="RINGAN">Ringan</option>
+                            <option value="SEDANG">Sedang</option>
+                            <option value="BERAT">Berat</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>{new Date(complaint.date).toLocaleDateString('id-ID', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm('Yakin ingin menghapus keluhan ini?')) {
+                              const updatedComplaints = patientComplaints.filter((_, i) => i !== index);
+                              setPatientComplaints(updatedComplaints);
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center space-x-1"
+                        >
+                          <X className="h-3 w-3" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {formMode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newComplaint: PatientComplaint = {
+                      id: `temp_${Date.now()}`, // Temporary ID for new complaints
+                      complaint: '',
+                      severity: 'RINGAN',
+                      date: new Date(),
+                      notes: ''
+                    };
+                    setPatientComplaints([...patientComplaints, newComplaint]);
+                  }}
+                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  <span>Tambah Keluhan Baru</span>
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {formMode === 'view' && selectedPatient && (

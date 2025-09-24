@@ -182,134 +182,228 @@ async function main() {
   });
 
   // Insert Patients
-  const patient1 = await prisma.patient.upsert({
-    where: { mrNumber: 'RM1001' },
-    update: {},
-    create: {
-      mrNumber: 'RM1001',
-      name: 'Budi Santoso',
-      birthDate: new Date('1969-01-01'),
-      gender: 'MALE',
-      phone: '08123456789',
-      address: 'Jl. Merdeka No. 123, Surabaya',
-      height: 168,
-      weight: 75,
-      bmi: 26.0,
-      bloodType: 'O',
-      allergies: ['Sulfa', 'Ruam kulit'],
-      medicalHistory: 'Riwayat hipertensi sejak 2018, diabetes mellitus tipe 2 sejak 2020',
-      diabetesType: 'Tipe 2',
-      diagnosisDate: new Date('2020-01-01'),
-      comorbidities: ['Neuropati', 'Retinopati'],
-      insuranceType: 'BPJS',
-      insuranceNumber: 'BPJS-001-123456789',
-      lastVisit: new Date('2024-08-20'),
-      nextAppointment: new Date('2024-08-25'),
-      riskLevel: 'HIGH',
-      status: 'ACTIVE',
-      dietCompliance: 40,
-      calorieNeeds: 1800,
-      calorieRequirement: 1800,
-      dietPlan: 'Diet rendah gula, tinggi serat',
-      createdBy: admin.id,
-    },
-  });
+const patient1 = await prisma.patient.upsert({
+  where: { mrNumber: 'RM1001' },
+  update: {},
+  create: {
+    mrNumber: 'RM1001',
+    name: 'Budi Santoso',
+    birthDate: new Date('1969-01-01'),
+    gender: 'MALE',
+    phone: '08123456789',
+    address: 'Jl. Merdeka No. 123, Surabaya',
+    height: 168,
+    weight: 75,
+    bmi: 26.0,
+    bloodType: 'O',
+    allergies: ['Sulfa', 'Ruam kulit'],
+    medicalHistory: 'Riwayat hipertensi sejak 2018, diabetes mellitus tipe 2 sejak 2020',
+    diabetesType: 'Tipe 2',
+    diagnosisDate: new Date('2020-01-01'),
+    comorbidities: ['Neuropati', 'Retinopati'],
+    insuranceType: 'BPJS',
+    insuranceNumber: 'BPJS-001-123456789',
+    lastVisit: new Date('2024-08-20'),
+    nextAppointment: new Date('2024-08-25'),
+    riskLevel: 'HIGH',
+    status: 'RAWAT_INAP',   // administratif → pasien sedang opname
+    dietCompliance: 40,
+    calorieNeeds: 1800,
+    calorieRequirement: 1800,
+    dietPlan: 'Diet rendah gula, tinggi serat',
+    createdBy: admin.id,
+  },
+});
 
-  const patient2 = await prisma.patient.upsert({
-    where: { mrNumber: 'RM1002' },
-    update: {},
-    create: {
-      mrNumber: 'RM1002',
-      name: 'Siti Rahayu',
-      birthDate: new Date('1965-01-01'),
-      gender: 'FEMALE',
-      phone: '08234567890',
-      address: 'Jl. Diponegoro No. 45, Surabaya',
-      height: 160,
-      weight: 58,
-      bmi: 25.4,
-      bloodType: 'A',
-      allergies: ['Gluten'],
-      medicalHistory: 'Diabetes mellitus tipe 2 sejak 2019, riwayat kolesterol tinggi',
-      diabetesType: 'Tipe 2',
-      diagnosisDate: new Date('2019-03-15'),
-      comorbidities: ['Hiperkolesterolemia'],
-      insuranceType: 'PRIVATE',
-      insuranceNumber: 'PRV-002-987654321',
-      lastVisit: new Date('2024-08-18'),
-      riskLevel: 'MEDIUM',
-      status: 'RUJUK_BALIK',
-      dietCompliance: 85,
-      calorieNeeds: 1600,
-      calorieRequirement: 1600,
-      dietPlan: 'Kontrol porsi, hindari makanan manis',
-      createdBy: admin.id,
-    },
-  });
+const patient2 = await prisma.patient.upsert({
+  where: { mrNumber: 'RM1002' },
+  update: {},
+  create: {
+    mrNumber: 'RM1002',
+    name: 'Siti Rahayu',
+    birthDate: new Date('1965-01-01'),
+    gender: 'FEMALE',
+    phone: '08234567890',
+    address: 'Jl. Diponegoro No. 45, Surabaya',
+    height: 160,
+    weight: 58,
+    bmi: 25.4,
+    bloodType: 'A',
+    allergies: ['Gluten'],
+    medicalHistory: 'Diabetes mellitus tipe 2 sejak 2019, riwayat kolesterol tinggi',
+    diabetesType: 'Tipe 2',
+    diagnosisDate: new Date('2019-03-15'),
+    comorbidities: ['Hiperkolesterolemia'],
+    insuranceType: 'PRIVATE',
+    insuranceNumber: 'PRV-002-987654321',
+    lastVisit: new Date('2024-08-18'),
+    riskLevel: 'MEDIUM',
+    status: 'RUJUK_KELUAR',  // administratif
+    dietCompliance: 85,
+    calorieNeeds: 1600,
+    calorieRequirement: 1600,
+    dietPlan: 'Kontrol porsi, hindari makanan manis',
+    createdBy: admin.id,
+  },
+});
 
-  const patient3 = await prisma.patient.upsert({
-    where: { mrNumber: 'RM1003' },
-    update: {},
-    create: {
-      mrNumber: 'RM1003',
-      name: 'Ahmad Wijaya',
-      birthDate: new Date('1974-01-01'),
-      gender: 'MALE',
-      phone: '08345678901',
-      address: 'Jl. Basuki Rahmat No. 78, Surabaya',
-      height: 172,
-      weight: 82,
-      bmi: 27.7,
-      bloodType: 'B',
-      allergies: [],
-      medicalHistory: 'Diabetes mellitus tipe 2 sejak 2021, obesitas, hipertensi tidak terkontrol',
-      diabetesType: 'Tipe 2',
-      diagnosisDate: new Date('2021-06-10'),
-      comorbidities: ['Hipertensi', 'Obesitas'],
-      insuranceType: 'BPJS',
-      insuranceNumber: 'BPJS-003-456789012',
-      lastVisit: new Date('2024-08-15'),
-      riskLevel: 'HIGH',
-      status: 'ACTIVE',
-      dietCompliance: 60,
-      calorieNeeds: 2000,
-      calorieRequirement: 2000,
-      dietPlan: 'Diet ketat, hindari gula tambahan',
-      createdBy: admin.id,
-    },
-  });
+const patient3 = await prisma.patient.upsert({
+  where: { mrNumber: 'RM1003' },
+  update: {},
+  create: {
+    mrNumber: 'RM1003',
+    name: 'Ahmad Wijaya',
+    birthDate: new Date('1974-01-01'),
+    gender: 'MALE',
+    phone: '08345678901',
+    address: 'Jl. Basuki Rahmat No. 78, Surabaya',
+    height: 172,
+    weight: 82,
+    bmi: 27.7,
+    bloodType: 'B',
+    allergies: [],
+    medicalHistory: 'Diabetes mellitus tipe 2 sejak 2021, obesitas, hipertensi tidak terkontrol',
+    diabetesType: 'Tipe 2',
+    diagnosisDate: new Date('2021-06-10'),
+    comorbidities: ['Hipertensi', 'Obesitas'],
+    insuranceType: 'BPJS',
+    insuranceNumber: 'BPJS-003-456789012',
+    lastVisit: new Date('2024-08-15'),
+    riskLevel: 'HIGH',
+    status: 'RAWAT_INAP',   // administrasi → sedang opname
+    dietCompliance: 60,
+    calorieNeeds: 2000,
+    calorieRequirement: 2000,
+    dietPlan: 'Diet ketat, hindari gula tambahan',
+    createdBy: admin.id,
+  },
+});
 
-  const patient4 = await prisma.patient.upsert({
-    where: { mrNumber: 'RM1004' },
-    update: {},
-    create: {
-      mrNumber: 'RM1004',
-      name: 'Dewi Lestari',
-      birthDate: new Date('1979-01-01'),
-      gender: 'FEMALE',
-      phone: '08456789012',
-      address: 'Jl. Pemuda No. 234, Surabaya',
-      height: 160,
-      weight: 55,
-      bmi: 21.5,
-      bloodType: 'AB',
-      allergies: [],
-      medicalHistory: 'Diabetes mellitus tipe 1 sejak remaja, riwayat keluarga diabetes',
-      diabetesType: 'Tipe 1',
-      diagnosisDate: new Date('1995-02-20'),
-      comorbidities: [],
-      insuranceType: 'CORPORATE',
-      insuranceNumber: 'CORP-004-789012345',
-      lastVisit: new Date('2024-08-12'),
-      riskLevel: 'LOW',
-      status: 'RUJUK_BALIK',
-      dietCompliance: 90,
-      calorieNeeds: 1500,
-      calorieRequirement: 1500,
-      dietPlan: 'Diet seimbang, olahraga teratur',
-      createdBy: admin.id,
-    },
-  });
+const patient4 = await prisma.patient.upsert({
+  where: { mrNumber: 'RM1004' },
+  update: {},
+  create: {
+    mrNumber: 'RM1004',
+    name: 'Dewi Lestari',
+    birthDate: new Date('1979-01-01'),
+    gender: 'FEMALE',
+    phone: '08456789012',
+    address: 'Jl. Pemuda No. 234, Surabaya',
+    height: 160,
+    weight: 55,
+    bmi: 21.5,
+    bloodType: 'AB',
+    allergies: [],
+    medicalHistory: 'Diabetes mellitus tipe 1 sejak remaja, riwayat keluarga diabetes',
+    diabetesType: 'Tipe 1',
+    diagnosisDate: new Date('1995-02-20'),
+    comorbidities: [],
+    insuranceType: 'CORPORATE',
+    insuranceNumber: 'CORP-004-789012345',
+    lastVisit: new Date('2024-08-12'),
+    riskLevel: 'LOW',
+    status: 'RAWAT_JALAN',  // administrasi
+    dietCompliance: 90,
+    calorieNeeds: 1500,
+    calorieRequirement: 1500,
+    dietPlan: 'Diet seimbang, olahraga teratur',
+    createdBy: admin.id,
+  },
+});
+
+const patient5 = await prisma.patient.upsert({
+  where: { mrNumber: 'RM1005' },
+  update: {},
+  create: {
+    mrNumber: 'RM1005',
+    name: 'Joko Widodo',
+    birthDate: new Date('1985-03-15'),
+    gender: 'MALE',
+    phone: '08567890123',
+    address: 'Jl. Pahlawan No. 56, Surabaya',
+    height: 175,
+    weight: 70,
+    bmi: 22.9,
+    bloodType: 'O',
+    allergies: [],
+    medicalHistory: 'Diabetes mellitus tipe 2 baru terdiagnosis',
+    diabetesType: 'Tipe 2',
+    diagnosisDate: new Date('2024-08-01'),
+    comorbidities: [],
+    insuranceType: 'BPJS',
+    insuranceNumber: 'BPJS-005-567890123',
+    riskLevel: 'MEDIUM',
+    status: 'AKTIF',   // administrasi default
+    dietCompliance: 0,
+    calorieNeeds: 1900,
+    calorieRequirement: 1900,
+    dietPlan: null,
+    createdBy: admin.id,
+  },
+});
+
+
+  // Add sample handled patients with new status
+  const handledPatient1 = await prisma.handledPatient.create({
+  data: {
+    patientId: patient1.id,
+    handledBy: doctor.id,
+    diagnosis: 'Diabetes Mellitus Tipe 2 dengan komplikasi neuropati',
+    treatmentPlan: 'Kontrol gula darah ketat, terapi insulin, monitoring komplikasi',
+    notes: 'Pasien perlu monitoring intensif, gula darah tidak stabil',
+    status: 'OBSERVASI',   // handled status
+    priority: 'HIGH',
+    nextVisitDate: new Date('2024-09-01'),
+    estimatedDuration: '2 minggu',
+    specialInstructions: 'Monitor gula darah 4x sehari, diet ketat'
+  }
+});
+
+const handledPatient2 = await prisma.handledPatient.create({
+  data: {
+    patientId: patient2.id,
+    handledBy: doctor.id,
+    diagnosis: 'Diabetes Mellitus Tipe 2 terkontrol',
+    treatmentPlan: 'Rujuk ke RS Pusat untuk evaluasi komplikasi lebih lanjut',
+    notes: 'Pasien memerlukan penanganan di fasilitas yang lebih lengkap',
+    status: 'RUJUK_KELUAR',
+    priority: 'NORMAL',
+    nextVisitDate: null,
+    estimatedDuration: null,
+    specialInstructions: 'Bawa semua hasil lab dan surat rujukan'
+  }
+});
+
+const handledPatient3 = await prisma.handledPatient.create({
+  data: {
+    patientId: patient3.id,
+    handledBy: doctor.id,
+    diagnosis: 'Diabetes Mellitus Tipe 2 dekompensasi',
+    treatmentPlan: 'Stabilisasi gula darah, adjustment dosis insulin',
+    notes: 'Pasien datang dengan kondisi emergency, gula darah sangat tinggi',
+    status: 'EMERGENCY',
+    priority: 'URGENT',
+    nextVisitDate: new Date('2024-08-30'),
+    estimatedDuration: '1 minggu',
+    specialInstructions: 'Monitoring ketat, siap intubasi jika diperlukan'
+  }
+});
+
+const handledPatient4 = await prisma.handledPatient.create({
+  data: {
+    patientId: patient4.id,
+    handledBy: doctor.id,
+    diagnosis: 'Diabetes Mellitus Tipe 1 terkontrol baik',
+    treatmentPlan: 'Maintenance terapi, kontrol rutin',
+    notes: 'Pasien kooperatif, kontrol gula darah baik',
+    status: 'SELESAI',
+    priority: 'LOW',
+    nextVisitDate: new Date('2024-09-15'),
+    estimatedDuration: '1 bulan',
+    specialInstructions: 'Lanjutkan terapi current, kontrol rutin bulanan'
+  }
+});
+
 
   // Insert Medications
   await prisma.medication.createMany({
