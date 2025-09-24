@@ -1,1345 +1,842 @@
-// src/components/dashboard/pharmacy/page.tsx
-
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Pill, AlertTriangle, Users, FileText, Activity, TrendingDown, Clock, AlertCircle, CheckCircle, XCircle, Edit, Trash2, Eye, Save, X, History, TestTube, Menu } from 'lucide-react';
-import {
-    mockPatients,
-    mockAlerts,
-    dashboardStats,
-    Patient,
-    Alert,
-    Medication,
-    mockDrugData,
-    mockPatientComplaint,
-    mockLabResult,
-    mockPharmacyNote,
-    DrugData,
-    PatientComplaint,
-    LabResult,
-    PharmacyNote
-} from '@/data/mockData';
+import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu, ShoppingCart, Package, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import DataObatForm, { DrugData } from './DataObatForm';
+import TransaksiObatForm from './TransaksiObatForm';
+
+interface Patient {
+  id: string;
+  name: string;
+  mrNumber: string;
+  phone?: string;
+}
+
+interface Transaction {
+  id: string;
+  patientId: string;
+  patientName: string;
+  mrNumber: string;
+  items: TransactionItem[];
+  totalAmount: number;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+  completedAt?: string;
+  notes?: string;
+}
+
+interface TransactionItem {
+  drugId: string;
+  drugName: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
 
 const PharmacyDashboard = () => {
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [alerts, setAlerts] = useState<Alert[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-    const [activeTab, setActiveTab] = useState<'patients' | 'drugs' | 'complaints' | 'lab-results' | 'notes'>('patients');
-    const [showDrugForm, setShowDrugForm] = useState(false);
-    const [editingDrug, setEditingDrug] = useState<DrugData | null>(null);
-    const [activeFilter, setActiveFilter] = useState<'all' | 'allergies' | 'interactions' | 'high-risk'>('all');
-    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'drugs' | 'transactions'>('overview');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDrugForm, setShowDrugForm] = useState(false);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingDrug, setEditingDrug] = useState<DrugData | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-    // Mock data
-    const [drugData, setDrugData] = useState<DrugData[]>(mockDrugData);
+  // Data states
+  const [drugData, setDrugData] = useState<DrugData[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-    const [complaints, setComplaints] = useState<PatientComplaint[]>(mockPatientComplaint);
-
-    const [labResults, setLabResults] = useState<LabResult[]>(mockLabResult);
-
-    const [pharmacyNotes, setPharmacyNotes] = useState<PharmacyNote[]>(mockPharmacyNote);
-
-    const [newDrug, setNewDrug] = useState<Partial<DrugData>>({
-        name: '',
-        category: '',
-        dosageForm: '',
-        strength: '',
-        manufacturer: '',
-        stock: 0,
-        expiryDate: '',
-        interactions: [],
-        contraindications: [],
-        sideEffects: [],
-        indications: []
-    });
-
-    // useEffect(() => {
-    //     setPatients(mockPatients);
-    //     setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
-    // }, []);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Fetch patients from API
-                const patientsResponse = await fetch('/api/dashboard?type=patients');
-                if (patientsResponse.ok) {
-                    const patientsData = await patientsResponse.json();
-                    setPatients(patientsData);
-                }
-
-                const alertsResponse = await fetch('/api/dashboard?type=alerts');
-                if (alertsResponse.ok) {
-                    const alertsData = await alertsResponse.json();
-                    setAlerts(alertsData.filter(alert => alert.category === 'medication'))
-                } else {
-                    console.error('Failed to fetch alerts:', alertsResponse.status);
-                    setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
-                }
-
-            } catch (error) {
-                console.error('Error fetching data:', error);
-                setPatients(mockPatients)
-                setAlerts(mockAlerts.filter(alert => alert.category === 'medication'));
-                // setPatientLogs(mockPatientLog);
-            }
-        };
-
-        fetchData();
-    }, []);;
-    const refreshData = async () => {
-        const fetchData = async () => {
-            try {
-                const patientsResponse = await fetch('/api/dashboard?type=patients');
-                if (patientsResponse.ok) {
-                    const patientsData = await patientsResponse.json();
-                    setPatients(patientsData);
-                }
-
-                const alertsResponse = await fetch('/api/dashboard?type=alerts');
-                if (alertsResponse.ok) {
-                    const alertsData = await alertsResponse.json();
-                    setAlerts(alertsData);
-                }
-            } catch (error) {
-                console.error('Error refreshing data:', error);
-            }
-        };
-
-        await fetchData();
-    };
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
-    const handleSaveDrug = () => {
-        if (editingDrug) {
-            setDrugData(prev => prev.map(drug => drug.id === editingDrug.id ? { ...editingDrug } : drug));
-            setEditingDrug(null);
-        } else {
-            const drug: DrugData = {
-                id: Date.now().toString(),
-                name: newDrug.name || '',
-                category: newDrug.category || '',
-                dosageForm: newDrug.dosageForm || '',
-                strength: newDrug.strength || '',
-                manufacturer: newDrug.manufacturer || '',
-                stock: newDrug.stock || 0,
-                expiryDate: newDrug.expiryDate || '',
-                interactions: newDrug.interactions || [],
-                contraindications: newDrug.contraindications || [],
-                sideEffects: newDrug.sideEffects || [],
-                indications: newDrug.indications || []
-            };
-            setDrugData(prev => [...prev, drug]);
-            setNewDrug({});
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch drugs
+        const drugsResponse = await fetch('/api/drugs');
+        if (drugsResponse.ok) {
+          const drugsData = await drugsResponse.json();
+          setDrugData(drugsData);
         }
-        setShowDrugForm(false);
-    };
 
-    const handleDeleteDrug = (id: string) => {
-        setDrugData(prev => prev.filter(drug => drug.id !== id));
-    };
-
-    const filteredPatients = patients.filter(patient => {
-        const searchLower = searchTerm.toLowerCase().trim();
-
-        // Search berdasarkan: nama, MR number, umur, gender, dan gula darah
-        const matchesSearch = patient.name.toLowerCase().includes(searchLower) ||
-            patient.mrNumber.toLowerCase().includes(searchLower) ||
-            patient.age.toString().includes(searchTerm.trim()) ||
-            patient.gender.toLowerCase().includes(searchLower) ||
-            patient.bloodSugar.value.toString().includes(searchTerm.trim());
-
-        // Apply filter setelah search
-        switch (activeFilter) {
-            case 'allergies':
-                return matchesSearch && patient.allergies && patient.allergies.length > 0;
-            case 'interactions':
-                return matchesSearch && patient.medications && patient.medications.length > 1;
-            case 'high-risk':
-                return matchesSearch && patient.riskLevel === 'HIGH';
-            default:
-                return matchesSearch;
+        // Fetch patients
+        const patientsResponse = await fetch('/api/patients');
+        if (patientsResponse.ok) {
+          const patientsData = await patientsResponse.json();
+          setPatients(patientsData.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            mrNumber: p.mrNumber,
+            phone: p.phone
+          })));
         }
-    });
 
-    const filteredDrug = drugData.filter(drug => {
-        const searchLower = searchTerm.toLowerCase().trim();
-
-        const matchesText = drug.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            drug.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            drug.strength.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            drug.manufacturer.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesNumber = searchTerm.trim() !== '' && (
-            drug.stock.toString().includes(searchTerm.trim()) ||
-            (searchLower.includes('low') || searchLower.includes('rendah')) && drug.stock < 50 ||
-            (searchLower.includes('high') || searchLower.includes('tinggi')) && drug.stock >= 100
-        );
-
-        // Search berdasarkan tanggal kedaluwarsa
-        const matchesDate = drug.expiryDate.includes(searchTerm.trim());
-
-        return matchesText || matchesNumber || matchesDate;
-    });
-
-
-
-
-    const handleTabChange = (tab: 'patients' | 'drugs' | 'complaints' | 'lab-results' | 'notes') => {
-        setActiveTab(tab);
-        setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+        // Fetch transactions
+        const transactionsResponse = await fetch('/api/transactions');
+        if (transactionsResponse.ok) {
+          const transactionsData = await transactionsResponse.json();
+          setTransactions(transactionsData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    // Navigation items
-    const navigationItems = [
-        { key: 'patients', label: 'Pasien', icon: Users },
-        { key: 'drugs', label: 'Data Obat', icon: Pill },
-        { key: 'complaints', label: 'Keluhan', icon: AlertCircle },
-        { key: 'lab-results', label: 'Hasil Lab', icon: TestTube },
-        { key: 'notes', label: 'Catatan Asuhan', icon: FileText }
-    ];
+    fetchData();
+  }, []);
 
+  const handleSaveDrug = async (drug: Omit<DrugData, 'id'> | DrugData) => {
+    try {
+      if (editingDrug && 'id' in drug) {
+        // Update existing drug
+        const response = await fetch(`/api/drugs/${drug.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(drug),
+        });
+        
+        if (response.ok) {
+          const updatedDrug = await response.json();
+          setDrugData(prev => prev.map(d => d.id === updatedDrug.id ? updatedDrug : d));
+        }
+      } else {
+        // Create new drug
+        const response = await fetch('/api/drugs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(drug),
+        });
+        
+        if (response.ok) {
+          const newDrug = await response.json();
+          setDrugData(prev => [...prev, newDrug]);
+        }
+      }
+      
+      setEditingDrug(null);
+      setShowDrugForm(false);
+    } catch (error) {
+      console.error('Error saving drug:', error);
+    }
+  };
+
+  const handleDeleteDrug = async (id: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus data obat ini?')) {
+      try {
+        const response = await fetch(`/api/drugs/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          setDrugData(prev => prev.filter(drug => drug.id !== id));
+        }
+      } catch (error) {
+        console.error('Error deleting drug:', error);
+      }
+    }
+  };
+
+  const handleSaveTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>) => {
+    try {
+      const response = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transaction),
+      });
+      
+      if (response.ok) {
+        const newTransaction = await response.json();
+        setTransactions(prev => [...prev, newTransaction]);
+        
+        // Update drug stock
+        transaction.items.forEach(item => {
+          setDrugData(prev => prev.map(drug => 
+            drug.id === item.drugId 
+              ? { ...drug, stock: drug.stock - item.quantity }
+              : drug
+          ));
+        });
+      }
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+    }
+  };
+
+  const handleCompleteTransaction = async (transactionId: string) => {
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}/complete`, {
+        method: 'PUT',
+      });
+      
+      if (response.ok) {
+        const updatedTransaction = await response.json();
+        setTransactions(prev => prev.map(t => 
+          t.id === transactionId ? updatedTransaction : t
+        ));
+      }
+    } catch (error) {
+      console.error('Error completing transaction:', error);
+    }
+  };
+
+  const handleCancelTransaction = async (transactionId: string) => {
+    if (confirm('Apakah Anda yakin ingin membatalkan transaksi ini?')) {
+      try {
+        const transaction = transactions.find(t => t.id === transactionId);
+        if (!transaction) return;
+
+        const response = await fetch(`/api/transactions/${transactionId}/cancel`, {
+          method: 'PUT',
+        });
+        
+        if (response.ok) {
+          // Restore stock if transaction was pending
+          if (transaction.status === 'PENDING') {
+            transaction.items.forEach(item => {
+              setDrugData(prev => prev.map(drug => 
+                drug.id === item.drugId 
+                  ? { ...drug, stock: drug.stock + item.quantity }
+                  : drug
+              ));
+            });
+          }
+          
+          setTransactions(prev => prev.map(t => 
+            t.id === transactionId ? { ...t, status: 'CANCELLED' } : t
+          ));
+        }
+      } catch (error) {
+        console.error('Error cancelling transaction:', error);
+      }
+    }
+  };
+
+  const filteredDrugs = drugData.filter(drug => {
+    const searchLower = searchTerm.toLowerCase();
+    return drug.name.toLowerCase().includes(searchLower) ||
+           drug.category.toLowerCase().includes(searchLower) ||
+           drug.manufacturer.toLowerCase().includes(searchLower);
+  });
+
+  const filteredTransactions = transactions.filter(transaction => {
+    const searchLower = searchTerm.toLowerCase();
+    return transaction.patientName.toLowerCase().includes(searchLower) ||
+           transaction.mrNumber.toLowerCase().includes(searchLower) ||
+           transaction.id.toLowerCase().includes(searchLower);
+  });
+
+  // Statistics
+  const totalDrugs = drugData.length;
+  const lowStockDrugs = drugData.filter(drug => drug.stock < 50).length;
+  const totalTransactions = transactions.length;
+  const pendingTransactions = transactions.filter(t => t.status === 'PENDING').length;
+  const completedTransactions = transactions.filter(t => t.status === 'COMPLETED').length;
+  const totalRevenue = transactions
+    .filter(t => t.status === 'COMPLETED')
+    .reduce((sum, t) => sum + t.totalAmount, 0);
+
+  const navigationItems = [
+    { key: 'overview', label: 'Overview', icon: Activity },
+    { key: 'drugs', label: 'Kelola Data Obat', icon: Pill },
+    { key: 'transactions', label: 'Kelola Transaksi Obat', icon: ShoppingCart }
+  ];
+
+  if (isLoading) {
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Mobile Sidebar Overlay */}
-            {isMobileSidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-                    onClick={() => setIsMobileSidebarOpen(false)}
-                />
-            )}
-
-            {/* Mobile Sidebar */}
-            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}>
-                {/* Sidebar Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h2 className="text-m font-semibold text-gray-900">Menu Farmasi</h2>
-                    <button
-                        onClick={() => setIsMobileSidebarOpen(false)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                        <X className="h-5 w-5 text-gray-500" />
-                    </button>
-                </div>
-
-                {/* Sidebar Navigation */}
-                <nav className="p-4 space-y-2">
-                    {navigationItems.map(item => {
-                        const IconComponent = item.icon;
-                        return (
-                            <button
-                                key={item.key}
-                                onClick={() => handleTabChange(item.key as any)}
-                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
-                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                    : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                            >
-                                <IconComponent className="h-5 w-5" />
-                                <span>{item.label}</span>
-                            </button>
-                        );
-                    })}
-                </nav>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-6 py-6">
-
-                {/* Mobile Header with Menu Button */}
-                <div className="flex items-center justify-between mb-4 lg:hidden">
-                    <button
-                        onClick={() => setIsMobileSidebarOpen(true)}
-                        className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
-                    >
-                        <Menu className="h-5 w-5 text-gray-600" />
-                    </button>
-                    <button
-                        onClick={async () => {
-                            setIsRefreshing(true);
-                            await refreshData();
-                            setIsRefreshing(false);
-                        }}
-                        disabled={isRefreshing}
-                        className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
-                    >
-                        {isRefreshing ? (
-                            <>
-                                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
-                                <span>Refreshing...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
-                                <span>Refresh</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-
-                {/* Desktop Header */}
-                <div className="hidden lg:flex items-center justify-end mb-6">
-                    <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
-                        <button
-                            onClick={async () => {
-                                setIsRefreshing(true);
-                                await refreshData();
-                                setIsRefreshing(false);
-                            }}
-                            disabled={isRefreshing}
-                            className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
-               text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
-                        >
-                            {isRefreshing ? (
-                                <>
-                                    <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
-                                    <span>Refreshing...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Activity className="h-4 w-4 mr-2 text-emerald-600" />
-                                    <span>Refresh Data</span>
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-
-                {/* Tab Navigation - Desktop Only */}
-                <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
-                    <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-35 px-6 justify-center">
-                            {navigationItems.map(tab => {
-                                const IconComponent = tab.icon;
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveTab(tab.key as any)}
-                                        className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
-                                            ? 'border-green-500 text-green-600'
-                                            : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        <IconComponent className="h-5 w-5" />
-                                        <span>{tab.label}</span>
-                                    </button>
-                                );
-                            })}
-                        </nav>
-                    </div>
-                </div>
-
-                {/* Patients Tab */}
-                {activeTab === 'patients' && (
-                    <div className="space-y-6">
-                        {/* Search and Filter */}
-                        <div className="bg-white rounded-lg shadow-sm p-4">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Daftar Pasien</h3>
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="flex-1 relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Cari Pasien..."
-                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
-                                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                    {[
-                                        { key: 'all', label: 'Semua' },
-                                        { key: 'allergies', label: 'Ada Alergi' },
-                                        { key: 'interactions', label: 'Interaksi Obat' },
-                                        { key: 'high-risk', label: 'Risiko Tinggi' }
-                                    ].map(filter => (
-                                        <button
-                                            key={filter.key}
-                                            onClick={() => setActiveFilter(filter.key as any)}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeFilter === filter.key
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-emerald-100'
-                                                }`}
-                                        >
-                                            {filter.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-
-                            {/* Patient List */}
-                            <div className="bg-white rounded-lg shadow-sm mt-4">
-                                {/* Desktop List View */}
-                                <div className="hidden md:block divide-y divide-gray-200">
-                                    {filteredPatients.map((patient) => (
-                                        <div key={patient.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center space-x-3 mb-3">
-                                                        <div>
-                                                            <p className="font-semibold text-gray-900 text-lg">{patient.name}</p>
-                                                            <p className="text-sm text-gray-600">{patient.mrNumber} • {patient.age} tahun • {patient.gender}</p>
-                                                        </div>
-                                                        {patient.allergies && patient.allergies.length > 0 && (
-                                                            <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                                                                ALERGI
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="grid grid-cols-4 gap-6 text-sm">
-                                                        <div>
-                                                            <span className="text-gray-600">GDS: </span>
-                                                            <span className={`font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
-                                                                }`}>
-                                                                {patient.bloodSugar.value} mg/dL
-                                                            </span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-gray-600">Obat Aktif: </span>
-                                                            <span className="font-semibold text-gray-900">{patient.medications?.length || 0}</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-gray-600">Keluhan: </span>
-                                                            <span className="font-semibold text-gray-900">
-                                                                {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length}
-                                                            </span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-gray-600">Risiko: </span>
-                                                            <span className={`font-semibold ${patient.riskLevel === 'HIGH' ? 'text-red-600' :
-                                                                patient.riskLevel === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
-                                                                }`}>
-                                                                {patient.riskLevel}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    onClick={() => setSelectedPatient(patient)}
-                                                    className="ml-4 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center space-x-2"
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                    <span>Lihat Detail</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Mobile Card View */}
-                                <div className="md:hidden space-y-4 p-4">
-                                    {filteredPatients.map((patient) => (
-                                        <div
-                                            key={patient.id}
-                                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
-                                        >
-                                            {/* Header */}
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 text-lg mb-1">
-                                                        {patient.name}
-                                                    </h4>
-                                                    <p className="text-sm text-gray-600 mb-2">
-                                                        {patient.mrNumber} • {patient.age} tahun • {patient.gender}
-                                                    </p>
-                                                    {patient.allergies && patient.allergies.length > 0 && (
-                                                        <span className="inline-flex bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                                                            ALERGI
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Patient Information */}
-                                            <div className="mb-4 space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">GDS:</span>
-                                                    <span className={`text-sm font-semibold ${patient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'
-                                                        }`}>
-                                                        {patient.bloodSugar.value} mg/dL
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Obat Aktif:</span>
-                                                    <span className="text-sm font-semibold text-gray-900">
-                                                        {patient.medications?.length || 0} obat
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Keluhan Baru:</span>
-                                                    <span className="text-sm font-semibold text-gray-900">
-                                                        {complaints.filter(c => c.patientId === patient.id && c.status === 'Baru').length} keluhan
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Level Risiko:</span>
-                                                    <span className={`text-sm font-semibold px-2 py-1 rounded-full ${patient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' :
-                                                        patient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-700' :
-                                                            'bg-green-100 text-green-700'
-                                                        }`}>
-                                                        {patient.riskLevel === 'HIGH' ? 'Tinggi' :
-                                                            patient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Action Button */}
-                                            <button
-                                                onClick={() => setSelectedPatient(patient)}
-                                                className="w-full bg-emerald-100 text-emerald-700 py-3 px-4 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                                <span>Lihat Detail Pasien</span>
-                                            </button>
-                                        </div>
-
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Empty State */}
-                            {filteredPatients.length === 0 && (
-                                <div className="text-center py-12 px-4">
-                                    <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                        {searchTerm ? "Tidak ada pasien yang ditemukan" : "Belum ada data pasien"}
-                                    </h3>
-                                    <p className="text-gray-600 max-w-md mx-auto">
-                                        {searchTerm
-                                            ? "Coba gunakan kata kunci yang berbeda atau hapus filter yang aktif."
-                                            : "Pasien akan muncul di sini setelah data ditambahkan ke sistem."
-                                        }
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Drugs Tab */}
-                {activeTab === 'drugs' && (
-                    <div className="space-y-6">
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900">Manajemen Data Obat</h3>
-                                <div className="flex flex-col sm:flex-row gap-4">
-                                    <div className="flex-1 relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Cari obat..."
-                                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
-                                        <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                                    </div>
-
-                                    <button
-                                        onClick={() => setShowDrugForm(true)}
-                                        className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                        <span>Tambah Obat</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Desktop Table Layout */}
-                            <div className="hidden lg:block overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kekuatan</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stok</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kedaluwarsa</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {filteredDrug.map((drug) => (
-                                            <tr key={drug.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div>
-                                                        <p className="text-sm font-medium text-gray-900">{drug.name}</p>
-                                                        <p className="text-sm text-gray-500">{drug.dosageForm} - {drug.manufacturer}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.category}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.strength}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`text-sm font-medium ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                                                        {drug.stock}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.expiryDate}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                                                    <button
-                                                        // onClick={() => setEditingDrug(drug)}
-                                                        className="text-gray-600 hover:text-gray-900"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEditingDrug(drug)}
-                                                        className="text-blue-600 hover:text-blue-900"
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteDrug(drug.id)}
-                                                        className="text-red-600 hover:text-red-900"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Mobile Card Layout */}
-                            <div className="lg:hidden space-y-4 p-4">
-                                {filteredDrug.map((drug) => (
-                                    <div
-                                        key={drug.id}
-                                        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
-                                    >
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-gray-900 text-lg mb-1">
-                                                    {drug.name}
-                                                </h4>
-                                                <p className="text-sm text-gray-600 mb-1">{drug.dosageForm} - {drug.manufacturer}</p>
-                                                <p className="text-sm text-gray-600">Kategori: {drug.category}</p>
-                                            </div>
-                                            <div className="text-right ml-3">
-                                                <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                                    {drug.strength}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Drug Information */}
-                                        <div className="mb-4 space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">Stok:</span>
-                                                <span className={`text-sm font-semibold ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                                                    {drug.stock} unit
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-600">Kedaluwarsa:</span>
-                                                <span className="text-sm text-gray-900">{drug.expiryDate}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Actions */}
-                                        <div className="flex space-x-2">
-                                            <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
-                                                <Eye className="h-4 w-4" />
-                                                <span>Detail</span>
-                                            </button>
-                                            <button
-                                                onClick={() => setEditingDrug(drug)}
-                                                className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                                <span>Edit</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteDrug(drug.id)}
-                                                className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                                <span>Hapus</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-
-                                {/* Empty State */}
-                                {drugData.length === 0 && (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <div className="h-12 w-12 mx-auto mb-3 opacity-50 bg-gray-100 rounded-full flex items-center justify-center">
-                                            <Plus className="h-6 w-6" />
-                                        </div>
-                                        <p className="text-lg font-medium mb-1">Belum ada data obat</p>
-                                        <p className="text-sm">Klik tombol "Tambah Obat" untuk menambah data obat baru</p>
-                                    </div>
-                                )}
-                            </div>
-
-                        </div>
-                    </div>
-                )}
-
-                {/* Complaints Tab */}
-                {activeTab === 'complaints' && (
-                    <div className="bg-white rounded-lg shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-900">Keluhan Pasien</h3>
-                        </div>
-                        <div className="divide-y divide-gray-200">
-                            {complaints.map((complaint) => {
-                                const patient = patients.find(p => p.id === complaint.patientId);
-                                return (
-                                    <div key={complaint.id} className="px-6 py-4">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center space-x-2 mb-2">
-                                                    <p className="font-medium text-gray-900">{patient?.name}</p>
-                                                    <p className="text-sm text-gray-500">{patient?.mrNumber}</p>
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${complaint.severity === 'Berat' ? 'bg-red-100 text-red-800' :
-                                                        complaint.severity === 'Sedang' ? 'bg-orange-100 text-orange-800' :
-                                                            'bg-yellow-100 text-yellow-800'
-                                                        }`}>
-                                                        {complaint.severity}
-                                                    </span>
-                                                </div>
-                                                <p className="text-gray-700 mb-2">{complaint.complaint}</p>
-                                                <p className="text-sm text-gray-500">{complaint.date}</p>
-                                            </div>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${complaint.status === 'Baru' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                                }`}>
-                                                {complaint.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Lab Results Tab */}
-                {activeTab === 'lab-results' && (
-                    <div className="space-y-6">
-                        {/* Lab Results */}
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900">Hasil Laboratorium</h3>
-                                <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2">
-                                    <Plus className="h-4 w-4" />
-                                    <span>Tambah Hasil Lab</span>
-                                </button>
-                            </div>
-
-                            {/* Desktop Table View */}
-                            <div className="hidden lg:block overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hasil</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Normal Range</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {labResults.map((result) => {
-                                            const patient = patients.find(p => p.id === result.patientId);
-                                            return (
-                                                <tr key={result.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-gray-900">{patient?.name}</p>
-                                                            <p className="text-sm text-gray-500">{patient?.mrNumber}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.testType}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{result.value}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{result.normalRange}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.date}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                            result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                                result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    'bg-green-100 text-green-800'
-                                                            }`}>
-                                                            {result.status === 'CRITICAL' ? 'Kritis' :
-                                                                result.status === 'HIGH' ? 'Tinggi' :
-                                                                    result.status === 'LOW' ? 'Rendah' :
-                                                                        'Normal'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                                                        <button className="text-blue-600 hover:text-blue-900">
-                                                            <Eye className="h-4 w-4" />
-                                                        </button>
-                                                        <button className="text-emerald-600 hover:text-emerald-900">
-                                                            <Edit className="h-4 w-4" />
-                                                        </button>
-                                                        <button className="text-red-600 hover:text-red-900">
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Mobile Card View */}
-                            <div className="lg:hidden space-y-4 p-4">
-                                {labResults.map((result) => {
-                                    const patient = patients.find(p => p.id === result.patientId);
-                                    return (
-                                        <div
-                                            key={result.id}
-                                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
-                                        >
-                                            {/* Header */}
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 text-lg mb-1">
-                                                        {patient?.name}
-                                                    </h4>
-                                                    <p className="text-sm text-gray-600 mb-2">{patient?.mrNumber}</p>
-                                                    <p className="text-sm font-medium text-gray-700">{result.testType}</p>
-                                                </div>
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                    result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                        result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-green-100 text-green-800'
-                                                    }`}>
-                                                    {result.status === 'CRITICAL' ? 'Kritis' :
-                                                        result.status === 'HIGH' ? 'Tinggi' :
-                                                            result.status === 'LOW' ? 'Rendah' :
-                                                                'Normal'}
-                                                </span>
-                                            </div>
-
-                                            {/* Lab Results Information */}
-                                            <div className="mb-4 space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Hasil:</span>
-                                                    <span className="text-sm font-semibold text-gray-900">{result.value}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Normal Range:</span>
-                                                    <span className="text-sm text-gray-700">{result.normalRange}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-600">Tanggal Test:</span>
-                                                    <span className="text-sm text-gray-900">{result.date}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="flex space-x-2">
-                                                <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
-                                                    <Eye className="h-4 w-4" />
-                                                    <span>Detail</span>
-                                                </button>
-                                                <button className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1">
-                                                    <Edit className="h-4 w-4" />
-                                                    <span>Edit</span>
-                                                </button>
-                                                <button className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1">
-                                                    <Trash2 className="h-4 w-4" />
-                                                    <span>Hapus</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Empty State */}
-                            {labResults.length === 0 && (
-                                <div className="text-center py-12 px-4">
-                                    <div className="h-16 w-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                                        <div className="h-8 w-8 bg-gray-300 rounded"></div>
-                                    </div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                        Belum ada hasil laboratorium
-                                    </h3>
-                                    <p className="text-gray-600 max-w-md mx-auto mb-4">
-                                        Hasil laboratorium akan muncul di sini setelah data ditambahkan ke sistem.
-                                    </p>
-                                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
-                                        Tambah Hasil Lab Pertama
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Pharmacy Notes Tab */}
-                {activeTab === 'notes' && (
-                    <div className="bg-white rounded-lg shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-900">Catatan Asuhan Kefarmasian</h3>
-                        </div>
-                        <div className="divide-y divide-gray-200">
-                            {pharmacyNotes.map((note) => {
-                                const patient = patients.find(p => p.id === note.patientId);
-                                return (
-                                    <div key={note.id} className="px-6 py-4">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div>
-                                                <p className="font-medium text-gray-900">{patient?.name}</p>
-                                                <p className="text-sm text-gray-500">{patient?.mrNumber} • {note.date}</p>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${note.category === 'MEDICATION' ? 'bg-blue-100 text-blue-800' :
-                                                    note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
-                                                        note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
-                                                            'bg-red-100 text-red-800'
-                                                    }`}>
-                                                    {note.category}
-                                                </span>
-                                                <p className="text-sm text-gray-500">{note.pharmacist}</p>
-                                            </div>
-                                        </div>
-                                        <p className="text-gray-700">{note.note}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Drug Form Modal */}
-                {(showDrugForm || editingDrug) && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-90vh overflow-y-auto">
-                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                    {editingDrug ? 'Edit Obat' : 'Tambah Obat Baru'}
-                                </h3>
-                                <button
-                                    onClick={() => {
-                                        setShowDrugForm(false);
-                                        setEditingDrug(null);
-                                        setNewDrug({});
-                                    }}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
-
-                            <div className="px-6 py-4">
-                                <form onSubmit={(e) => { e.preventDefault(); handleSaveDrug(); }}>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Nama Obat</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.name || newDrug.name || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, name: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, name: e.target.value })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
-                                            <select
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.category || newDrug.category || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, category: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, category: e.target.value })
-                                                }
-                                            >
-                                                <option value="">Pilih kategori</option>
-                                                <option value="Antidiabetes">Antidiabetes</option>
-                                                <option value="Antihipertensi">Antihipertensi</option>
-                                                <option value="Analgesik">Analgesik</option>
-                                                <option value="Antibiotik">Antibiotik</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Bentuk Sediaan</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.dosageForm || newDrug.dosageForm || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, dosageForm: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, dosageForm: e.target.value })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Kekuatan</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.strength || newDrug.strength || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, strength: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, strength: e.target.value })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Produsen</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.manufacturer || newDrug.manufacturer || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, manufacturer: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, manufacturer: e.target.value })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Stok</label>
-                                            <input
-                                                type="number"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.stock || newDrug.stock || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, stock: parseInt(e.target.value) }) :
-                                                    setNewDrug({ ...newDrug, stock: parseInt(e.target.value) })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Kedaluwarsa</label>
-                                            <input
-                                                type="date"
-                                                required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                value={editingDrug?.expiryDate || newDrug.expiryDate || ''}
-                                                onChange={(e) => editingDrug ?
-                                                    setEditingDrug({ ...editingDrug, expiryDate: e.target.value }) :
-                                                    setNewDrug({ ...newDrug, expiryDate: e.target.value })
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Indikasi</label>
-                                            <textarea
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                rows={2}
-                                                placeholder="Pisahkan dengan koma"
-                                                value={editingDrug?.indications.join(', ') || newDrug.indications?.join(', ') || ''}
-                                                onChange={(e) => {
-                                                    const indications = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                                                    editingDrug ?
-                                                        setEditingDrug({ ...editingDrug, indications }) :
-                                                        setNewDrug({ ...newDrug, indications });
-                                                }}
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Kontraindikasi</label>
-                                            <textarea
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                rows={2}
-                                                placeholder="Pisahkan dengan koma"
-                                                value={editingDrug?.contraindications.join(', ') || newDrug.contraindications?.join(', ') || ''}
-                                                onChange={(e) => {
-                                                    const contraindications = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                                                    editingDrug ?
-                                                        setEditingDrug({ ...editingDrug, contraindications }) :
-                                                        setNewDrug({ ...newDrug, contraindications });
-                                                }}
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Efek Samping</label>
-                                            <textarea
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                rows={2}
-                                                placeholder="Pisahkan dengan koma"
-                                                value={editingDrug?.sideEffects.join(', ') || newDrug.sideEffects?.join(', ') || ''}
-                                                onChange={(e) => {
-                                                    const sideEffects = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                                                    editingDrug ?
-                                                        setEditingDrug({ ...editingDrug, sideEffects }) :
-                                                        setNewDrug({ ...newDrug, sideEffects });
-                                                }}
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Interaksi Obat</label>
-                                            <textarea
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                                rows={2}
-                                                placeholder="Pisahkan dengan koma"
-                                                value={editingDrug?.interactions.join(', ') || newDrug.interactions?.join(', ') || ''}
-                                                onChange={(e) => {
-                                                    const interactions = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                                                    editingDrug ?
-                                                        setEditingDrug({ ...editingDrug, interactions }) :
-                                                        setNewDrug({ ...newDrug, interactions });
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-6 flex space-x-3">
-                                        <button
-                                            type="submit"
-                                            className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
-                                        >
-                                            <Save className="h-4 w-4" />
-                                            <span>Simpan</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowDrugForm(false);
-                                                setEditingDrug(null);
-                                                setNewDrug({});
-                                            }}
-                                            className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors"
-                                        >
-                                            Batal
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Patient Detail Modal */}
-                {selectedPatient && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-90vh overflow-y-auto">
-                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                    Asuhan Kefarmasian - {selectedPatient.name}
-                                </h3>
-                                <button
-                                    onClick={() => setSelectedPatient(null)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <XCircle className="h-6 w-6" />
-                                </button>
-                            </div>
-
-                            <div className="px-6 py-4 space-y-6">
-                                {/* Patient Basic Info */}
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">No. RM</p>
-                                        <p className="text-gray-900">{selectedPatient.mrNumber}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Umur/Gender</p>
-                                        <p className="text-gray-900">{selectedPatient.age} tahun / {selectedPatient.gender}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Tipe Diabetes</p>
-                                        <p className="text-gray-900">{selectedPatient.diabetesType}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Level Risiko</p>
-                                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${selectedPatient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
-                                            selectedPatient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
-                                                'bg-green-100 text-green-800'
-                                            }`}>
-                                            {selectedPatient.riskLevel}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Allergies Alert */}
-                                {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                        <div className="flex items-center mb-2">
-                                            <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
-                                            <h4 className="font-semibold text-red-800">PERINGATAN ALERGI</h4>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {selectedPatient.allergies.map((allergy, index) => (
-                                                <span key={index} className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                                                    {allergy}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Medications */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-semibold text-gray-900 flex items-center">
-                                            <Pill className="h-5 w-5 mr-2" />
-                                            Riwayat Obat
-                                        </h4>
-                                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                                            {selectedPatient.medications && selectedPatient.medications.length > 0 ? (
-                                                selectedPatient.medications.map((medication) => (
-                                                    <div key={medication.id} className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <p className="font-medium text-gray-900">{medication.name}</p>
-                                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">AKTIF</span>
-                                                        </div>
-                                                        <div className="text-sm text-gray-600 space-y-1">
-                                                            <p>Dosis: {medication.dosage} - {medication.frequency}</p>
-                                                            <p>Mulai: {medication.startDate}</p>
-                                                            {medication.endDate && <p>Selesai: {medication.endDate}</p>}
-                                                        </div>
-
-                                                        {medication.interactions && medication.interactions.length > 0 && (
-                                                            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded">
-                                                                <p className="text-xs font-medium text-orange-800">Potensi Interaksi:</p>
-                                                                <p className="text-xs text-orange-700">{medication.interactions.join(', ')}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="text-gray-500 text-center py-4">Belum ada riwayat obat</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Complaints */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-semibold text-gray-900 flex items-center">
-                                            <AlertCircle className="h-5 w-5 mr-2" />
-                                            Keluhan Terkini
-                                        </h4>
-                                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                                            {complaints.filter(c => c.patientId === selectedPatient.id).map((complaint) => (
-                                                <div key={complaint.id} className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.severity === 'Berat' ? 'bg-red-100 text-red-800' :
-                                                            complaint.severity === 'Sedang' ? 'bg-orange-100 text-orange-800' :
-                                                                'bg-yellow-100 text-yellow-800'
-                                                            }`}>
-                                                            {complaint.severity}
-                                                        </span>
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${complaint.status === 'Baru' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                                            }`}>
-                                                            {complaint.status}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-700 mb-1">{complaint.complaint}</p>
-                                                    <p className="text-xs text-gray-500">{complaint.date}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Lab Results */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-semibold text-gray-900 flex items-center">
-                                            <TestTube className="h-5 w-5 mr-2" />
-                                            Hasil Lab Terbaru
-                                        </h4>
-                                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                                            {labResults.filter(r => r.patientId === selectedPatient.id).map((result) => (
-                                                <div key={result.id} className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <p className="font-medium text-gray-900">{result.testType}</p>
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${result.status === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                                            result.status === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                                result.status === 'LOW' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    'bg-green-100 text-green-800'
-                                                            }`}>
-                                                            {result.status}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-sm text-gray-600 space-y-1">
-                                                        <p>Hasil: <span className="font-medium">{result.value}</span></p>
-                                                        <p>Normal: {result.normalRange}</p>
-                                                        <p>Tanggal: {result.date}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Pharmacy Notes */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-semibold text-gray-900 flex items-center">
-                                            <FileText className="h-5 w-5 mr-2" />
-                                            Catatan Asuhan Kefarmasian
-                                        </h4>
-                                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                                            {pharmacyNotes.filter(n => n.patientId === selectedPatient.id).map((note) => (
-                                                <div key={note.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${note.category === 'MEDICATION' ? 'bg-blue-100 text-blue-800' :
-                                                            note.category === 'COUNSELING' ? 'bg-green-100 text-green-800' :
-                                                                note.category === 'MONITORING' ? 'bg-purple-100 text-purple-800' :
-                                                                    'bg-red-100 text-red-800'
-                                                            }`}>
-                                                            {note.category}
-                                                        </span>
-                                                        <p className="text-xs text-gray-500">{note.pharmacist}</p>
-                                                    </div>
-                                                    <p className="text-sm text-gray-700 mb-1">{note.note}</p>
-                                                    <p className="text-xs text-gray-500">{note.date}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Clinical Summary */}
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold text-gray-900 mb-3">Kondisi Klinis Saat Ini</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                        <div className="text-center">
-                                            <p className={`text-2xl font-bold ${selectedPatient.bloodSugar.value > 140 ? 'text-red-600' : 'text-green-600'}`}>
-                                                {selectedPatient.bloodSugar.value}
-                                            </p>
-                                            <p className="text-gray-600">GDS (mg/dL)</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-2xl font-bold text-blue-600">{selectedPatient.vitalSigns.bloodPressure}</p>
-                                            <p className="text-gray-600">Tekanan Darah</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-2xl font-bold text-purple-600">{selectedPatient.bmi}</p>
-                                            <p className="text-gray-600">BMI</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-2xl font-bold text-orange-600">{selectedPatient.vitalSigns.weight}</p>
-                                            <p className="text-gray-600">Berat (kg)</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat data...</p>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Sidebar */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
+        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Menu Farmasi</h2>
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <XCircle className="h-5 w-5 text-gray-500" />
+          </button>
+        </div>
+
+        <nav className="p-4 space-y-2">
+          {navigationItems.map(item => {
+            const IconComponent = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => {
+                  setActiveTab(item.key as any);
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
+                  activeTab === item.key
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <IconComponent className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between mb-4 lg:hidden">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <Menu className="h-5 w-5 text-gray-600" />
+          </button>
+        </div>
+
+        {/* Desktop Navigation */}
+        <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8 px-6 justify-center">
+              {navigationItems.map(tab => {
+                const IconComponent = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as any)}
+                    className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                      activeTab === tab.key
+                        ? 'border-emerald-500 text-emerald-600'
+                        : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <IconComponent className="h-5 w-5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Obat</p>
+                    <p className="text-2xl font-bold text-gray-900">{totalDrugs}</p>
+                  </div>
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <Package className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Stok Rendah</p>
+                    <p className="text-2xl font-bold text-red-600">{lowStockDrugs}</p>
+                  </div>
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Transaksi Pending</p>
+                    <p className="text-2xl font-bold text-orange-600">{pendingTransactions}</p>
+                  </div>
+                  <div className="p-3 bg-orange-100 rounded-lg">
+                    <ShoppingCart className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Transaksi Selesai</p>
+                    <p className="text-2xl font-bold text-green-600">{completedTransactions}</p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Obat Stok Rendah</h3>
+                </div>
+                <div className="p-6">
+                  {drugData.filter(drug => drug.stock < 50).slice(0, 5).map(drug => (
+                    <div key={drug.id} className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{drug.name}</p>
+                        <p className="text-sm text-gray-600">{drug.category}</p>
+                      </div>
+                      <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {drug.stock} unit
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Transaksi Terbaru</h3>
+                </div>
+                <div className="p-6">
+                  {transactions.slice(-5).reverse().map(transaction => (
+                    <div key={transaction.id} className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{transaction.patientName}</p>
+                        <p className="text-sm text-gray-600">{transaction.mrNumber}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {transaction.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Drugs Tab */}
+        {activeTab === 'drugs' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <h3 className="text-lg font-semibold text-gray-900">Manajemen Data Obat</h3>
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="flex-1 sm:flex-none sm:w-80 relative">
+                    <input
+                      type="text"
+                      placeholder="Cari obat..."
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  </div>
+
+                  <button
+                    onClick={() => setShowDrugForm(true)}
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tambah Obat</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kekuatan</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stok</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kedaluwarsa</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredDrugs.map((drug) => (
+                      <tr key={drug.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{drug.name}</p>
+                            <p className="text-sm text-gray-500">{drug.dosageForm} - {drug.manufacturer}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.strength}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`text-sm font-medium ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                            {drug.stock}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingDrug(drug);
+                              setShowDrugForm(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 p-1"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDrug(drug.id)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-4 p-4">
+                {filteredDrugs.map((drug) => (
+                  <div key={drug.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 text-lg mb-1">{drug.name}</h4>
+                        <p className="text-sm text-gray-600 mb-1">{drug.dosageForm} - {drug.manufacturer}</p>
+                        <p className="text-sm text-gray-600">Kategori: {drug.category}</p>
+                      </div>
+                      <div className="text-right ml-3">
+                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                          {drug.strength}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Stok:</span>
+                        <span className={`text-sm font-semibold ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                          {drug.stock} unit
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Kedaluwarsa:</span>
+                        <span className="text-sm text-gray-900">
+                          {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => {
+                          setEditingDrug(drug);
+                          setShowDrugForm(true);
+                        }}
+                        className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteDrug(drug.id)}
+                        className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Empty State */}
+              {filteredDrugs.length === 0 && (
+                <div className="text-center py-12 px-4">
+                  <Pill className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {searchTerm ? "Tidak ada obat yang ditemukan" : "Belum ada data obat"}
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto mb-4">
+                    {searchTerm
+                      ? "Coba gunakan kata kunci yang berbeda untuk pencarian."
+                      : "Klik tombol 'Tambah Obat' untuk menambah data obat baru."
+                    }
+                  </p>
+                  {!searchTerm && (
+                    <button
+                      onClick={() => setShowDrugForm(true)}
+                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Tambah Obat Pertama</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Transactions Tab */}
+        {activeTab === 'transactions' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <h3 className="text-lg font-semibold text-gray-900">Kelola Transaksi Obat</h3>
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="flex-1 sm:flex-none sm:w-80 relative">
+                    <input
+                      type="text"
+                      placeholder="Cari transaksi..."
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  </div>
+
+                  <button
+                    onClick={() => setShowTransactionForm(true)}
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Transaksi Baru</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Transaksi</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                          #{transaction.id.slice(-8)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{transaction.patientName}</p>
+                            <p className="text-sm text-gray-500">{transaction.mrNumber}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          Rp {transaction.totalAmount.toLocaleString('id-ID')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                            transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {transaction.status === 'COMPLETED' ? 'Selesai' :
+                             transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                          <button
+                            className="text-blue-600 hover:text-blue-900 p-1"
+                            title="Lihat Detail"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          {transaction.status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => handleCompleteTransaction(transaction.id)}
+                                className="text-green-600 hover:text-green-900 p-1"
+                                title="Selesaikan"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleCancelTransaction(transaction.id)}
+                                className="text-red-600 hover:text-red-900 p-1"
+                                title="Batalkan"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-4 p-4">
+                {filteredTransactions.map((transaction) => (
+                  <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                          {transaction.patientName}
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-2">{transaction.mrNumber}</p>
+                        <p className="text-sm font-mono text-gray-500">#{transaction.id.slice(-8)}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {transaction.status === 'COMPLETED' ? 'Selesai' :
+                         transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
+                      </span>
+                    </div>
+
+                    <div className="mb-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Total:</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          Rp {transaction.totalAmount.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Tanggal:</span>
+                        <span className="text-sm text-gray-900">
+                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Items:</span>
+                        <span className="text-sm text-gray-900">{transaction.items.length} obat</span>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
+                        <Eye className="h-4 w-4" />
+                        <span>Detail</span>
+                      </button>
+                      {transaction.status === 'PENDING' && (
+                        <>
+                          <button
+                            onClick={() => handleCompleteTransaction(transaction.id)}
+                            className="flex-1 bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Selesai</span>
+                          </button>
+                          <button
+                            onClick={() => handleCancelTransaction(transaction.id)}
+                            className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            <span>Batal</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Empty State */}
+              {filteredTransactions.length === 0 && (
+                <div className="text-center py-12 px-4">
+                  <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {searchTerm ? "Tidak ada transaksi yang ditemukan" : "Belum ada transaksi"}
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto mb-4">
+                    {searchTerm
+                      ? "Coba gunakan kata kunci yang berbeda untuk pencarian."
+                      : "Klik tombol 'Transaksi Baru' untuk membuat transaksi obat."
+                    }
+                  </p>
+                  {!searchTerm && (
+                    <button
+                      onClick={() => setShowTransactionForm(true)}
+                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Buat Transaksi Pertama</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Drug Form */}
+      <DataObatForm
+        isOpen={showDrugForm}
+        onClose={() => {
+          setShowDrugForm(false);
+          setEditingDrug(null);
+        }}
+        onSave={handleSaveDrug}
+        editingDrug={editingDrug}
+      />
+
+      {/* Transaction Form */}
+      <TransaksiObatForm
+        isOpen={showTransactionForm}
+        onClose={() => {
+          setShowTransactionForm(false);
+          setEditingTransaction(null);
+        }}
+        onSave={handleSaveTransaction}
+        patients={patients}
+        drugs={drugData}
+        editingTransaction={editingTransaction}
+      />
+    </div>
+  );
 };
 
 export default PharmacyDashboard;

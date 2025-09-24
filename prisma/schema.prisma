@@ -52,6 +52,7 @@ model User {
   doctorAppointments Appointment[]   @relation("DoctorAppointments")
   medicationLogs     MedicationLog[] @relation("MedicationLogs")
   visitationLogs     Visitation[]
+  handledPatients    HandledPatient[] @relation("HandledPatients") // NEW RELATION
 
   @@map("users")
 }
@@ -70,8 +71,8 @@ model Patient {
   weight    Float?
   bmi       Float?
   bloodType String?
-  allergies String[] // Array of allergy strings
-  medicalHistory String? // Medical history as text
+  allergies String[]
+  medicalHistory String?
 
   // Diabetes specific
   diabetesType  String?
@@ -82,7 +83,7 @@ model Patient {
   insuranceType   InsuranceType
   insuranceNumber String?
 
-  // Additional fields from mockData
+  // Additional fields
   lastVisit       DateTime?
   nextAppointment DateTime?
   riskLevel       RiskLevel?
@@ -98,6 +99,7 @@ model Patient {
   updatedAt DateTime @updatedAt
 
   // Relations
+  drugTransactions DrugTransaction[]
   medicalRecords MedicalRecord[]
   appointments   Appointment[]
   vitalSigns     VitalSign[]
@@ -115,8 +117,43 @@ model Patient {
   mealEntries    MealEntry[]
   foodRecalls    FoodRecall[]
   visitations    Visitation[]
+  handledBy      HandledPatient[] // NEW RELATION
 
   @@map("patients")
+}
+
+model HandledPatient {
+  id          String   @id @default(cuid())
+  patientId   String
+  handledBy   String   // User ID of who is handling the patient (doctor, nurse, etc.)
+  handledDate DateTime @default(now())
+  
+  // Treatment/care details
+  diagnosis       String?
+  treatmentPlan   String?
+  notes          String?
+  status         HandledPatientStatus @default(ACTIVE)
+  priority       HandledPatientPriority @default(NORMAL)
+  
+  // Follow-up information
+  nextVisitDate  DateTime?
+  estimatedDuration String? // e.g., "2 weeks", "1 month"
+  specialInstructions String?
+  
+  // Relations
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  handler     User    @relation("HandledPatients", fields: [handledBy], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Ensure one patient can only be handled by one person at a time for active records
+  @@unique([patientId, handledBy, status])
+  @@index([handledBy])
+  @@index([patientId])
+  @@index([status])
+
+  @@map("handled_patients")
 }
 
 model MedicalRecord {
@@ -444,7 +481,47 @@ model DrugData {
   sideEffects       String[]
   indications       String[]
 
+  transactionItems  DrugTransactionItem[]
+  
   @@map("drug_data")
+}
+
+model DrugTransaction {
+  id          String   @id @default(cuid())
+  patientId   String
+  totalAmount Int
+  status      TransactionStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+  items   DrugTransactionItem[]
+
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
+
+  @@map("drug_transactions")
+}
+
+model DrugTransactionItem {
+  id            String @id @default(cuid())
+  transactionId String
+  drugId        String
+  quantity      Int
+  price         Int
+  subtotal      Int
+
+  // Relations
+  transaction DrugTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  drug        DrugData        @relation(fields: [drugId], references: [id])
+
+  @@index([transactionId])
+  @@index([drugId])
+
+  @@map("drug_transaction_items")
 }
 
 model PatientComplaint {
@@ -605,6 +682,21 @@ enum PatientStatus {
   FOLLOW_UP
 }
 
+enum HandledPatientStatus {
+  ACTIVE          
+  COMPLETED       
+  TRANSFERRED     
+  DISCONTINUED    
+  ON_HOLD        
+}
+
+enum HandledPatientPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum AlertType {
   CRITICAL
   WARNING
@@ -616,6 +708,12 @@ enum LabStatus {
   HIGH
   LOW
   CRITICAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
 }
 
 enum ComplaintSeverity {
