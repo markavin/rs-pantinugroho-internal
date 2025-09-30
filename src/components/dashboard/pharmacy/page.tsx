@@ -70,8 +70,8 @@ const PharmacyDashboard = () => {
           })));
         }
 
-        // Fetch transactions
-        const transactionsResponse = await fetch('/api/transactions');
+        // Fetch drug transactions
+        const transactionsResponse = await fetch('/api/drug-transactions');
         if (transactionsResponse.ok) {
           const transactionsData = await transactionsResponse.json();
           setTransactions(transactionsData);
@@ -141,9 +141,10 @@ const PharmacyDashboard = () => {
     }
   };
 
+  // Transaction handlers following the flow: save as PENDING first
   const handleSaveTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>) => {
     try {
-      const response = await fetch('/api/transactions', {
+      const response = await fetch('/api/drug-transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,61 +156,59 @@ const PharmacyDashboard = () => {
         const newTransaction = await response.json();
         setTransactions(prev => [...prev, newTransaction]);
         
-        // Update drug stock
-        transaction.items.forEach(item => {
-          setDrugData(prev => prev.map(drug => 
-            drug.id === item.drugId 
-              ? { ...drug, stock: drug.stock - item.quantity }
-              : drug
-          ));
-        });
+        // Note: Stock is NOT reduced here - only reduced when transaction is COMPLETED
       }
+      
+      setShowTransactionForm(false);
     } catch (error) {
       console.error('Error saving transaction:', error);
     }
   };
 
+  // Complete transaction - this is when stock gets reduced
   const handleCompleteTransaction = async (transactionId: string) => {
-    try {
-      const response = await fetch(`/api/transactions/${transactionId}/complete`, {
-        method: 'PUT',
-      });
-      
-      if (response.ok) {
-        const updatedTransaction = await response.json();
-        setTransactions(prev => prev.map(t => 
-          t.id === transactionId ? updatedTransaction : t
-        ));
-      }
-    } catch (error) {
-      console.error('Error completing transaction:', error);
-    }
-  };
-
-  const handleCancelTransaction = async (transactionId: string) => {
-    if (confirm('Apakah Anda yakin ingin membatalkan transaksi ini?')) {
+    if (confirm('Apakah Anda yakin pasien sudah menerima obat? Stok akan dikurangi setelah dikonfirmasi.')) {
       try {
-        const transaction = transactions.find(t => t.id === transactionId);
-        if (!transaction) return;
-
-        const response = await fetch(`/api/transactions/${transactionId}/cancel`, {
+        const response = await fetch(`/api/drug-transactions/${transactionId}/complete`, {
           method: 'PUT',
         });
         
         if (response.ok) {
-          // Restore stock if transaction was pending
-          if (transaction.status === 'PENDING') {
+          const updatedTransaction = await response.json();
+          setTransactions(prev => prev.map(t => 
+            t.id === transactionId ? updatedTransaction : t
+          ));
+          
+          // Update drug stock in local state based on completed transaction
+          const transaction = transactions.find(t => t.id === transactionId);
+          if (transaction) {
             transaction.items.forEach(item => {
               setDrugData(prev => prev.map(drug => 
                 drug.id === item.drugId 
-                  ? { ...drug, stock: drug.stock + item.quantity }
+                  ? { ...drug, stock: drug.stock - item.quantity }
                   : drug
               ));
             });
           }
-          
+        }
+      } catch (error) {
+        console.error('Error completing transaction:', error);
+      }
+    }
+  };
+
+  // Cancel transaction - stock is not affected since it was never reduced
+  const handleCancelTransaction = async (transactionId: string) => {
+    if (confirm('Apakah Anda yakin ingin membatalkan transaksi ini?')) {
+      try {
+        const response = await fetch(`/api/drug-transactions/${transactionId}/cancel`, {
+          method: 'PUT',
+        });
+        
+        if (response.ok) {
+          const updatedTransaction = await response.json();
           setTransactions(prev => prev.map(t => 
-            t.id === transactionId ? { ...t, status: 'CANCELLED' } : t
+            t.id === transactionId ? updatedTransaction : t
           ));
         }
       } catch (error) {
@@ -381,6 +380,7 @@ const PharmacyDashboard = () => {
                     <ShoppingCart className="h-6 w-6 text-orange-600" />
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Menunggu diselesaikan</p>
               </div>
 
               <div className="bg-white p-6 rounded-lg shadow-sm">
@@ -393,6 +393,7 @@ const PharmacyDashboard = () => {
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Obat sudah diterima pasien</p>
               </div>
             </div>
 
@@ -434,7 +435,8 @@ const PharmacyDashboard = () => {
                           transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
                           'bg-red-100 text-red-800'
                         }`}>
-                          {transaction.status}
+                          {transaction.status === 'COMPLETED' ? 'Selesai' :
+                           transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
                         </span>
                       </div>
                     </div>
@@ -480,9 +482,9 @@ const PharmacyDashboard = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kekuatan</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stok</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kedaluwarsa</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kadaluwarsa</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
                     </tr>
                   </thead>
@@ -492,15 +494,21 @@ const PharmacyDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <p className="text-sm font-medium text-gray-900">{drug.name}</p>
-                            <p className="text-sm text-gray-500">{drug.dosageForm} - {drug.manufacturer}</p>
+                            <p className="text-sm text-gray-500">{drug.strength}</p>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.category}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.strength}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`text-sm font-medium ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                            {drug.stock}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            drug.stock < 10 ? 'bg-red-100 text-red-800' :
+                            drug.stock < 50 ? 'bg-orange-100 text-orange-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {drug.stock} unit
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
@@ -534,28 +542,30 @@ const PharmacyDashboard = () => {
               <div className="lg:hidden space-y-4 p-4">
                 {filteredDrugs.map((drug) => (
                   <div key={drug.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <h4 className="font-semibold text-gray-900 text-lg mb-1">{drug.name}</h4>
-                        <p className="text-sm text-gray-600 mb-1">{drug.dosageForm} - {drug.manufacturer}</p>
-                        <p className="text-sm text-gray-600">Kategori: {drug.category}</p>
+                        <p className="text-sm text-gray-600 mb-2">{drug.strength} - {drug.category}</p>
+                        <p className="text-sm text-gray-500">{drug.manufacturer}</p>
                       </div>
-                      <div className="text-right ml-3">
-                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                          {drug.strength}
-                        </span>
-                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        drug.stock < 10 ? 'bg-red-100 text-red-800' :
+                        drug.stock < 50 ? 'bg-orange-100 text-orange-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {drug.stock} unit
+                      </span>
                     </div>
 
                     <div className="mb-4 space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Stok:</span>
-                        <span className={`text-sm font-semibold ${drug.stock < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                          {drug.stock} unit
+                        <span className="text-sm font-medium text-gray-600">Harga:</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Kedaluwarsa:</span>
+                        <span className="text-sm font-medium text-gray-600">Kadaluwarsa:</span>
                         <span className="text-sm text-gray-900">
                           {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
                         </span>
@@ -585,17 +595,17 @@ const PharmacyDashboard = () => {
                 ))}
               </div>
 
-              {/* Empty State */}
+              {/* Empty State for Drugs */}
               {filteredDrugs.length === 0 && (
                 <div className="text-center py-12 px-4">
-                  <Pill className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <Package className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     {searchTerm ? "Tidak ada obat yang ditemukan" : "Belum ada data obat"}
                   </h3>
                   <p className="text-gray-600 max-w-md mx-auto mb-4">
                     {searchTerm
                       ? "Coba gunakan kata kunci yang berbeda untuk pencarian."
-                      : "Klik tombol 'Tambah Obat' untuk menambah data obat baru."
+                      : "Klik tombol 'Tambah Obat' untuk menambahkan data obat pertama."
                     }
                   </p>
                   {!searchTerm && (
@@ -613,12 +623,12 @@ const PharmacyDashboard = () => {
           </div>
         )}
 
-        {/* Transactions Tab */}
+        {/* Transactions Tab - Fixed to be separate tab */}
         {activeTab === 'transactions' && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-gray-900">Kelola Transaksi Obat</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Manajemen Transaksi Obat</h3>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                   <div className="flex-1 sm:flex-none sm:w-80 relative">
                     <input
@@ -641,6 +651,27 @@ const PharmacyDashboard = () => {
                 </div>
               </div>
 
+              {/* Transaction Status Info */}
+              {/* <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
+                <div className="flex items-center space-x-6 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span className="text-orange-700 font-medium">PENDING</span>
+                    <span className="text-gray-600">- Menunggu diselesaikan</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-green-700 font-medium">COMPLETED</span>
+                    <span className="text-gray-600">- Obat sudah diterima pasien</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-red-700 font-medium">CANCELLED</span>
+                    <span className="text-gray-600">- Transaksi dibatalkan</span>
+                  </div>
+                </div>
+              </div> */}
+
               {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -648,6 +679,7 @@ const PharmacyDashboard = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Transaksi</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
@@ -666,6 +698,14 @@ const PharmacyDashboard = () => {
                             <p className="text-sm text-gray-500">{transaction.mrNumber}</p>
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {transaction.items.length} obat
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                           Rp {transaction.totalAmount.toLocaleString('id-ID')}
                         </td>
@@ -675,12 +715,18 @@ const PharmacyDashboard = () => {
                             transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
                             'bg-red-100 text-red-800'
                           }`}>
-                            {transaction.status === 'COMPLETED' ? 'Selesai' :
-                             transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
+                            {transaction.status === 'COMPLETED' ? 'COMPLETED' :
+                             transaction.status === 'PENDING' ? 'PENDING' : 'CANCELLED'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                          <div>{new Date(transaction.createdAt).toLocaleDateString('id-ID')}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(transaction.createdAt).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                           <button
@@ -694,18 +740,23 @@ const PharmacyDashboard = () => {
                               <button
                                 onClick={() => handleCompleteTransaction(transaction.id)}
                                 className="text-green-600 hover:text-green-900 p-1"
-                                title="Selesaikan"
+                                title="Selesaikan Transaksi - Pasien Sudah Menerima Obat"
                               >
                                 <CheckCircle className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleCancelTransaction(transaction.id)}
                                 className="text-red-600 hover:text-red-900 p-1"
-                                title="Batalkan"
+                                title="Batalkan Transaksi"
                               >
                                 <XCircle className="h-4 w-4" />
                               </button>
                             </>
+                          )}
+                          {transaction.status === 'COMPLETED' && transaction.completedAt && (
+                            <div className="text-xs text-gray-500">
+                              Diselesaikan: {new Date(transaction.completedAt).toLocaleDateString('id-ID')}
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -731,12 +782,17 @@ const PharmacyDashboard = () => {
                         transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
                         'bg-red-100 text-red-800'
                       }`}>
-                        {transaction.status === 'COMPLETED' ? 'Selesai' :
-                         transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
+                        {transaction.status}
                       </span>
                     </div>
 
                     <div className="mb-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Items:</span>
+                        <span className="text-sm text-gray-900">
+                          {transaction.items.length} obat ({transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit)
+                        </span>
+                      </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-600">Total:</span>
                         <span className="text-sm font-semibold text-gray-900">
@@ -746,13 +802,18 @@ const PharmacyDashboard = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-600">Tanggal:</span>
                         <span className="text-sm text-gray-900">
-                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')} {new Date(transaction.createdAt).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Items:</span>
-                        <span className="text-sm text-gray-900">{transaction.items.length} obat</span>
-                      </div>
+                      {transaction.notes && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <span className="text-sm font-medium text-gray-600">Catatan:</span>
+                          <p className="text-sm text-gray-700 mt-1">{transaction.notes}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex space-x-2">
@@ -779,6 +840,18 @@ const PharmacyDashboard = () => {
                         </>
                       )}
                     </div>
+
+                    {transaction.status === 'COMPLETED' && transaction.completedAt && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-xs text-green-600 flex items-center space-x-1">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Diselesaikan: {new Date(transaction.completedAt).toLocaleDateString('id-ID')} {new Date(transaction.completedAt).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -793,7 +866,7 @@ const PharmacyDashboard = () => {
                   <p className="text-gray-600 max-w-md mx-auto mb-4">
                     {searchTerm
                       ? "Coba gunakan kata kunci yang berbeda untuk pencarian."
-                      : "Klik tombol 'Transaksi Baru' untuk membuat transaksi obat."
+                      : "Klik tombol 'Transaksi Baru' untuk membuat transaksi obat pertama."
                     }
                   </p>
                   {!searchTerm && (

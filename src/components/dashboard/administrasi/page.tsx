@@ -14,6 +14,7 @@ interface Patient {
   address?: string;
   height?: number;
   weight?: number;
+  bmi?: number;
   diabetesType?: string;
   insuranceType: string;
   lastVisit?: Date;
@@ -23,13 +24,20 @@ interface Patient {
   medicalHistory?: string;
 }
 
+// Updated to match PatientRecord structure
 interface PatientComplaint {
   id: string;
   patientId: string;
-  complaint: string;
-  severity: 'RINGAN' | 'SEDANG' | 'BERAT';
-  status: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
-  date: Date;
+  recordType: 'COMPLAINTS';
+  title: string;
+  content: string; // This is the actual complaint text
+  metadata?: {
+    severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
+    status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
+    notes?: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
   patient?: {
     name: string;
     mrNumber: string;
@@ -82,6 +90,7 @@ const AdministrasiDashboard = () => {
         setPatients(patientsData);
       }
 
+      // Updated to use patient-records API endpoint
       const complaintsResponse = await fetch('/api/patient-complaints');
       if (complaintsResponse.ok) {
         const complaintsData = await complaintsResponse.json();
@@ -101,12 +110,46 @@ const AdministrasiDashboard = () => {
     }
   };
 
+  const handleComplaintStatusUpdate = async (complaintId: string, newStatus: string) => {
+    try {
+      // Find the complaint to get current metadata
+      const complaint = complaints.find(c => c.id === complaintId);
+      if (!complaint) {
+        alert('Keluhan tidak ditemukan');
+        return;
+      }
+
+      const response = await fetch(`/api/patient-records/${complaintId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          metadata: {
+            ...complaint.metadata,
+            status: newStatus
+          }
+        }),
+      });
+
+      if (response.ok) {
+        await fetchDashboardData();
+        alert('Status keluhan berhasil diperbarui!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Gagal memperbarui status keluhan'}`);
+      }
+    } catch (error) {
+      console.error('Error updating complaint status:', error);
+      alert('Terjadi kesalahan saat memperbarui status keluhan');
+    }
+  };
+
   const getFilteredPatients = () => {
     let statusFiltered = patients;
 
     if (patientStatusFilter !== 'ALL') {
       statusFiltered = patients.filter(patient => {
-        // Remove the statusMap - use direct enum values instead
         return patient.status === patientStatusFilter;
       });
     }
@@ -258,6 +301,15 @@ const AdministrasiDashboard = () => {
     }
   };
 
+  const getBMIStatus = (bmi: number | undefined) => {
+    if (!bmi) return { label: 'N/A', color: 'bg-gray-100 text-gray-800' };
+    
+    if (bmi < 18.5) return { label: 'Underweight', color: 'bg-blue-100 text-blue-800' };
+    if (bmi < 25) return { label: 'Normal', color: 'bg-green-100 text-green-800' };
+    if (bmi < 30) return { label: 'Overweight', color: 'bg-yellow-100 text-yellow-800' };
+    return { label: 'Obese', color: 'bg-red-100 text-red-800' };
+  };
+
   const getStatusCounts = () => {
     const activeCount = patients.filter(p => p.status === 'AKTIF').length;
     const rawatJalanCount = patients.filter(p => p.status === 'RAWAT_JALAN').length;
@@ -268,7 +320,7 @@ const AdministrasiDashboard = () => {
     return { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount };
   };
 
-  const { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount,  pulangCount } = getStatusCounts();
+  const { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount } = getStatusCounts();
 
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
@@ -583,6 +635,9 @@ const AdministrasiDashboard = () => {
                         Umur/Gender
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        BMI
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Penjamin
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -608,12 +663,24 @@ const AdministrasiDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {calculateAge(patient.birthDate)} / {patient.gender === 'MALE' ? 'L' : 'P'}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {patient.bmi ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">{patient.bmi.toFixed(1)}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getBMIStatus(patient.bmi).color}`}>
+                                {getBMIStatus(patient.bmi).label}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">-</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {patient.insuranceType}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'ACTIVE')}`}>
-                            {getPatientStatusLabel(patient.status || 'ACTIVE')}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'AKTIF')}`}>
+                            {getPatientStatusLabel(patient.status || 'AKTIF')}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -656,8 +723,8 @@ const AdministrasiDashboard = () => {
                         <h4 className="font-semibold text-gray-900 text-lg">{patient.name}</h4>
                         <p className="text-sm text-gray-600">RM: {patient.mrNumber}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'ACTIVE')}`}>
-                        {getPatientStatusLabel(patient.status || 'ACTIVE')}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(patient.status || 'AKTIF')}`}>
+                        {getPatientStatusLabel(patient.status || 'AKTIF')}
                       </span>
                     </div>
 
@@ -670,7 +737,19 @@ const AdministrasiDashboard = () => {
                       <div>
                         <span className="text-gray-600">{patient.insuranceType}</span>
                       </div>
-                      <div className="col-span-2">
+                      <div>
+                        {patient.bmi ? (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-600">BMI: {patient.bmi.toFixed(1)}</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getBMIStatus(patient.bmi).color}`}>
+                              {getBMIStatus(patient.bmi).label}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-600">BMI: -</span>
+                        )}
+                      </div>
+                      <div>
                         <span className="text-gray-600">
                           Daftar: {formatDate(patient.createdAt)}
                         </span>

@@ -18,15 +18,43 @@ interface Patient {
   medicalHistory?: string;
   status?: string;
   createdAt: Date;
-  complaints?: PatientComplaint[];
 }
 
+// Updated PatientComplaint interface to match backend PatientRecord structure
 interface PatientComplaint {
   id: string;
+  patientId: string;
   complaint: string;
   severity: 'RINGAN' | 'SEDANG' | 'BERAT';
+  status: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
   date: Date;
   notes?: string;
+  patient?: {
+    name: string;
+    mrNumber: string;
+  };
+}
+
+interface PatientRecord {
+  id: string;
+  patientId: string;
+  recordType: 'VITAL_SIGNS' | 'COMPLAINTS' | 'MEDICATION_LOG' | 'DIET_LOG' | 'EDUCATION' | 'PROGRESS_NOTE';
+  title: string;
+  content: string;
+  metadata?: {
+    severity?: string;
+    status?: string;
+    notes?: string;
+  };
+  bloodSugar?: number;
+  bloodPressure?: string;
+  temperature?: number;
+  heartRate?: number;
+  weight?: number;
+  medicationCompliance?: number;
+  dietCompliance?: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface PatientRegistrationFormProps {
@@ -62,7 +90,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     diabetesType: selectedPatient?.diabetesType || '',
     insuranceType: selectedPatient?.insuranceType || '',
     medicalHistory: selectedPatient?.medicalHistory || '',
-    status: selectedPatient?.status || 'ACTIVE',
+    status: selectedPatient?.status || 'AKTIF',
     complaint: '',
     complaintSeverity: 'RINGAN' as 'RINGAN' | 'SEDANG' | 'BERAT'
   });
@@ -100,7 +128,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       diabetesType: '',
       insuranceType: '',
       medicalHistory: '',
-      status: 'ACTIVE',
+      status: 'AKTIF',
       complaint: '',
       complaintSeverity: 'RINGAN'
     });
@@ -208,30 +236,30 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
   };
 
   const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'AKTIF': return 'bg-green-100 text-green-800 border-green-300';
-    case 'RAWAT_JALAN': return 'bg-blue-100 text-blue-800 border-blue-300';
-    case 'RAWAT_INAP': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-    case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800 border-purple-300';
-    case 'PULANG': return 'bg-gray-100 text-gray-800 border-gray-300';
-    case 'PULANG_PAKSA': return 'bg-red-100 text-red-800 border-red-300';
-    case 'MENINGGAL': return 'bg-black text-white border-black';
-    default: return 'bg-green-100 text-green-800 border-green-300';
-  }
-};
+    switch (status) {
+      case 'AKTIF': return 'bg-green-100 text-green-800 border-green-300';
+      case 'RAWAT_JALAN': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'RAWAT_INAP': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'PULANG': return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'PULANG_PAKSA': return 'bg-red-100 text-red-800 border-red-300';
+      case 'MENINGGAL': return 'bg-black text-white border-black';
+      default: return 'bg-green-100 text-green-800 border-green-300';
+    }
+  };
 
- const getStatusLabel = (status: string) => {
-  switch (status) {
-    case 'AKTIF': return 'Aktif';
-    case 'RAWAT_JALAN': return 'Rawat Jalan';
-    case 'RAWAT_INAP': return 'Rawat Inap';
-    case 'RUJUK_KELUAR': return 'Rujuk Keluar';
-    case 'PULANG': return 'Pulang';
-    case 'PULANG_PAKSA': return 'Pulang Paksa';
-    case 'MENINGGAL': return 'Meninggal';
-    default: return 'Aktif';
-  }
-};
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'AKTIF': return 'Aktif';
+      case 'RAWAT_JALAN': return 'Rawat Jalan';
+      case 'RAWAT_INAP': return 'Rawat Inap';
+      case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+      case 'PULANG': return 'Pulang';
+      case 'PULANG_PAKSA': return 'Pulang Paksa';
+      case 'MENINGGAL': return 'Meninggal';
+      default: return 'Aktif';
+    }
+  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -241,8 +269,6 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
-
-
 
   const isModal = !!onClose;
 
@@ -754,9 +780,11 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                   type="button"
                   onClick={() => {
                     const newComplaint: PatientComplaint = {
-                      id: `temp_${Date.now()}`, // Temporary ID for new complaints
+                      id: `temp_${Date.now()}`, 
+                      patientId: selectedPatient?.id || '',
                       complaint: '',
                       severity: 'RINGAN',
+                      status: 'BARU',
                       date: new Date(),
                       notes: ''
                     };
@@ -806,15 +834,15 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         </div>
       )}
 
-      {formMode === 'edit' && patientData.status !== (selectedPatient?.status || 'ACTIVE') && (
+      {formMode === 'edit' && patientData.status !== (selectedPatient?.status || 'AKTIF') && (
         <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <div className="text-sm">
               <h4 className="font-medium text-yellow-800 mb-1">Perubahan Status Pasien:</h4>
               <p className="text-yellow-700">
-                Status akan berubah dari "{getStatusLabel(selectedPatient?.status || 'ACTIVE')}" ke "{getStatusLabel(patientData.status)}".
-                {patientData.status === 'RUJUK_BALIK' && " Pasien akan dipindahkan ke kategori Rujuk Balik."}
-                {patientData.status === 'SELESAI' && " Pasien akan dipindahkan ke kategori Selesai."}
+                Status akan berubah dari "{getStatusLabel(selectedPatient?.status || 'AKTIF')}" ke "{getStatusLabel(patientData.status)}".
+                {patientData.status === 'RUJUK_KELUAR' && " Pasien akan dipindahkan ke kategori Rujuk Keluar."}
+                {patientData.status === 'PULANG' && " Pasien akan dipindahkan ke kategori Selesai."}
               </p>
             </div>
           </div>

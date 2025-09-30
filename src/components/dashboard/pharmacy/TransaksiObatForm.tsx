@@ -1,7 +1,7 @@
 // src/components/dashboard/pharmacy/TransaksiObatForm.tsx
 
 import React, { useState, useEffect } from 'react';
-import { XCircle, Plus, Trash2, ShoppingCart, User, Package } from 'lucide-react';
+import { XCircle, Plus, Trash2, ShoppingCart, User, Package, Search } from 'lucide-react';
 
 interface DrugData {
   id: string;
@@ -12,6 +12,7 @@ interface DrugData {
   manufacturer: string;
   stock: number;
   expiryDate: string;
+  price?: number; // Default price from master data
 }
 
 interface Patient {
@@ -21,7 +22,8 @@ interface Patient {
   phone?: string;
 }
 
-interface TransactionItem {
+interface DrugTransactionItem {
+  id?: string;
   drugId: string;
   drugName: string;
   quantity: number;
@@ -29,12 +31,12 @@ interface TransactionItem {
   subtotal: number;
 }
 
-interface Transaction {
+interface DrugTransaction {
   id: string;
   patientId: string;
   patientName: string;
   mrNumber: string;
-  items: TransactionItem[];
+  items: DrugTransactionItem[];
   totalAmount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
@@ -45,10 +47,10 @@ interface Transaction {
 interface TransaksiObatFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
+  onSave: (transaction: Omit<DrugTransaction, 'id' | 'createdAt'>) => void;
   patients: Patient[];
   drugs: DrugData[];
-  editingTransaction?: Transaction | null;
+  editingTransaction?: DrugTransaction | null;
 }
 
 const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
@@ -60,10 +62,17 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   editingTransaction
 }) => {
   const [selectedPatient, setSelectedPatient] = useState<string>('');
-  const [items, setItems] = useState<TransactionItem[]>([]);
+  const [patientSearch, setPatientSearch] = useState('');
+  const [items, setItems] = useState<DrugTransactionItem[]>([]);
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Filter patients based on search
+  const filteredPatients = patients.filter(patient => 
+    patient.name.toLowerCase().includes(patientSearch.toLowerCase()) ||
+    patient.mrNumber.toLowerCase().includes(patientSearch.toLowerCase())
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -71,10 +80,12 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         setSelectedPatient(editingTransaction.patientId);
         setItems(editingTransaction.items);
         setNotes(editingTransaction.notes || '');
+        setPatientSearch('');
       } else {
         setSelectedPatient('');
         setItems([]);
         setNotes('');
+        setPatientSearch('');
       }
       setErrors({});
     }
@@ -85,12 +96,12 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       drugId: '',
       drugName: '',
       quantity: 1,
-      price: 5000,
-      subtotal: 5000
+      price: 0,
+      subtotal: 0
     }]);
   };
 
-  const updateItem = (index: number, field: keyof TransactionItem, value: any) => {
+  const updateItem = (index: number, field: keyof DrugTransactionItem, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     
@@ -98,7 +109,9 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       const drug = drugs.find(d => d.id === value);
       if (drug) {
         newItems[index].drugName = drug.name;
-        newItems[index].price = 5000; // Default price - you can modify this
+        // Use default price from master data or fallback to 5000
+        newItems[index].price = drug.price || 5000;
+        newItems[index].subtotal = newItems[index].quantity * newItems[index].price;
       }
     }
     
@@ -109,11 +122,12 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     setItems(newItems);
 
     // Clear field-specific errors
-    if (errors[`drug_${index}`] || errors[`quantity_${index}`] || errors[`stock_${index}`]) {
+    if (errors[`drug_${index}`] || errors[`quantity_${index}`] || errors[`stock_${index}`] || errors[`price_${index}`]) {
       const newErrors = { ...errors };
       delete newErrors[`drug_${index}`];
       delete newErrors[`quantity_${index}`];
       delete newErrors[`stock_${index}`];
+      delete newErrors[`price_${index}`];
       setErrors(newErrors);
     }
   };
@@ -127,10 +141,12 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     delete newErrors[`drug_${index}`];
     delete newErrors[`quantity_${index}`];
     delete newErrors[`stock_${index}`];
+    delete newErrors[`price_${index}`];
     setErrors(newErrors);
   };
 
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -177,7 +193,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       const patient = patients.find(p => p.id === selectedPatient);
       if (!patient) return;
 
-      await onSave({
+      // Create transaction with PENDING status
+      const transactionData = {
         patientId: selectedPatient,
         patientName: patient.name,
         mrNumber: patient.mrNumber,
@@ -189,10 +206,11 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
           subtotal: item.subtotal
         })),
         totalAmount,
-        status: 'PENDING',
-        notes
-      });
+        status: 'PENDING' as const,
+        notes: notes.trim() || undefined
+      };
 
+      await onSave(transactionData);
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -204,6 +222,16 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   const handleClose = () => {
     if (!isSubmitting) {
       onClose();
+    }
+  };
+
+  const selectPatient = (patient: Patient) => {
+    setSelectedPatient(patient.id);
+    setPatientSearch('');
+    if (errors.patient) {
+      const newErrors = { ...errors };
+      delete newErrors.patient;
+      setErrors(newErrors);
     }
   };
 
@@ -235,36 +263,68 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               <div className="flex items-center mb-3">
                 <User className="h-5 w-5 text-blue-600 mr-2" />
                 <h4 className="font-medium text-blue-900">Informasi Pasien</h4>
+                <span className="text-red-500 ml-1">*</span>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pilih Pasien <span className="text-red-500">*</span>
+                    Cari & Pilih Pasien
                   </label>
-                  <select
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
-                      errors.patient ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    value={selectedPatient}
-                    onChange={(e) => {
-                      setSelectedPatient(e.target.value);
-                      if (errors.patient) {
-                        const newErrors = { ...errors };
-                        delete newErrors.patient;
-                        setErrors(newErrors);
-                      }
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <option value="">-- Pilih Pasien --</option>
-                    {patients.map(patient => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.name} - {patient.mrNumber}
-                      </option>
-                    ))}
-                  </select>
+                  
+                  {!selectedPatientData ? (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ketik nama atau nomor RM..."
+                        className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+                          errors.patient ? 'border-red-300' : 'border-gray-300'
+                        }`}
+                        value={patientSearch}
+                        onChange={(e) => setPatientSearch(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                      
+                      {patientSearch && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {filteredPatients.slice(0, 10).map(patient => (
+                            <button
+                              key={patient.id}
+                              type="button"
+                              onClick={() => selectPatient(patient)}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{patient.name}</div>
+                              <div className="text-sm text-gray-600">{patient.mrNumber}</div>
+                            </button>
+                          ))}
+                          {filteredPatients.length === 0 && (
+                            <div className="px-4 py-2 text-gray-500 text-sm">Pasien tidak ditemukan</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div>
+                        <div className="font-medium text-green-900">{selectedPatientData.name}</div>
+                        <div className="text-sm text-green-700">{selectedPatientData.mrNumber}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPatient('');
+                          setPatientSearch('');
+                        }}
+                        className="text-green-600 hover:text-green-800 text-sm underline"
+                        disabled={isSubmitting}
+                      >
+                        Ganti
+                      </button>
+                    </div>
+                  )}
+                  
                   {errors.patient && <p className="mt-1 text-sm text-red-600">{errors.patient}</p>}
                 </div>
 
@@ -320,7 +380,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                       {/* Drug Selection */}
                       <div className="lg:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -356,7 +416,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                             errors[`quantity_${index}`] || errors[`stock_${index}`] ? 'border-red-300' : 'border-gray-300'
                           }`}
                           value={item.quantity || ''}
-                          onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                           disabled={isSubmitting}
                         />
                         {errors[`quantity_${index}`] && <p className="mt-1 text-xs text-red-600">{errors[`quantity_${index}`]}</p>}
@@ -366,7 +426,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                       {/* Price */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Harga Satuan (Rp)
+                          Harga (Rp)
                         </label>
                         <input
                           type="number"
@@ -381,6 +441,16 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         />
                         {errors[`price_${index}`] && <p className="mt-1 text-xs text-red-600">{errors[`price_${index}`]}</p>}
                       </div>
+
+                      {/* Subtotal */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Subtotal
+                        </label>
+                        <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium text-gray-900">
+                          Rp {item.subtotal.toLocaleString('id-ID')}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Selected Drug Info */}
@@ -389,10 +459,14 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         {(() => {
                           const selectedDrug = drugs.find(d => d.id === item.drugId);
                           return selectedDrug ? (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                               <div>
                                 <span className="text-gray-600">Kategori:</span>
                                 <p className="font-medium text-gray-900">{selectedDrug.category}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Bentuk:</span>
+                                <p className="font-medium text-gray-900">{selectedDrug.dosageForm}</p>
                               </div>
                               <div>
                                 <span className="text-gray-600">Produsen:</span>
@@ -409,13 +483,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         })()}
                       </div>
                     )}
-
-                    {/* Subtotal */}
-                    <div className="mt-3 text-right">
-                      <p className="text-sm text-gray-600">
-                        Subtotal: <span className="font-semibold text-gray-900">Rp {item.subtotal.toLocaleString('id-ID')}</span>
-                      </p>
-                    </div>
                   </div>
                 ))}
 
@@ -440,39 +507,45 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Catatan Transaksi
+                Catatan Resep / Transaksi
               </label>
               <textarea
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                 rows={3}
-                placeholder="Tambahkan catatan atau instruksi khusus untuk transaksi ini..."
+                placeholder="Catatan resep dokter atau instruksi khusus..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 disabled={isSubmitting}
               />
-              <p className="mt-1 text-xs text-gray-500">Opsional - catatan ini akan tersimpan dalam riwayat transaksi</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Opsional - misalnya resep manual dokter atau instruksi khusus
+              </p>
             </div>
 
             {/* Summary */}
-            {items.length > 0 && (
+            {items.length > 0 && selectedPatientData && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-900 mb-4">Ringkasan Transaksi</h4>
                 <div className="space-y-2 text-sm">
-                  {selectedPatientData && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Pasien:</span>
-                      <span className="font-medium text-gray-900">{selectedPatientData.name} ({selectedPatientData.mrNumber})</span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Total Item:</span>
-                    <span className="font-medium text-gray-900">{items.length} jenis obat</span>
+                    <span className="text-gray-600">Pasien:</span>
+                    <span className="font-medium text-gray-900">{selectedPatientData.name} ({selectedPatientData.mrNumber})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Jenis Obat:</span>
+                    <span className="font-medium text-gray-900">{items.length} jenis</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Quantity:</span>
-                    <span className="font-medium text-gray-900">{items.reduce((sum, item) => sum + item.quantity, 0)} unit</span>
+                    <span className="font-medium text-gray-900">{totalQuantity} unit</span>
                   </div>
-                  <div className="border-t border-gray-300 pt-2 mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+                      PENDING
+                    </span>
+                  </div>
+                  <div className="border-t border-gray-300 pt-2 mt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold text-gray-900">Total Pembayaran:</span>
                       <span className="text-xl font-bold text-emerald-600">
@@ -508,7 +581,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               ) : (
                 <>
                   <ShoppingCart className="h-4 w-4" />
-                  <span>{editingTransaction ? 'Update Transaksi' : 'Buat Transaksi'}</span>
+                  <span>Simpan Transaksi (PENDING)</span>
                 </>
               )}
             </button>
