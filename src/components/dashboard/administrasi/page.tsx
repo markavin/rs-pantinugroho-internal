@@ -24,13 +24,12 @@ interface Patient {
   medicalHistory?: string;
 }
 
-// Updated to match PatientRecord structure
 interface PatientComplaint {
   id: string;
   patientId: string;
   recordType: 'COMPLAINTS';
   title: string;
-  content: string; // This is the actual complaint text
+  content: string; 
   metadata?: {
     severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
     status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
@@ -90,7 +89,6 @@ const AdministrasiDashboard = () => {
         setPatients(patientsData);
       }
 
-      // Updated to use patient-records API endpoint
       const complaintsResponse = await fetch('/api/patient-complaints');
       if (complaintsResponse.ok) {
         const complaintsData = await complaintsResponse.json();
@@ -112,7 +110,6 @@ const AdministrasiDashboard = () => {
 
   const handleComplaintStatusUpdate = async (complaintId: string, newStatus: string) => {
     try {
-      // Find the complaint to get current metadata
       const complaint = complaints.find(c => c.id === complaintId);
       if (!complaint) {
         alert('Keluhan tidak ditemukan');

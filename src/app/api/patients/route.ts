@@ -6,7 +6,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -14,13 +14,27 @@ export async function GET() {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+    // Get query parameters untuk filter
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get('activeOnly') === 'true';
+
+    // Filter pasien berdasarkan status AKTIF untuk farmasi
+    const whereClause: any = {};
+    
+    if (activeOnly) {
+      whereClause.status = {
+        in: ['AKTIF', 'RAWAT_JALAN', 'RAWAT_INAP']
+      };
+    }
+
     const patients = await prisma.patient.findMany({
+      where: whereClause,
       orderBy: {
         createdAt: 'desc'
       },
@@ -40,6 +54,7 @@ export async function GET() {
   }
 }
 
+// POST method tetap sama...
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -117,17 +132,17 @@ export async function POST(request: Request) {
       }
     });
 
-    if (complaint && complaint.trim()) {
-      await prisma.patientComplaint.create({
-        data: {
-          patientId: patient.id,
-          complaint: complaint.trim(),
-          severity: complaintSeverity || 'RINGAN',
-          status: 'BARU',
-          date: new Date()
-        }
-      });
-    }
+    // if (complaint && complaint.trim()) {
+    //   await prisma.patientComplaint.create({
+    //     data: {
+    //       patientId: patient.id,
+    //       complaint: complaint.trim(),
+    //       severity: complaintSeverity || 'RINGAN',
+    //       status: 'BARU',
+    //       date: new Date()
+    //     }
+    //   });
+    // }
 
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {

@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER'];
     
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -28,12 +28,42 @@ export async function GET(
       include: {
         user: {
           select: {
-            name: true
+            name: true,
+            email: true
           }
         },
-        complaints: {
+        handledBy: {
+          include: {
+            handler: {
+              select: {
+                id: true,
+                name: true,
+                role: true
+              }
+            }
+          },
           orderBy: {
-            date: 'desc'
+            handledDate: 'desc'
+          }
+        },
+        drugTransactions: {
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 10
+        },
+        appointments: {
+          orderBy: {
+            appointmentDate: 'desc'
+          },
+          take: 10
+        },
+        alerts: {
+          where: {
+            isRead: false
+          },
+          orderBy: {
+            createdAt: 'desc'
           }
         }
       }
@@ -74,13 +104,23 @@ export async function PUT(
       address,
       height,
       weight,
+      bloodType,
       diabetesType,
+      diagnosisDate,
       insuranceType,
+      insuranceNumber,
       allergies,
       medicalHistory,
-      status
+      comorbidities,
+      status,
+      riskLevel,
+      calorieNeeds,
+      calorieRequirement,
+      dietPlan,
+      dietCompliance
     } = body;
 
+    // Validate required fields
     if (!name || !birthDate || !gender || !insuranceType) {
       return NextResponse.json(
         { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
@@ -88,6 +128,7 @@ export async function PUT(
       );
     }
 
+    // Calculate BMI if height and weight are provided
     let bmi = null;
     if (height && weight) {
       const heightInMeters = parseFloat(height) / 100;
@@ -106,11 +147,20 @@ export async function PUT(
         height: height ? parseFloat(height) : null,
         weight: weight ? parseFloat(weight) : null,
         bmi: bmi,
+        bloodType: bloodType || null,
         diabetesType: diabetesType || null,
+        diagnosisDate: diagnosisDate ? new Date(diagnosisDate) : null,
         insuranceType,
+        insuranceNumber: insuranceNumber || null,
         allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
-        status: status || 'ACTIVE',
+        comorbidities: comorbidities && Array.isArray(comorbidities) && comorbidities.length > 0 ? comorbidities : [],
+        status: status || 'AKTIF',
+        riskLevel: riskLevel || null,
+        calorieNeeds: calorieNeeds ? parseInt(calorieNeeds) : null,
+        calorieRequirement: calorieRequirement ? parseInt(calorieRequirement) : null,
+        dietPlan: dietPlan || null,
+        dietCompliance: dietCompliance ? parseInt(dietCompliance) : null,
       }
     });
 
@@ -148,26 +198,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
+    // Check if patient exists and has related data
     const existingPatient = await prisma.patient.findUnique({
       where: { id: params.id },
       include: {
-        medicalRecords: true,
-        appointments: true,
-        vitalSigns: true,
+        handledBy: true,
+        drugTransactions: true,
+        patientRecords: true,
         labResults: true,
-        medications: true,
-        nutritionPlans: true,
-        educationNotes: true,
-        foodIntakes: true,
-        medicationLogs: true,
-        complaints: true,
-        bloodSugars: true,
-        patientLogs: true,
-        pharmacyNotes: true,
+        visitationLogs: true,
+        nutritionRecords: true,
+        pharmacyRecords: true,
+        medicalReports: true,
         alerts: true,
-        mealEntries: true,
-        foodRecalls: true,
-        visitations: true
+        appointments: true
       }
     });
 
@@ -175,37 +219,34 @@ export async function DELETE(
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
+    // Check if patient has any related medical data
     const hasRelatedData = 
-      existingPatient.medicalRecords.length > 0 ||
-      existingPatient.appointments.length > 0 ||
-      existingPatient.vitalSigns.length > 0 ||
+      existingPatient.handledBy.length > 0 ||
+      existingPatient.drugTransactions.length > 0 ||
+      existingPatient.patientRecords.length > 0 ||
       existingPatient.labResults.length > 0 ||
-      existingPatient.medications.length > 0 ||
-      existingPatient.nutritionPlans.length > 0 ||
-      existingPatient.educationNotes.length > 0 ||
-      existingPatient.foodIntakes.length > 0 ||
-      existingPatient.medicationLogs.length > 0 ||
-      existingPatient.bloodSugars.length > 0 ||
-      existingPatient.patientLogs.length > 0 ||
-      existingPatient.pharmacyNotes.length > 0 ||
-      existingPatient.alerts.length > 0 ||
-      existingPatient.mealEntries.length > 0 ||
-      existingPatient.foodRecalls.length > 0 ||
-      existingPatient.visitations.length > 0;
+      existingPatient.visitationLogs.length > 0 ||
+      existingPatient.nutritionRecords.length > 0 ||
+      existingPatient.pharmacyRecords.length > 0 ||
+      existingPatient.medicalReports.length > 0 ||
+      existingPatient.appointments.length > 0;
 
     if (hasRelatedData) {
       return NextResponse.json({ 
-        error: 'Cannot delete patient with existing medical data. Please archive the patient instead.' 
+        error: 'Cannot delete patient with existing medical data. Please archive the patient by setting status to inactive instead.' 
       }, { status: 400 });
     }
 
+    // Delete patient and cascade delete alerts (if any)
     await prisma.$transaction(async (tx) => {
-      if (existingPatient.complaints.length > 0) {
-        await tx.patientComplaint.deleteMany({
+      // Delete alerts first
+      if (existingPatient.alerts.length > 0) {
+        await tx.alert.deleteMany({
           where: { patientId: params.id }
         });
       }
 
+      // Delete patient
       await tx.patient.delete({
         where: { id: params.id }
       });

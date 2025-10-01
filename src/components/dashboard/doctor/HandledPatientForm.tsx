@@ -139,19 +139,14 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
   const suggestPriority = (patient: Patient): 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' => {
     if (!patient) return 'NORMAL';
 
-    // HIGH risk patients
     if (patient.riskLevel === 'HIGH') {
       if (patient.bmi && patient.bmi > 40) return 'URGENT';
       return 'HIGH';
     }
-
-    // Medium risk → naik jadi HIGH kalau BMI ekstrem
     if (patient.riskLevel === 'MEDIUM') {
       if (patient.bmi && (patient.bmi < 18.5 || patient.bmi > 35)) return 'HIGH';
       return 'NORMAL';
     }
-
-    // Low risk → biasanya NORMAL, tapi cek juga BMI ekstrem
     if (patient.riskLevel === 'LOW') {
       if (patient.bmi && (patient.bmi < 16 || patient.bmi > 37)) return 'HIGH';
       return 'NORMAL';
@@ -240,7 +235,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
         autoCalculateNextVisit: false
       });
 
-      // Set selected patient data for edit/view mode
       if (selectedHandledPatient.patient) {
         setSelectedPatientData(selectedHandledPatient.patient);
       }
@@ -256,7 +250,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
       return;
     }
 
-    // Validation for next visit date
     if (formData.nextVisitDate) {
       const nextDate = new Date(formData.nextVisitDate);
       const today = new Date();
@@ -321,7 +314,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-green-50 to-blue-50">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
           <h3 className="text-xl font-semibold text-gray-900 flex items-center">
             <Stethoscope className="h-6 w-6 mr-2 text-green-600" />
             {mode === 'add' && 'Tambah Pasien Ditangani'}
@@ -375,7 +368,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
           {/* Patient Summary Card */}
           {selectedPatientData && (
-            <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-xl border border-blue-200">
+            <div className="bg-green-50 p-6 rounded-xl border border-green-50">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -473,7 +466,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Prioritas
                 {selectedPatientData && mode === 'add' && (
-                  <span className="text-xs text-blue-600 ml-1">(Auto-suggested based on risk level)</span>
+                  <span className="text-xs text-blue-600 ml-1">(Auto-suggested berdasarkan level risiko)</span>
                 )}
               </label>
               <select
@@ -680,7 +673,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
               disabled={submitting}
             >
               {isViewMode ? 'Tutup' : 'Batal'}

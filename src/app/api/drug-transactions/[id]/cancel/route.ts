@@ -59,19 +59,42 @@ export async function PUT(
       );
     }
 
+    // FIX: Allow cancellation of COMPLETED transactions and restore stock
     if (transaction.status === 'COMPLETED') {
-      return NextResponse.json(
-        { error: 'Cannot cancel a completed transaction. Stock has already been reduced.' },
-        { status: 400 }
-      );
+      // Restore stock for all items in the transaction
+      await prisma.$transaction(async (tx) => {
+        for (const item of transaction.items) {
+          await tx.drugData.update({
+            where: { id: item.drugId },
+            data: {
+              stock: {
+                increment: item.quantity
+              }
+            }
+          });
+        }
+
+        // Update transaction status to CANCELLED
+        await tx.drugTransaction.update({
+          where: { id: params.id },
+          data: {
+            status: 'CANCELLED'
+          }
+        });
+      });
+    } else {
+      // For PENDING transactions, just update status (no stock to restore)
+      await prisma.drugTransaction.update({
+        where: { id: params.id },
+        data: {
+          status: 'CANCELLED'
+        }
+      });
     }
 
-    // Update transaction status to CANCELLED
-    const updatedTransaction = await prisma.drugTransaction.update({
+    // Fetch updated transaction
+    const updatedTransaction = await prisma.drugTransaction.findUnique({
       where: { id: params.id },
-      data: {
-        status: 'CANCELLED'
-      },
       include: {
         patient: {
           select: {
@@ -96,11 +119,11 @@ export async function PUT(
 
     // Transform response
     const response = {
-      id: updatedTransaction.id,
-      patientId: updatedTransaction.patientId,
-      patientName: updatedTransaction.patient.name,
-      mrNumber: updatedTransaction.patient.mrNumber,
-      items: updatedTransaction.items.map(item => ({
+      id: updatedTransaction!.id,
+      patientId: updatedTransaction!.patientId,
+      patientName: updatedTransaction!.patient.name,
+      mrNumber: updatedTransaction!.patient.mrNumber,
+      items: updatedTransaction!.items.map(item => ({
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
@@ -108,11 +131,11 @@ export async function PUT(
         price: item.price,
         subtotal: item.subtotal
       })),
-      totalAmount: updatedTransaction.totalAmount,
-      status: updatedTransaction.status,
-      createdAt: updatedTransaction.createdAt.toISOString(),
-      completedAt: updatedTransaction.completedAt?.toISOString(),
-      notes: updatedTransaction.notes
+      totalAmount: updatedTransaction!.totalAmount,
+      status: updatedTransaction!.status,
+      createdAt: updatedTransaction!.createdAt.toISOString(),
+      completedAt: updatedTransaction!.completedAt?.toISOString(),
+      notes: updatedTransaction!.notes
     };
 
     return NextResponse.json(response);

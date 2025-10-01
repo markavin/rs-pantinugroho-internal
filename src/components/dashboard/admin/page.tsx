@@ -650,7 +650,7 @@ const AdminDashboard = () => {
                             className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span>Delete</span>
+                            <span>Hapus</span>
                           </button>
                         </div>
                       </div>

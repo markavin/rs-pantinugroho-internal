@@ -172,18 +172,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create transaction with items - NOTE: Stock is NOT reduced here
-    // Stock will only be reduced when transaction status is changed to COMPLETED
+    // Create transaction with items and REDUCE STOCK IMMEDIATELY
     const result = await prisma.$transaction(async (tx) => {
-      // Create the drug transaction with PENDING status
+      const now = new Date();
+      
+      // Create the drug transaction with COMPLETED status and reduce stock
       const drugTransaction = await tx.drugTransaction.create({
         data: {
           patientId,
           totalAmount,
-          status: 'PENDING', // Always starts as PENDING
+          status: 'COMPLETED', // Langsung COMPLETED
           notes: notes?.trim() || null,
-          createdAt: new Date(),
-          // createdBy field is missing from schema, need to add if required
+          createdAt: now,
+          completedAt: now, // Set completedAt juga
         }
       });
 
@@ -201,6 +202,18 @@ export async function POST(request: NextRequest) {
           })
         )
       );
+
+      // REDUCE STOCK for all items
+      for (const item of items) {
+        await tx.drugData.update({
+          where: { id: item.drugId },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
+      }
 
       return {
         ...drugTransaction,

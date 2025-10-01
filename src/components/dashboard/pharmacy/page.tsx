@@ -38,28 +38,25 @@ const PharmacyDashboard = () => {
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingDrug, setEditingDrug] = useState<DrugData | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [viewMode, setViewMode] = useState<'create' | 'edit' | 'detail'>('create');
+  const [drugViewMode, setDrugViewMode] = useState<'create' | 'edit' | 'detail'>('create');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Data states
   const [drugData, setDrugData] = useState<DrugData[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch drugs
         const drugsResponse = await fetch('/api/drugs');
         if (drugsResponse.ok) {
           const drugsData = await drugsResponse.json();
           setDrugData(drugsData);
         }
 
-        // Fetch patients
-        const patientsResponse = await fetch('/api/patients');
+        const patientsResponse = await fetch('/api/patients?activeOnly=true');
         if (patientsResponse.ok) {
           const patientsData = await patientsResponse.json();
           setPatients(patientsData.map((p: any) => ({
@@ -70,7 +67,6 @@ const PharmacyDashboard = () => {
           })));
         }
 
-        // Fetch drug transactions
         const transactionsResponse = await fetch('/api/drug-transactions');
         if (transactionsResponse.ok) {
           const transactionsData = await transactionsResponse.json();
@@ -89,7 +85,6 @@ const PharmacyDashboard = () => {
   const handleSaveDrug = async (drug: Omit<DrugData, 'id'> | DrugData) => {
     try {
       if (editingDrug && 'id' in drug) {
-        // Update existing drug
         const response = await fetch(`/api/drugs/${drug.id}`, {
           method: 'PUT',
           headers: {
@@ -97,13 +92,16 @@ const PharmacyDashboard = () => {
           },
           body: JSON.stringify(drug),
         });
-        
+
         if (response.ok) {
           const updatedDrug = await response.json();
           setDrugData(prev => prev.map(d => d.id === updatedDrug.id ? updatedDrug : d));
+          alert('Data obat berhasil diupdate!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal update data obat: ${error.error}`);
         }
       } else {
-        // Create new drug
         const response = await fetch('/api/drugs', {
           method: 'POST',
           headers: {
@@ -111,17 +109,23 @@ const PharmacyDashboard = () => {
           },
           body: JSON.stringify(drug),
         });
-        
+
         if (response.ok) {
           const newDrug = await response.json();
           setDrugData(prev => [...prev, newDrug]);
+          alert('Data obat berhasil ditambahkan!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal menambahkan data obat: ${error.error}`);
         }
       }
-      
+
       setEditingDrug(null);
       setShowDrugForm(false);
+      setDrugViewMode('create');
     } catch (error) {
       console.error('Error saving drug:', error);
+      alert('Terjadi kesalahan saat menyimpan data obat');
     }
   };
 
@@ -131,88 +135,147 @@ const PharmacyDashboard = () => {
         const response = await fetch(`/api/drugs/${id}`, {
           method: 'DELETE',
         });
-        
+
         if (response.ok) {
           setDrugData(prev => prev.filter(drug => drug.id !== id));
+          alert('Data obat berhasil dihapus!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal menghapus data obat: ${error.error}`);
         }
       } catch (error) {
         console.error('Error deleting drug:', error);
+        alert('Terjadi kesalahan saat menghapus data obat');
       }
     }
   };
 
-  // Transaction handlers following the flow: save as PENDING first
+  const handleViewDrugDetail = (drug: DrugData) => {
+    setEditingDrug(drug);
+    setDrugViewMode('detail');
+    setShowDrugForm(true);
+  };
+
+  const handleEditDrug = (drug: DrugData) => {
+    setEditingDrug(drug);
+    setDrugViewMode('edit');
+    setShowDrugForm(true);
+  };
+
+  const handleNewDrug = () => {
+    setEditingDrug(null);
+    setDrugViewMode('create');
+    setShowDrugForm(true);
+  };
+
+  const handleViewDetail = async (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setViewMode('detail');
+    setShowTransactionForm(true);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setViewMode('edit');
+    setShowTransactionForm(true);
+  };
+
+  const handleNewTransaction = () => {
+    setEditingTransaction(null);
+    setViewMode('create');
+    setShowTransactionForm(true);
+  };
+
   const handleSaveTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>) => {
     try {
-      const response = await fetch('/api/drug-transactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(transaction),
-      });
-      
-      if (response.ok) {
-        const newTransaction = await response.json();
-        setTransactions(prev => [...prev, newTransaction]);
-        
-        // Note: Stock is NOT reduced here - only reduced when transaction is COMPLETED
-      }
-      
-      setShowTransactionForm(false);
-    } catch (error) {
-      console.error('Error saving transaction:', error);
-    }
-  };
-
-  // Complete transaction - this is when stock gets reduced
-  const handleCompleteTransaction = async (transactionId: string) => {
-    if (confirm('Apakah Anda yakin pasien sudah menerima obat? Stok akan dikurangi setelah dikonfirmasi.')) {
-      try {
-        const response = await fetch(`/api/drug-transactions/${transactionId}/complete`, {
+      if (editingTransaction && viewMode === 'edit') {
+        const response = await fetch(`/api/drug-transactions/${editingTransaction.id}`, {
           method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transaction),
         });
-        
+
         if (response.ok) {
           const updatedTransaction = await response.json();
-          setTransactions(prev => prev.map(t => 
-            t.id === transactionId ? updatedTransaction : t
+          setTransactions(prev => prev.map(t =>
+            t.id === updatedTransaction.id ? updatedTransaction : t
           ));
-          
-          // Update drug stock in local state based on completed transaction
-          const transaction = transactions.find(t => t.id === transactionId);
-          if (transaction) {
-            transaction.items.forEach(item => {
-              setDrugData(prev => prev.map(drug => 
-                drug.id === item.drugId 
-                  ? { ...drug, stock: drug.stock - item.quantity }
-                  : drug
-              ));
-            });
+
+          const fetchDrugs = await fetch('/api/drugs');
+          if (fetchDrugs.ok) {
+            const drugsData = await fetchDrugs.json();
+            setDrugData(drugsData);
           }
+
+          alert('Transaksi berhasil diupdate!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal update transaksi: ${error.error}`);
         }
-      } catch (error) {
-        console.error('Error completing transaction:', error);
+      } else {
+        const response = await fetch('/api/drug-transactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transaction),
+        });
+
+        if (response.ok) {
+          const newTransaction = await response.json();
+          setTransactions(prev => [newTransaction, ...prev]);
+
+          const fetchDrugs = await fetch('/api/drugs');
+          if (fetchDrugs.ok) {
+            const drugsData = await fetchDrugs.json();
+            setDrugData(drugsData);
+          }
+
+          alert('Transaksi berhasil dibuat dan stok obat telah dikurangi!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal membuat transaksi: ${error.error}`);
+        }
       }
+
+      setShowTransactionForm(false);
+      setEditingTransaction(null);
+      setViewMode('create');
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+      alert('Terjadi kesalahan saat menyimpan transaksi');
     }
   };
 
-  // Cancel transaction - stock is not affected since it was never reduced
   const handleCancelTransaction = async (transactionId: string) => {
-    if (confirm('Apakah Anda yakin ingin membatalkan transaksi ini?')) {
+    if (confirm('Apakah Anda yakin ingin membatalkan transaksi ini? Stok obat akan dikembalikan.')) {
       try {
         const response = await fetch(`/api/drug-transactions/${transactionId}/cancel`, {
           method: 'PUT',
         });
-        
+
         if (response.ok) {
           const updatedTransaction = await response.json();
-          setTransactions(prev => prev.map(t => 
+          setTransactions(prev => prev.map(t =>
             t.id === transactionId ? updatedTransaction : t
           ));
+
+          const fetchDrugs = await fetch('/api/drugs');
+          if (fetchDrugs.ok) {
+            const drugsData = await fetchDrugs.json();
+            setDrugData(drugsData);
+          }
+
+          alert('Transaksi berhasil dibatalkan dan stok dikembalikan!');
+        } else {
+          const error = await response.json();
+          alert(`Gagal membatalkan transaksi: ${error.error}`);
         }
       } catch (error) {
         console.error('Error cancelling transaction:', error);
+        alert('Terjadi kesalahan saat membatalkan transaksi');
       }
     }
   };
@@ -220,26 +283,22 @@ const PharmacyDashboard = () => {
   const filteredDrugs = drugData.filter(drug => {
     const searchLower = searchTerm.toLowerCase();
     return drug.name.toLowerCase().includes(searchLower) ||
-           drug.category.toLowerCase().includes(searchLower) ||
-           drug.manufacturer.toLowerCase().includes(searchLower);
+      drug.category.toLowerCase().includes(searchLower) ||
+      drug.manufacturer.toLowerCase().includes(searchLower);
   });
 
   const filteredTransactions = transactions.filter(transaction => {
     const searchLower = searchTerm.toLowerCase();
     return transaction.patientName.toLowerCase().includes(searchLower) ||
-           transaction.mrNumber.toLowerCase().includes(searchLower) ||
-           transaction.id.toLowerCase().includes(searchLower);
+      transaction.mrNumber.toLowerCase().includes(searchLower) ||
+      transaction.id.toLowerCase().includes(searchLower);
   });
 
-  // Statistics
   const totalDrugs = drugData.length;
   const lowStockDrugs = drugData.filter(drug => drug.stock < 50).length;
   const totalTransactions = transactions.length;
-  const pendingTransactions = transactions.filter(t => t.status === 'PENDING').length;
   const completedTransactions = transactions.filter(t => t.status === 'COMPLETED').length;
-  const totalRevenue = transactions
-    .filter(t => t.status === 'COMPLETED')
-    .reduce((sum, t) => sum + t.totalAmount, 0);
+  const cancelledTransactions = transactions.filter(t => t.status === 'CANCELLED').length;
 
   const navigationItems = [
     { key: 'overview', label: 'Overview', icon: Activity },
@@ -268,9 +327,8 @@ const PharmacyDashboard = () => {
         />
       )}
 
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Menu Farmasi</h2>
           <button
@@ -291,11 +349,10 @@ const PharmacyDashboard = () => {
                   setActiveTab(item.key as any);
                   setIsMobileSidebarOpen(false);
                 }}
-                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                  activeTab === item.key
-                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  : 'text-gray-700 hover:bg-gray-100'
+                  }`}
               >
                 <IconComponent className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -326,11 +383,10 @@ const PharmacyDashboard = () => {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key as any)}
-                    className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                      activeTab === tab.key
-                        ? 'border-emerald-500 text-emerald-600'
-                        : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                    className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
+                      ? 'border-emerald-500 text-emerald-600'
+                      : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                      }`}
                   >
                     <IconComponent className="h-5 w-5" />
                     <span>{tab.label}</span>
@@ -373,19 +429,6 @@ const PharmacyDashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Transaksi Pending</p>
-                    <p className="text-2xl font-bold text-orange-600">{pendingTransactions}</p>
-                  </div>
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <ShoppingCart className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Menunggu diselesaikan</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
                     <p className="text-sm text-gray-600">Transaksi Selesai</p>
                     <p className="text-2xl font-bold text-green-600">{completedTransactions}</p>
                   </div>
@@ -393,7 +436,18 @@ const PharmacyDashboard = () => {
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Obat sudah diterima pasien</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Transaksi</p>
+                    <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
+                  </div>
+                  <div className="p-3 bg-gray-100 rounded-lg">
+                    <ShoppingCart className="h-6 w-6 text-gray-600" />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -415,6 +469,9 @@ const PharmacyDashboard = () => {
                       </span>
                     </div>
                   ))}
+                  {drugData.filter(drug => drug.stock < 50).length === 0 && (
+                    <p className="text-center text-gray-500 py-4">Semua stok obat mencukupi</p>
+                  )}
                 </div>
               </div>
 
@@ -423,24 +480,25 @@ const PharmacyDashboard = () => {
                   <h3 className="text-lg font-semibold text-gray-900">Transaksi Terbaru</h3>
                 </div>
                 <div className="p-6">
-                  {transactions.slice(-5).reverse().map(transaction => (
+                  {transactions.slice(0, 5).map(transaction => (
                     <div key={transaction.id} className="flex items-center justify-between py-2">
                       <div>
                         <p className="font-medium text-gray-900">{transaction.patientName}</p>
                         <p className="text-sm text-gray-600">{transaction.mrNumber}</p>
                       </div>
                       <div className="text-right">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                          transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {transaction.status === 'COMPLETED' ? 'Selesai' :
-                           transaction.status === 'PENDING' ? 'Pending' : 'Dibatalkan'}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                            'bg-orange-100 text-orange-800'
+                          }`}>
+                          {transaction.status}
                         </span>
                       </div>
                     </div>
                   ))}
+                  {transactions.length === 0 && (
+                    <p className="text-center text-gray-500 py-4">Belum ada transaksi</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -466,7 +524,7 @@ const PharmacyDashboard = () => {
                   </div>
 
                   <button
-                    onClick={() => setShowDrugForm(true)}
+                    onClick={handleNewDrug}
                     className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
                   >
                     <Plus className="h-4 w-4" />
@@ -499,11 +557,10 @@ const PharmacyDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{drug.category}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            drug.stock < 10 ? 'bg-red-100 text-red-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${drug.stock < 10 ? 'bg-red-100 text-red-800' :
                             drug.stock < 50 ? 'bg-orange-100 text-orange-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
+                              'bg-green-100 text-green-800'
+                            }`}>
                             {drug.stock} unit
                           </span>
                         </td>
@@ -515,21 +572,25 @@ const PharmacyDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                           <button
-                            onClick={() => {
-                              setEditingDrug(drug);
-                              setShowDrugForm(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 p-1"
-                            title="Edit"
+                            onClick={() => handleViewDrugDetail(drug)}
+                            className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
+                          >
+                            <Eye className="h-4 w-4" />
+                            <span>Detail</span>
+                          </button>
+                          <button
+                            onClick={() => handleEditDrug(drug)}
+                            className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
                           >
                             <Edit className="h-4 w-4" />
+                            <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleDeleteDrug(drug.id)}
-                            className="text-red-600 hover:text-red-900 p-1"
-                            title="Hapus"
+                            className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                           >
                             <Trash2 className="h-4 w-4" />
+                            <span>Delete</span>
                           </button>
                         </td>
                       </tr>
@@ -548,11 +609,10 @@ const PharmacyDashboard = () => {
                         <p className="text-sm text-gray-600 mb-2">{drug.strength} - {drug.category}</p>
                         <p className="text-sm text-gray-500">{drug.manufacturer}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        drug.stock < 10 ? 'bg-red-100 text-red-800' :
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${drug.stock < 10 ? 'bg-red-100 text-red-800' :
                         drug.stock < 50 ? 'bg-orange-100 text-orange-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
+                          'bg-green-100 text-green-800'
+                        }`}>
                         {drug.stock} unit
                       </span>
                     </div>
@@ -573,11 +633,15 @@ const PharmacyDashboard = () => {
                     </div>
 
                     <div className="flex space-x-2">
-                      <button 
-                        onClick={() => {
-                          setEditingDrug(drug);
-                          setShowDrugForm(true);
-                        }}
+                      <button
+                        onClick={() => handleViewDrugDetail(drug)}
+                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Detail</span>
+                      </button>
+                      <button
+                        onClick={() => handleEditDrug(drug)}
                         className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
                       >
                         <Edit className="h-4 w-4" />
@@ -610,7 +674,7 @@ const PharmacyDashboard = () => {
                   </p>
                   {!searchTerm && (
                     <button
-                      onClick={() => setShowDrugForm(true)}
+                      onClick={handleNewDrug}
                       className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
                     >
                       <Plus className="h-4 w-4" />
@@ -623,7 +687,7 @@ const PharmacyDashboard = () => {
           </div>
         )}
 
-        {/* Transactions Tab - Fixed to be separate tab */}
+        {/* Transactions Tab */}
         {activeTab === 'transactions' && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm">
@@ -642,7 +706,7 @@ const PharmacyDashboard = () => {
                   </div>
 
                   <button
-                    onClick={() => setShowTransactionForm(true)}
+                    onClick={handleNewTransaction}
                     className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
                   >
                     <Plus className="h-4 w-4" />
@@ -650,27 +714,6 @@ const PharmacyDashboard = () => {
                   </button>
                 </div>
               </div>
-
-              {/* Transaction Status Info */}
-              {/* <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
-                <div className="flex items-center space-x-6 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                    <span className="text-orange-700 font-medium">PENDING</span>
-                    <span className="text-gray-600">- Menunggu diselesaikan</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-green-700 font-medium">COMPLETED</span>
-                    <span className="text-gray-600">- Obat sudah diterima pasien</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <span className="text-red-700 font-medium">CANCELLED</span>
-                    <span className="text-gray-600">- Transaksi dibatalkan</span>
-                  </div>
-                </div>
-              </div> */}
 
               {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
@@ -710,13 +753,11 @@ const PharmacyDashboard = () => {
                           Rp {transaction.totalAmount.toLocaleString('id-ID')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                            transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {transaction.status === 'COMPLETED' ? 'COMPLETED' :
-                             transaction.status === 'PENDING' ? 'PENDING' : 'CANCELLED'}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                            transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                              'bg-orange-100 text-orange-800'
+                            }`}>
+                            {transaction.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -730,33 +771,32 @@ const PharmacyDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                           <button
-                            className="text-blue-600 hover:text-blue-900 p-1"
+                            onClick={() => handleViewDetail(transaction)}
+                            className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
                             title="Lihat Detail"
                           >
                             <Eye className="h-4 w-4" />
+                            <span>Detail</span>
                           </button>
-                          {transaction.status === 'PENDING' && (
+                          {transaction.status === 'COMPLETED' && (
                             <>
                               <button
-                                onClick={() => handleCompleteTransaction(transaction.id)}
-                                className="text-green-600 hover:text-green-900 p-1"
-                                title="Selesaikan Transaksi - Pasien Sudah Menerima Obat"
+                                onClick={() => handleEditTransaction(transaction)}
+                                className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
+                                title="Edit Transaksi"
                               >
-                                <CheckCircle className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
+                                <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => handleCancelTransaction(transaction.id)}
-                                className="text-red-600 hover:text-red-900 p-1"
+                                className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                                 title="Batalkan Transaksi"
                               >
                                 <XCircle className="h-4 w-4" />
+                                <span>Batalkan</span>
                               </button>
                             </>
-                          )}
-                          {transaction.status === 'COMPLETED' && transaction.completedAt && (
-                            <div className="text-xs text-gray-500">
-                              Diselesaikan: {new Date(transaction.completedAt).toLocaleDateString('id-ID')}
-                            </div>
                           )}
                         </td>
                       </tr>
@@ -777,11 +817,10 @@ const PharmacyDashboard = () => {
                         <p className="text-sm text-gray-600 mb-2">{transaction.mrNumber}</p>
                         <p className="text-sm font-mono text-gray-500">#{transaction.id.slice(-8)}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                        transaction.status === 'PENDING' ? 'bg-orange-100 text-orange-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                          'bg-orange-100 text-orange-800'
+                        }`}>
                         {transaction.status}
                       </span>
                     </div>
@@ -817,18 +856,21 @@ const PharmacyDashboard = () => {
                     </div>
 
                     <div className="flex space-x-2">
-                      <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1">
+                      <button
+                        onClick={() => handleViewDetail(transaction)}
+                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                      >
                         <Eye className="h-4 w-4" />
                         <span>Detail</span>
                       </button>
-                      {transaction.status === 'PENDING' && (
+                      {transaction.status === 'COMPLETED' && (
                         <>
                           <button
-                            onClick={() => handleCompleteTransaction(transaction.id)}
+                            onClick={() => handleEditTransaction(transaction)}
                             className="flex-1 bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
                           >
-                            <CheckCircle className="h-4 w-4" />
-                            <span>Selesai</span>
+                            <Edit className="h-4 w-4" />
+                            <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleCancelTransaction(transaction.id)}
@@ -871,7 +913,7 @@ const PharmacyDashboard = () => {
                   </p>
                   {!searchTerm && (
                     <button
-                      onClick={() => setShowTransactionForm(true)}
+                      onClick={handleNewTransaction}
                       className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
                     >
                       <Plus className="h-4 w-4" />
@@ -891,9 +933,11 @@ const PharmacyDashboard = () => {
         onClose={() => {
           setShowDrugForm(false);
           setEditingDrug(null);
+          setDrugViewMode('create');
         }}
         onSave={handleSaveDrug}
         editingDrug={editingDrug}
+        viewMode={drugViewMode}
       />
 
       {/* Transaction Form */}
@@ -902,11 +946,13 @@ const PharmacyDashboard = () => {
         onClose={() => {
           setShowTransactionForm(false);
           setEditingTransaction(null);
+          setViewMode('create');
         }}
         onSave={handleSaveTransaction}
         patients={patients}
         drugs={drugData}
         editingTransaction={editingTransaction}
+        viewMode={viewMode}
       />
     </div>
   );

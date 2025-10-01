@@ -720,7 +720,7 @@ const DoctorDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => handleViewPatient(patient)}
-                          className="text-green-600 hover:text-green-900 font-medium inline-flex items-center space-x-1"
+                          className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
                         >
                           <Eye className="h-4 w-4" />
                           <span>Detail</span>
@@ -793,8 +793,11 @@ const DoctorDashboard = () => {
         {showPatientDetail && selectedPatient && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900">Detail Pasien</h3>
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
+                <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+                  <Stethoscope className="h-6 w-6 mr-2 text-green-600" />
+                  Detail Pasien
+                </h3>
                 <button
                   onClick={() => setShowPatientDetail(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -803,66 +806,152 @@ const DoctorDashboard = () => {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 className="font-semibold text-gray-900 mb-3">Informasi Dasar</h4>
-                    <div className="space-y-2 text-sm">
-                      <p><span className="font-medium">Nama:</span> {selectedPatient.name}</p>
-                      <p><span className="font-medium">No. RM:</span> {selectedPatient.mrNumber}</p>
-                      <p><span className="font-medium">Umur:</span> {calculateAge(selectedPatient.birthDate)} tahun</p>
-                      <p><span className="font-medium">Jenis Kelamin:</span> {selectedPatient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
-                      <p><span className="font-medium">Telepon:</span> {selectedPatient.phone || '-'}</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nama Lengkap
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.name}
                     </div>
                   </div>
 
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 className="font-semibold text-gray-900 mb-3">Informasi Medis</h4>
-                    <div className="space-y-2 text-sm">
-                      <p><span className="font-medium">Penjamin:</span> {selectedPatient.insuranceType}</p>
-                      <p><span className="font-medium">Tipe Diabetes:</span> {selectedPatient.diabetesType || '-'}</p>
-                      <p><span className="font-medium">Status:</span>
-                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getPatientStatusColor(selectedPatient.status)}`}>
-                          {getPatientStatusLabel(selectedPatient.status)}
-                        </span>
-                      </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Jenis Kelamin
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tanggal Lahir
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {new Date(selectedPatient.birthDate).toLocaleDateString('id-ID')} ({calculateAge(selectedPatient.birthDate)} tahun)
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Jenis Penjamin
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.insuranceType}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status Pasien
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPatientStatusColor(selectedPatient.status)}`}>
+                        {getPatientStatusLabel(selectedPatient.status)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nomor Telepon
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.phone || '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tinggi Badan
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.height ? `${selectedPatient.height} cm` : '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Berat Badan
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.weight ? `${selectedPatient.weight} kg` : '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tipe Diabetes
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.diabetesType || '-'}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Alamat Lengkap
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.address || '-'}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Riwayat Penyakit
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.medicalHistory || '-'}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Alergi
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.allergies && selectedPatient.allergies.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPatient.allergies.map((allergy, index) => (
+                            <span key={index} className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                              {allergy}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        'Tidak ada alergi yang tercatat'
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      No. Medical Record
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {selectedPatient.mrNumber}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tanggal Registrasi
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                      {new Date(selectedPatient.createdAt).toLocaleDateString('id-ID', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </div>
                   </div>
                 </div>
-
-                {selectedPatient.address && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Alamat</h4>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-sm text-gray-700">{selectedPatient.address}</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <AlertCircle className="h-5 w-5 mr-2 text-red-600" />
-                      Alergi
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPatient.allergies.map((allergy, index) => (
-                        <span key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-sm">
-                          {allergy}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedPatient.medicalHistory && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Riwayat Penyakit</h4>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-sm text-gray-700">{selectedPatient.medicalHistory}</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="p-6 border-t border-gray-200 flex justify-end">
@@ -993,21 +1082,21 @@ const DoctorDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button
                           onClick={() => handleViewHandledPatient(handledPatient)}
-                          className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
+                          className=" text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
                         >
                           <Eye className="h-4 w-4" />
                           <span>Detail</span>
                         </button>
                         <button
                           onClick={() => handleEditHandledPatient(handledPatient)}
-                          className="text-green-600 hover:text-green-900 font-medium inline-flex items-center space-x-1"
+                          className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
                         >
                           <Edit className="h-4 w-4" />
                           <span>Edit</span>
                         </button>
                         <button
                           onClick={() => handleDeleteHandledPatient(handledPatient.id)}
-                          className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
+                          className=" text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                         >
                           <Trash2 className="h-4 w-4" />
                           <span>Hapus</span>
