@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck, Clock } from 'lucide-react';
 import HandledPatientForm from './HandledPatientForm';
+import SplashScreen from '@/components/SplashScreen';
 
 interface Patient {
   id: string;
@@ -80,6 +81,7 @@ const DoctorDashboard = () => {
   >('ALL');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedHandledPatient, setSelectedHandledPatient] = useState<HandledPatient | null>(null);
@@ -268,8 +270,12 @@ const DoctorDashboard = () => {
   });
 
   const refreshData = async () => {
-    setIsRefreshing(true);
+    setShowRefreshSplash(true);
     await Promise.all([fetchPatients(), fetchHandledPatients()]);
+  };
+
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
     setIsRefreshing(false);
   };
 
@@ -382,16 +388,16 @@ const DoctorDashboard = () => {
     { key: 'nursing', label: 'Keperawatan', icon: HeartPulse }
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat data...</p>
-        </div>
-      </div>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+  //         <p className="text-gray-600">Memuat data...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -445,7 +451,10 @@ const DoctorDashboard = () => {
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
           <button
-            onClick={refreshData}
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-green-500 text-sm text-gray-600 hover:bg-green-50 transition-colors disabled:opacity-50"
           >
@@ -465,7 +474,10 @@ const DoctorDashboard = () => {
 
         <div className="hidden lg:flex items-center justify-end mb-6">
           <button
-            onClick={refreshData}
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-4 py-2 rounded-lg shadow-sm border border-green-500 text-sm text-gray-600 hover:bg-green-50 transition-colors disabled:opacity-50"
           >
@@ -1198,6 +1210,14 @@ const DoctorDashboard = () => {
         handledPatients={handledPatients}
         loading={false}
       />
+
+      {showRefreshSplash && (
+        <SplashScreen
+          onFinish={handleRefreshSplashFinish}
+          message="Memuat ulang data..."
+          duration={1500}
+        />
+      )}
     </div>
   );
 };

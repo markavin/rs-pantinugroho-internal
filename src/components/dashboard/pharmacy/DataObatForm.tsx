@@ -261,7 +261,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
                     <div className="flex items-center space-x-3">
-                        {isDetailMode ? <Pill className="h-6 w-6 mr-2 text-green-600" /> : <Package className="h-6 w-6 text-emerald-600" />}
+                        {isDetailMode ? <Pill className="h-6 w-6 mr-2 text-green-600" /> : <Pill className="h-6 w-6 text-green-600" />}
                         <h3 className="text-lg font-semibold text-gray-900">
                             {getTitle()}
                         </h3>
@@ -328,7 +328,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-600 mb-1">Harga Satuan</label>
-                                        <p className="text-2xl font-bold text-emerald-600">
+                                        <p className="text-2xl font-bold text-green-600">
                                             Rp {formData.price?.toLocaleString('id-ID') || '0'}
                                         </p>
                                     </div>
@@ -429,7 +429,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 <input
                                     type="text"
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.name || ''}
                                     onChange={(e) => handleInputChange('name', e.target.value)}
                                     placeholder="Contoh: Metformin 500mg"
@@ -444,7 +444,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 </label>
                                 <select
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.category ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.category ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.category || ''}
                                     onChange={(e) => handleInputChange('category', e.target.value)}
                                 >
@@ -463,7 +463,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 </label>
                                 <select
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.dosageForm ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.dosageForm ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.dosageForm || ''}
                                     onChange={(e) => handleInputChange('dosageForm', e.target.value)}
                                 >
@@ -483,7 +483,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 <input
                                     type="text"
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.strength ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.strength ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.strength || ''}
                                     onChange={(e) => handleInputChange('strength', e.target.value)}
                                     placeholder="Contoh: 500mg, 2.5mg/ml"
@@ -499,7 +499,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 <input
                                     type="text"
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.manufacturer ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.manufacturer ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.manufacturer || ''}
                                     onChange={(e) => handleInputChange('manufacturer', e.target.value)}
                                     placeholder="Contoh: PT. Dexa Medica"
@@ -516,7 +516,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     type="number"
                                     min="0"
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.stock ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.stock ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.stock || ''}
                                     onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
                                     placeholder="Contoh: 100"
@@ -534,7 +534,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     min="0"
                                     step="100"
                                     required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.price ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.price ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.price || ''}
                                     onChange={(e) => handleInputChange('price', parseInt(e.target.value) || 0)}
                                     placeholder="Contoh: 5000"
@@ -552,7 +552,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     type="date"
                                     required
                                     min={new Date().toISOString().split('T')[0]}
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 font-medium ${errors.expiryDate ? 'border-red-300' : 'border-gray-300'}`}
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.expiryDate ? 'border-red-300' : 'border-gray-300'}`}
                                     value={formData.expiryDate || ''}
                                     onChange={(e) => handleInputChange('expiryDate', e.target.value)}
                                 />
@@ -565,7 +565,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     Indikasi
                                 </label>
                                 <textarea
-                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900"
                                     rows={2}
                                     placeholder="Pisahkan dengan koma. Contoh: Diabetes mellitus tipe 2, Kontrol gula darah"
                                     value={formData.indications?.join(', ') || ''}
@@ -580,7 +580,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     Kontraindikasi
                                 </label>
                                 <textarea
-                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900"
                                     rows={2}
                                     placeholder="Pisahkan dengan koma. Contoh: Gagal ginjal berat, Ketoasidosis diabetik"
                                     value={formData.contraindications?.join(', ') || ''}
@@ -595,7 +595,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     Efek Samping
                                 </label>
                                 <textarea
-                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900"
                                     rows={2}
                                     placeholder="Pisahkan dengan koma. Contoh: Mual, Diare, Nyeri perut"
                                     value={formData.sideEffects?.join(', ') || ''}
@@ -610,7 +610,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     Interaksi Obat
                                 </label>
                                 <textarea
-                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900"
                                     rows={2}
                                     placeholder="Pisahkan dengan koma. Contoh: Glimepiride, Insulin, Aspirin"
                                     value={formData.interactions?.join(', ') || ''}
@@ -635,7 +635,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 font-medium"
+                                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 font-medium"
                             >
                                 {isSubmitting ? (
                                     <>
@@ -645,7 +645,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 ) : (
                                     <>
                                         <Save className="h-4 w-4" />
-                                        <span>{isEditMode ? 'Update' : 'Simpan'}</span>
+                                        <span>{isEditMode ? 'Update Obat' : 'Tambah Obat'}</span>
                                     </>
                                 )}
                             </button>

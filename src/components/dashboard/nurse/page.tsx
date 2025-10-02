@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Calendar, Activity, TrendingUp, AlertCircle, FileText, Thermometer, Heart, Droplets, Weight, Clock, Stethoscope, Clipboard, User, Edit3, Save, X, Users, HeartPulse, Menu, Eye } from 'lucide-react';
+import SplashScreen from '@/components/SplashScreen';
 import {
     mockPatients,
     mockAlerts,
@@ -142,37 +143,41 @@ const NurseDashboard = () => {
     };
 
     const refreshData = async () => {
-        const fetchData = async () => {
-            try {
-                const patientsResponse = await fetch('/api/dashboard?type=patients');
-                if (patientsResponse.ok) {
-                    const patientsData = await patientsResponse.json();
-                    setPatients(patientsData);
-                }
-
-            } catch (error) {
-                console.error('Error refreshing data:', error);
+        setShowRefreshSplash(true)
+        try {
+            const patientsResponse = await fetch('/api/dashboard?type=patients');
+            if (patientsResponse.ok) {
+                const patientsData = await patientsResponse.json();
+                setPatients(patientsData);
             }
-        };
 
-        await fetchData();
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+        }
+
     };
+
+    const handleRefreshSplashFinish = () => {
+        setShowRefreshSplash(false);
+        setIsRefreshing(false);
+    };
+
     const [isRefreshing, setIsRefreshing] = useState(false);
-
+    const [showRefreshSplash, setShowRefreshSplash] = useState(false);
     const filteredPatients = patientLogs.filter(patientLogs => {
-    const searchLower = searchTerm.toLowerCase().trim();
+        const searchLower = searchTerm.toLowerCase().trim();
 
-    const matchesSearch = patientLogs.id.toLowerCase().includes(searchLower) ||
-      patientLogs.patientId.toLowerCase().includes(searchLower) ||
-      patientLogs.roomNumber.toString().includes(searchTerm.trim()) ||
-    //   patientLogs.gender.toLowerCase().includes(searchLower) ||
-    //   patientLogs.insuranceType.toLowerCase().includes(searchLower) ||
-    //   patientLogs.status.toLowerCase().includes(searchLower) ||
-      patientLogs.bedNumber.toString().includes(searchTerm.trim());
+        const matchesSearch = patientLogs.id.toLowerCase().includes(searchLower) ||
+            patientLogs.patientId.toLowerCase().includes(searchLower) ||
+            patientLogs.roomNumber.toString().includes(searchTerm.trim()) ||
+            //   patientLogs.gender.toLowerCase().includes(searchLower) ||
+            //   patientLogs.insuranceType.toLowerCase().includes(searchLower) ||
+            //   patientLogs.status.toLowerCase().includes(searchLower) ||
+            patientLogs.bedNumber.toString().includes(searchTerm.trim());
 
-      return matchesSearch;
-    
-  });
+        return matchesSearch;
+
+    });
 
     const handleVitalInput = (field: keyof VitalSigns, value: string) => {
         setVitalInputs(prev => ({
@@ -326,10 +331,9 @@ const NurseDashboard = () => {
                         <Menu className="h-5 w-5 text-gray-600" />
                     </button>
                     <button
-                        onClick={async () => {
+                        onClick={() => {
                             setIsRefreshing(true);
-                            await refreshData();
-                            setIsRefreshing(false);
+                            refreshData();
                         }}
                         disabled={isRefreshing}
                         className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
@@ -352,10 +356,9 @@ const NurseDashboard = () => {
                 <div className="hidden lg:flex items-center justify-end mb-2">
                     <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
                         <button
-                            onClick={async () => {
+                            onClick={() => {
                                 setIsRefreshing(true);
-                                await refreshData();
-                                setIsRefreshing(false);
+                                refreshData();
                             }}
                             disabled={isRefreshing}
                             className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
@@ -1164,6 +1167,13 @@ const NurseDashboard = () => {
                     </div>
                 )}
             </div>
+            {showRefreshSplash && (
+                <SplashScreen
+                    onFinish={handleRefreshSplashFinish}
+                    message="Memuat ulang data..."
+                    duration={1500}
+                />
+            )}
         </div>
     );
 };

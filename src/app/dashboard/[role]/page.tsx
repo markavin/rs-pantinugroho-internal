@@ -3,9 +3,10 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { UserRole, getDashboardPath } from '@/lib/auth';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import SplashScreen from '@/components/SplashScreen';
 
 // Import semua dashboard components
 import AdminDashboard from '@/components/dashboard/admin/page';
@@ -33,6 +34,8 @@ export default function RoleBasedDashboard() {
   const router = useRouter();
   const params = useParams();
   const role = params.role as string;
+  const [showSplash, setShowSplash] = useState(true);
+  const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -52,16 +55,23 @@ export default function RoleBasedDashboard() {
       router.replace(correctPath); // Use replace to avoid back button issues
       return;
     }
+
+    // Role valid, selesai validasi
+    setIsValidating(false);
   }, [session, status, router, role]);
 
-  if (status === 'loading') {
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
+
+  // Show splash screen while loading or validating
+  if (status === 'loading' || isValidating || showSplash) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat dashboard...</p>
-        </div>
-      </div>
+      <SplashScreen 
+        onFinish={handleSplashFinish} 
+        message="Memuat dashboard..."
+        duration={1500}
+      />
     );
   }
 

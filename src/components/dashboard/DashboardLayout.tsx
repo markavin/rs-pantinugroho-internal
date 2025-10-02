@@ -70,11 +70,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             {/* Left side - Hospital branding */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
               <div className="flex items-center space-x-2 sm:space-x-3">
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 shadow-md">
-                  <Heart className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 shadow-md flex items-center justify-center">
+                  <span className="text-white font-bold text-xs sm:text-sm">KD</span>
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-sm sm:text-lg font-bold text-gray-900 truncate">RS Panti Nugroho</h1>
+                  <h1 className="text-sm sm:text-lg font-bold text-gray-900 truncate">KAWAN DIABETES</h1>
+                  <h2 className='text-xs sm:text-sm text-gray-500 truncate'>RS Panti Nugroho</h2>
                   <p className="text-xs sm:text-sm text-gray-600 font-medium hidden xs:block">Diabetes Care System</p>
                 </div>
               </div>

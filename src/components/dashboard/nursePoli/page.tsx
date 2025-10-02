@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, User, Calendar, Activity, FileText, Users, Menu, X, FlaskConical, History, Eye } from 'lucide-react';
 import LabResultForm from './LabResultForm';
 import LabHistoryView from './LabHistoryView';
+import SplashScreen from '@/components/SplashScreen';
+import { triggerAsyncId } from 'async_hooks';
 
 interface Patient {
   id: string;
@@ -98,22 +100,26 @@ const NursePoliDashboard = () => {
   };
 
   const refreshData = async () => {
-    const fetchData = async () => {
-      try {
-        const patientsResponse = await fetch('/api/dashboard?type=patients');
-        if (patientsResponse.ok) {
-          const patientsData = await patientsResponse.json();
-          setPatients(patientsData);
-        }
-
-      } catch (error) {
-        console.error('Error refreshing data:', error);
+    setShowRefreshSplash(true);
+    try {
+      const patientsResponse = await fetch('/api/dashboard?type=patients');
+      if (patientsResponse.ok) {
+        const patientsData = await patientsResponse.json();
+        setPatients(patientsData);
       }
-    };
 
-    await fetchData();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
   };
+
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
+    setIsRefreshing(false);
+  };
+
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -210,10 +216,9 @@ const NursePoliDashboard = () => {
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
           <button
-            onClick={async () => {
+            onClick={() => {
               setIsRefreshing(true);
-              await refreshData();
-              setIsRefreshing(false);
+              refreshData();
             }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
@@ -235,10 +240,9 @@ const NursePoliDashboard = () => {
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
-              onClick={async () => {
+              onClick={() => {
                 setIsRefreshing(true);
-                await refreshData();
-                setIsRefreshing(false);
+                refreshData();
               }}
               disabled={isRefreshing}
               className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
@@ -519,6 +523,14 @@ const NursePoliDashboard = () => {
               patients={filteredPatients}
               selectedPatient={selectedPatient}
               onPatientSelect={setSelectedPatient}
+            />
+          )}
+
+          {showRefreshSplash && (
+            <SplashScreen
+              onFinish={handleRefreshSplashFinish}
+              message="Memuat ulang data..."
+              duration={1500}
             />
           )}
         </div>

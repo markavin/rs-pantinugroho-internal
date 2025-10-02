@@ -866,7 +866,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
           >
             <Save className="h-4 w-4" />
             <span>
-              {loading ? 'Menyimpan...' : (formMode === 'edit' ? 'Update Data' : 'Daftarkan Pasien')}
+              {loading ? 'Menyimpan...' : (formMode === 'edit' ? 'Update Pasien' : 'Daftarkan Pasien')}
             </span>
           </button>
         )}

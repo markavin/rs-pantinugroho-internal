@@ -368,11 +368,11 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
           {/* Patient Summary Card */}
           {selectedPatientData && (
-            <div className="bg-green-50 p-6 rounded-xl border border-green-50">
+            <div className="bg-white p-6 rounded-xl border border-green-400">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="h-6 w-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <User className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
                     <h4 className="font-bold text-xl text-gray-900">{selectedPatientData.name}</h4>
@@ -582,7 +582,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
                     key={index}
                     type="button"
                     onClick={() => addInstructionToField(instruction)}
-                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors"
+                    className="text-xs bg-white text-green-700 px-2 py-1 rounded-full hover:bg-green-200 transition-colors"
                     disabled={submitting}
                   >
                     + {instruction}
@@ -692,7 +692,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    <span>{mode === 'edit' ? 'Simpan Perubahan' : 'Simpan'}</span>
+                    <span>{mode === 'edit' ? 'Update Pasien' : 'Tambah Pasien'}</span>
                   </>
                 )}
               </button>

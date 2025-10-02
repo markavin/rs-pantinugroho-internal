@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu, ShoppingCart, Package, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu, ShoppingCart, Package, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react';
 import DataObatForm, { DrugData } from './DataObatForm';
 import TransaksiObatForm from './TransaksiObatForm';
+import SplashScreen from '@/components/SplashScreen';
 
 interface Patient {
   id: string;
@@ -45,6 +46,8 @@ const PharmacyDashboard = () => {
   const [drugData, setDrugData] = useState<DrugData[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -306,20 +309,58 @@ const PharmacyDashboard = () => {
     { key: 'transactions', label: 'Kelola Transaksi Obat', icon: ShoppingCart }
   ];
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat data...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleTabChange = (tab: 'overview' | 'drugs' | 'transactions') => {
+    setActiveTab(tab);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const refreshData = async () => {
+    setShowRefreshSplash(true);
+    try {
+      const drugsResponse = await fetch('/api/drugs');
+      if (drugsResponse.ok) {
+        const drugsData = await drugsResponse.json();
+        setDrugData(drugsData);
+      }
+
+      const patientsResponse = await fetch('/api/patients?activeOnly=true');
+      if (patientsResponse.ok) {
+        const patientsData = await patientsResponse.json();
+        setPatients(patientsData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          mrNumber: p.mrNumber,
+          phone: p.phone
+        })));
+      }
+
+      const transactionsResponse = await fetch('/api/drug-transactions');
+      if (transactionsResponse.ok) {
+        const transactionsData = await transactionsResponse.json();
+        setTransactions(transactionsData);
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
+  };
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
+    setIsRefreshing(false);
+  };
+
+  // if (isLoading) {
+  //   return (
+  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="animate-spin h-12 w-12 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+  //         <p className="text-gray-600">Memuat data...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Sidebar */}
       {isMobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -330,12 +371,12 @@ const PharmacyDashboard = () => {
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Menu Farmasi</h2>
+          <h2 className="text-m font-semibold text-gray-900">Menu Farmasi</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <XCircle className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
@@ -345,12 +386,9 @@ const PharmacyDashboard = () => {
             return (
               <button
                 key={item.key}
-                onClick={() => {
-                  setActiveTab(item.key as any);
-                  setIsMobileSidebarOpen(false);
-                }}
+                onClick={() => handleTabChange(item.key as any)}
                 className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  ? 'bg-green-100 text-green-700 border border-green-200'
                   : 'text-gray-700 hover:bg-gray-100'
                   }`}
               >
@@ -363,187 +401,213 @@ const PharmacyDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Mobile Header */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
-            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+            className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200"
           >
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
+          <button
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
+            disabled={isRefreshing}
+            className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                <span>Refresh</span>
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Desktop Navigation */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 px-6 justify-center">
-              {navigationItems.map(tab => {
-                const IconComponent = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key as any)}
-                    className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
-                      ? 'border-emerald-500 text-emerald-600'
-                      : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                  >
-                    <IconComponent className="h-5 w-5" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
+        <div className="hidden lg:flex items-center justify-end mb-6">
+          <button
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
+            disabled={isRefreshing}
+            className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                <span>Refresh Data</span>
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Obat</p>
-                    <p className="text-2xl font-bold text-gray-900">{totalDrugs}</p>
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Package className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Stok Rendah</p>
-                    <p className="text-2xl font-bold text-red-600">{lowStockDrugs}</p>
-                  </div>
-                  <div className="p-3 bg-red-100 rounded-lg">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Transaksi Selesai</p>
-                    <p className="text-2xl font-bold text-green-600">{completedTransactions}</p>
-                  </div>
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Transaksi</p>
-                    <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
-                  </div>
-                  <div className="p-3 bg-gray-100 rounded-lg">
-                    <ShoppingCart className="h-6 w-6 text-gray-600" />
-                  </div>
-                </div>
-              </div>
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-55 px-6 justify-center">
+                {navigationItems.map(tab => {
+                  const IconComponent = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key as any)}
+                      className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                      <IconComponent className="h-5 w-5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
+          </div>
 
-            {/* Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Obat Stok Rendah</h3>
-                </div>
-                <div className="p-6">
-                  {drugData.filter(drug => drug.stock < 50).slice(0, 5).map(drug => (
-                    <div key={drug.id} className="flex items-center justify-between py-2">
-                      <div>
-                        <p className="font-medium text-gray-900">{drug.name}</p>
-                        <p className="text-sm text-gray-600">{drug.category}</p>
-                      </div>
-                      <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                        {drug.stock} unit
-                      </span>
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">Total Obat</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-2">{totalDrugs}</p>
                     </div>
-                  ))}
-                  {drugData.filter(drug => drug.stock < 50).length === 0 && (
-                    <p className="text-center text-gray-500 py-4">Semua stok obat mencukupi</p>
-                  )}
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <Package className="h-8 w-8 text-blue-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Stok Rendah</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-2">{lowStockDrugs}</p>
+                    </div>
+                    <div className="bg-red-100 p-3 rounded-full">
+                      <AlertTriangle className="h-8 w-8 text-red-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-green-600">Transaksi Selesai</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-2">{completedTransactions}</p>
+                    </div>
+                    <div className="bg-green-100 p-3 rounded-full">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Transaksi Terbaru</h3>
-                </div>
-                <div className="p-6">
-                  {transactions.slice(0, 5).map(transaction => (
-                    <div key={transaction.id} className="flex items-center justify-between py-2">
-                      <div>
-                        <p className="font-medium text-gray-900">{transaction.patientName}</p>
-                        <p className="text-sm text-gray-600">{transaction.mrNumber}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                          transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                            'bg-orange-100 text-orange-800'
-                          }`}>
-                          {transaction.status}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow-sm">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Obat Stok Rendah</h3>
+                  </div>
+                  <div className="p-6">
+                    {drugData.filter(drug => drug.stock < 50).slice(0, 5).map(drug => (
+                      <div key={drug.id} className="flex items-center justify-between py-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{drug.name}</p>
+                          <p className="text-sm text-gray-600">{drug.category}</p>
+                        </div>
+                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                          {drug.stock} unit
                         </span>
                       </div>
-                    </div>
-                  ))}
-                  {transactions.length === 0 && (
-                    <p className="text-center text-gray-500 py-4">Belum ada transaksi</p>
-                  )}
+                    ))}
+                    {drugData.filter(drug => drug.stock < 50).length === 0 && (
+                      <p className="text-center text-gray-500 py-4">Semua stok obat mencukupi</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Transaksi Terbaru</h3>
+                  </div>
+                  <div className="p-6">
+                    {transactions.slice(0, 5).map(transaction => (
+                      <div key={transaction.id} className="flex items-center justify-between py-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{transaction.patientName}</p>
+                          <p className="text-sm text-gray-600">{transaction.mrNumber}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                            transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                              'bg-orange-100 text-orange-800'
+                            }`}>
+                            {transaction.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {transactions.length === 0 && (
+                      <p className="text-center text-gray-500 py-4">Belum ada transaksi</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Drugs Tab */}
-        {activeTab === 'drugs' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-gray-900">Manajemen Data Obat</h3>
-                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                  <div className="flex-1 sm:flex-none sm:w-80 relative">
-                    <input
-                      type="text"
-                      placeholder="Cari obat..."
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          {activeTab === 'drugs' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900">Manajemen Data Obat</h3>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Cari Obat..."
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    </div>
+
+                    <button
+                      onClick={handleNewDrug}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Tambah Obat
+                    </button>
                   </div>
-
-                  <button
-                    onClick={handleNewDrug}
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Tambah Obat</span>
-                  </button>
                 </div>
               </div>
 
-              {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stok</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kadaluwarsa</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Obat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kategori</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stok</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Harga</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kadaluwarsa</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -590,7 +654,7 @@ const PharmacyDashboard = () => {
                             className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span>Delete</span>
+                            <span>Hapus</span>
                           </button>
                         </td>
                       </tr>
@@ -599,15 +663,13 @@ const PharmacyDashboard = () => {
                 </table>
               </div>
 
-              {/* Mobile Cards */}
               <div className="lg:hidden space-y-4 p-4">
                 {filteredDrugs.map((drug) => (
                   <div key={drug.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 text-lg mb-1">{drug.name}</h4>
-                        <p className="text-sm text-gray-600 mb-2">{drug.strength} - {drug.category}</p>
-                        <p className="text-sm text-gray-500">{drug.manufacturer}</p>
+                        <h4 className="font-semibold text-gray-900 text-lg">{drug.name}</h4>
+                        <p className="text-sm text-gray-600">{drug.strength} - {drug.category}</p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${drug.stock < 10 ? 'bg-red-100 text-red-800' :
                         drug.stock < 50 ? 'bg-orange-100 text-orange-800' :
@@ -617,39 +679,36 @@ const PharmacyDashboard = () => {
                       </span>
                     </div>
 
-                    <div className="mb-4 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Harga:</span>
-                        <span className="text-sm font-semibold text-gray-900">
-                          Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}
-                        </span>
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                      <div>
+                        <span className="text-gray-600">Harga: Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Kadaluwarsa:</span>
-                        <span className="text-sm text-gray-900">
-                          {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
-                        </span>
+                      <div>
+                        <span className="text-gray-600">Exp: {new Date(drug.expiryDate).toLocaleDateString('id-ID')}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-600">{drug.manufacturer}</span>
                       </div>
                     </div>
 
-                    <div className="flex space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => handleViewDrugDetail(drug)}
-                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                        className="bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                       >
                         <Eye className="h-4 w-4" />
                         <span>Detail</span>
                       </button>
                       <button
                         onClick={() => handleEditDrug(drug)}
-                        className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                        className="bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
                       >
                         <Edit className="h-4 w-4" />
                         <span>Edit</span>
                       </button>
                       <button
                         onClick={() => handleDeleteDrug(drug.id)}
-                        className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                        className="col-span-2 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
                       >
                         <Trash2 className="h-4 w-4" />
                         <span>Hapus</span>
@@ -659,7 +718,6 @@ const PharmacyDashboard = () => {
                 ))}
               </div>
 
-              {/* Empty State for Drugs */}
               {filteredDrugs.length === 0 && (
                 <div className="text-center py-12 px-4">
                   <Package className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -675,7 +733,7 @@ const PharmacyDashboard = () => {
                   {!searchTerm && (
                     <button
                       onClick={handleNewDrug}
-                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors inline-flex items-center space-x-2"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Tambah Obat Pertama</span>
@@ -684,49 +742,47 @@ const PharmacyDashboard = () => {
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Transactions Tab */}
-        {activeTab === 'transactions' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-gray-900">Manajemen Transaksi Obat</h3>
-                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                  <div className="flex-1 sm:flex-none sm:w-80 relative">
-                    <input
-                      type="text"
-                      placeholder="Cari transaksi..."
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full text-gray-700"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          {activeTab === 'transactions' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900">Manajemen Transaksi Obat</h3>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Cari Transaksi..."
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    </div>
+
+                    <button
+                      onClick={handleNewTransaction}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Transaksi Baru
+                    </button>
                   </div>
-
-                  <button
-                    onClick={handleNewTransaction}
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 whitespace-nowrap"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Transaksi Baru</span>
-                  </button>
                 </div>
               </div>
 
-              {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Transaksi</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pasien</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Transaksi</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pasien</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -773,7 +829,6 @@ const PharmacyDashboard = () => {
                           <button
                             onClick={() => handleViewDetail(transaction)}
                             className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
-                            title="Lihat Detail"
                           >
                             <Eye className="h-4 w-4" />
                             <span>Detail</span>
@@ -783,7 +838,6 @@ const PharmacyDashboard = () => {
                               <button
                                 onClick={() => handleEditTransaction(transaction)}
                                 className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
-                                title="Edit Transaksi"
                               >
                                 <Edit className="h-4 w-4" />
                                 <span>Edit</span>
@@ -791,7 +845,6 @@ const PharmacyDashboard = () => {
                               <button
                                 onClick={() => handleCancelTransaction(transaction.id)}
                                 className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
-                                title="Batalkan Transaksi"
                               >
                                 <XCircle className="h-4 w-4" />
                                 <span>Batalkan</span>
@@ -805,16 +858,13 @@ const PharmacyDashboard = () => {
                 </table>
               </div>
 
-              {/* Mobile Cards */}
               <div className="lg:hidden space-y-4 p-4">
                 {filteredTransactions.map((transaction) => (
                   <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 text-lg mb-1">
-                          {transaction.patientName}
-                        </h4>
-                        <p className="text-sm text-gray-600 mb-2">{transaction.mrNumber}</p>
+                        <h4 className="font-semibold text-gray-900 text-lg">{transaction.patientName}</h4>
+                        <p className="text-sm text-gray-600">RM: {transaction.mrNumber}</p>
                         <p className="text-sm font-mono text-gray-500">#{transaction.id.slice(-8)}</p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
@@ -825,40 +875,31 @@ const PharmacyDashboard = () => {
                       </span>
                     </div>
 
-                    <div className="mb-4 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Items:</span>
-                        <span className="text-sm text-gray-900">
-                          {transaction.items.length} obat ({transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit)
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                      <div>
+                        <span className="text-gray-600">
+                          Items: {transaction.items.length} obat ({transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit)
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Total:</span>
-                        <span className="text-sm font-semibold text-gray-900">
-                          Rp {transaction.totalAmount.toLocaleString('id-ID')}
+                      <div>
+                        <span className="text-gray-600 font-semibold">
+                          Total: Rp {transaction.totalAmount.toLocaleString('id-ID')}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Tanggal:</span>
-                        <span className="text-sm text-gray-900">
-                          {new Date(transaction.createdAt).toLocaleDateString('id-ID')} {new Date(transaction.createdAt).toLocaleTimeString('id-ID', {
+                      <div className="col-span-2">
+                        <span className="text-gray-600">
+                          Tanggal: {new Date(transaction.createdAt).toLocaleDateString('id-ID')} {new Date(transaction.createdAt).toLocaleTimeString('id-ID', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
                         </span>
                       </div>
-                      {transaction.notes && (
-                        <div className="pt-2 border-t border-gray-200">
-                          <span className="text-sm font-medium text-gray-600">Catatan:</span>
-                          <p className="text-sm text-gray-700 mt-1">{transaction.notes}</p>
-                        </div>
-                      )}
                     </div>
 
-                    <div className="flex space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => handleViewDetail(transaction)}
-                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                        className="bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                       >
                         <Eye className="h-4 w-4" />
                         <span>Detail</span>
@@ -867,38 +908,32 @@ const PharmacyDashboard = () => {
                         <>
                           <button
                             onClick={() => handleEditTransaction(transaction)}
-                            className="flex-1 bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
+                            className="bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
                           >
                             <Edit className="h-4 w-4" />
                             <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleCancelTransaction(transaction.id)}
-                            className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                            className="col-span-2 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
                           >
                             <XCircle className="h-4 w-4" />
-                            <span>Batal</span>
+                            <span>Batalkan</span>
                           </button>
                         </>
                       )}
                     </div>
-
-                    {transaction.status === 'COMPLETED' && transaction.completedAt && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="text-xs text-green-600 flex items-center space-x-1">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>Diselesaikan: {new Date(transaction.completedAt).toLocaleDateString('id-ID')} {new Date(transaction.completedAt).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
+
+                {filteredTransactions.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>{searchTerm ? 'Tidak ada transaksi yang ditemukan' : 'Belum ada transaksi'}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Empty State */}
               {filteredTransactions.length === 0 && (
                 <div className="text-center py-12 px-4">
                   <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -914,7 +949,7 @@ const PharmacyDashboard = () => {
                   {!searchTerm && (
                     <button
                       onClick={handleNewTransaction}
-                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors inline-flex items-center space-x-2"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Buat Transaksi Pertama</span>
@@ -923,11 +958,10 @@ const PharmacyDashboard = () => {
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Drug Form */}
       <DataObatForm
         isOpen={showDrugForm}
         onClose={() => {
@@ -940,7 +974,6 @@ const PharmacyDashboard = () => {
         viewMode={drugViewMode}
       />
 
-      {/* Transaction Form */}
       <TransaksiObatForm
         isOpen={showTransactionForm}
         onClose={() => {
@@ -954,6 +987,14 @@ const PharmacyDashboard = () => {
         editingTransaction={editingTransaction}
         viewMode={viewMode}
       />
+
+      {showRefreshSplash && (
+        <SplashScreen
+          onFinish={handleRefreshSplashFinish}
+          message="Memuat ulang data..."
+          duration={1500}
+        />
+      )}
     </div>
   );
 };

@@ -3,26 +3,31 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
 
 interface SplashScreenProps {
   onFinish: () => void;
+  message?: string;
+  duration?: number;
 }
 
-const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+const SplashScreen: React.FC<SplashScreenProps> = ({ 
+  onFinish, 
+  message = "Memuat aplikasi...",
+  duration = 2000
+}) => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(onFinish, 700); 
-    }, 300);
+      setTimeout(onFinish, 700);
+    }, duration);
 
     return () => clearTimeout(timer);
-  }, [onFinish]);
+  }, [onFinish, duration]);
 
   return (
-    <div className={`fixed inset-0 z-50 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`fixed inset-0 z-50 transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-green-50">
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-20 left-20 w-32 h-32 border border-green-200 rounded-full"></div>
@@ -32,14 +37,13 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       </div>
 
       <div className="relative z-10 flex flex-col items-center justify-center h-full px-8">
-        
+
         {/* Hospital Logo - Modern Medical Cross */}
         <div className="mb-8 relative">
           <div className="w-20 h-20 bg-white rounded-2xl shadow-lg border border-green-100 flex items-center justify-center transform transition-transform duration-500 hover:scale-105">
-            <div className="relative">
-              <div className="w-8 h-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full"></div>
-              <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-green-500 rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
-            </div>
+            <span className="text-2xl font-extrabold bg-gradient-to-r from-emerald-500 to-green-600 bg-clip-text text-transparent">
+              KD
+            </span>
           </div>
           <div className="absolute inset-0 w-20 h-20 bg-emerald-200 rounded-2xl blur-xl opacity-20 animate-pulse"></div>
         </div>
@@ -47,12 +51,12 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         {/* Hospital Name */}
         <div className="text-center space-y-2 mb-8">
           <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
-            RS Pantinugroho
+            KAWAN DIABETES
           </h1>
           <div className="flex items-center justify-center space-x-2">
             <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent"></div>
             <p className="text-sm font-medium text-emerald-600 tracking-wide uppercase">
-              Diabetes Care
+              RS Panti Nugroho
             </p>
             <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent"></div>
           </div>
@@ -70,7 +74,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             <div className="absolute inset-0 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
           <p className="text-xs text-gray-500 font-medium tracking-wide">
-            Memuat aplikasi...
+            {message}
           </p>
         </div>
       </div>

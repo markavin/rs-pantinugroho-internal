@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, User, Calendar, Activity, FileText, Users, Menu, X, Plus, Edit, Trash2, Eye, AlertCircle, Filter } from 'lucide-react';
 import PatientRegistrationForm from './PatientRegistrationForm';
 import PatientComplaintForm from './PatientComplaintForm';
+import SplashScreen from '@/components/SplashScreen';
 
 interface Patient {
   id: string;
@@ -29,7 +30,7 @@ interface PatientComplaint {
   patientId: string;
   recordType: 'COMPLAINTS';
   title: string;
-  content: string; 
+  content: string;
   metadata?: {
     severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
     status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
@@ -162,29 +163,39 @@ const AdministrasiDashboard = () => {
   const filteredPatients = getFilteredPatients();
 
   const refreshData = async () => {
-    const fetchData = async () => {
-      try {
-        const patientsResponse = await fetch('/api/patients');
-        if (patientsResponse.ok) {
-          const patientsData = await patientsResponse.json();
-          setPatients(patientsData);
-        }
+    setShowRefreshSplash(true);
 
-        const complaintsResponse = await fetch('/api/patient-complaints');
-        if (complaintsResponse.ok) {
-          const complaintsData = await complaintsResponse.json();
-          setComplaints(complaintsData);
-        }
-
-      } catch (error) {
-        console.error('Error refreshing data:', error);
+    try {
+      const patientsResponse = await fetch('/api/patients');
+      if (patientsResponse.ok) {
+        const patientsData = await patientsResponse.json();
+        setPatients(patientsData);
       }
-    };
 
-    await fetchData();
+      const complaintsResponse = await fetch('/api/patient-complaints');
+      if (complaintsResponse.ok) {
+        const complaintsData = await complaintsResponse.json();
+        setComplaints(complaintsData);
+      }
+
+      const statsResponse = await fetch('/api/dashboard/admin-stats');
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+      }
+
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
+  };
+
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
+    setIsRefreshing(false);
   };
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   const formatDate = (date: Date | string) => {
     if (!date) return '-';
@@ -300,7 +311,7 @@ const AdministrasiDashboard = () => {
 
   const getBMIStatus = (bmi: number | undefined) => {
     if (!bmi) return { label: 'N/A', color: 'bg-gray-100 text-gray-800' };
-    
+
     if (bmi < 18.5) return { label: 'Underweight', color: 'bg-blue-100 text-blue-800' };
     if (bmi < 25) return { label: 'Normal', color: 'bg-green-100 text-green-800' };
     if (bmi < 30) return { label: 'Overweight', color: 'bg-yellow-100 text-yellow-800' };
@@ -375,10 +386,9 @@ const AdministrasiDashboard = () => {
             <Menu className="h-5 w-5 text-gray-600" />
           </button>
           <button
-            onClick={async () => {
+            onClick={() => {
               setIsRefreshing(true);
-              await refreshData();
-              setIsRefreshing(false);
+              refreshData();
             }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
@@ -400,10 +410,9 @@ const AdministrasiDashboard = () => {
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
-              onClick={async () => {
+              onClick={() => {
                 setIsRefreshing(true);
-                await refreshData();
-                setIsRefreshing(false);
+                refreshData();
               }}
               disabled={isRefreshing}
               className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
@@ -812,6 +821,14 @@ const AdministrasiDashboard = () => {
             setSelectedPatient(null);
           }}
           onComplaintAdded={fetchDashboardData}
+        />
+      )}
+
+      {showRefreshSplash && (
+        <SplashScreen
+          onFinish={handleRefreshSplashFinish}
+          message="Memuat ulang data..."
+          duration={1500}
         />
       )}
     </div>

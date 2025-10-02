@@ -6,6 +6,7 @@ import {
   X, User, Menu, Calculator, ClipboardList, TrendingDown, Heart,
   Zap, ChevronRight, Save, RefreshCw
 } from 'lucide-react';
+import SplashScreen from '@/components/SplashScreen';
 
 type TabType = 'dashboard' | 'patients' | 'diet-plans' | 'monitoring' | 'food-recall' | 'database' | 'analytics' | 'education';
 
@@ -19,6 +20,7 @@ const NutritionistDashboard = () => {
   const [showMonitoringForm, setShowMonitoringForm] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -316,8 +318,11 @@ const NutritionistDashboard = () => {
   };
 
   const refreshData = async () => {
-    setIsRefreshing(true);
+    setShowRefreshSplash(true);
     await fetchPatients();
+  };
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
     setIsRefreshing(false);
   };
 
@@ -1569,7 +1574,10 @@ const NutritionistDashboard = () => {
           </button>
 
           <button
-            onClick={refreshData}
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-green-500 text-sm text-gray-600 hover:bg-green-300 transition-colors disabled:opacity-50"
           >
@@ -1591,7 +1599,10 @@ const NutritionistDashboard = () => {
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
-              onClick={refreshData}
+              onClick={() => {
+                setIsRefreshing(true);
+                refreshData();
+              }}
               disabled={isRefreshing}
               className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-green-500 
                        text-xs md:text-sm text-gray-600 hover:bg-green-300 transition-colors disabled:opacity-50"
@@ -1649,7 +1660,16 @@ const NutritionistDashboard = () => {
         <PatientDetailModal />
         <DietPlanFormModal />
         <MonitoringFormModal />
+
       </div>
+
+      {showRefreshSplash && (
+        <SplashScreen
+          onFinish={handleRefreshSplashFinish}
+          message="Memuat ulang data..."
+          duration={1500}
+        />
+      )}
     </div>
   );
 };

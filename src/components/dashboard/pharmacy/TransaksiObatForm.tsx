@@ -101,7 +101,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   const updateItem = (index: number, field: keyof DrugTransactionItem, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     if (field === 'drugId') {
       const drug = drugs.find(d => d.id === value);
       if (drug) {
@@ -110,11 +110,11 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         newItems[index].subtotal = newItems[index].quantity * newItems[index].price;
       }
     }
-    
+
     if (field === 'quantity' || field === 'price') {
       newItems[index].subtotal = newItems[index].quantity * newItems[index].price;
     }
-    
+
     setItems(newItems);
 
     const newErrors = { ...errors };
@@ -161,7 +161,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       if (item.price <= 0) {
         newErrors[`price_${index}`] = 'Harga harus lebih dari 0';
       }
-      
+
       const drug = drugs.find(d => d.id === item.drugId);
       if (drug) {
         let availableStock = drug.stock;
@@ -171,7 +171,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
             availableStock += oldItem.quantity;
           }
         }
-        
+
         if (item.quantity > availableStock) {
           newErrors[`stock_${index}`] = `Stok tidak mencukupi (tersedia: ${availableStock})`;
         }
@@ -256,9 +256,9 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
           <div className="flex items-center space-x-3">
-            <Pill className="h-6 w-6 text-emerald-600" />
+            <ShoppingCart className="h-6 w-6 text-green-600" />
             <div>
               <h3 className="text-lg font-semibold text-gray-900">{getTitle()}</h3>
               {editingTransaction && (
@@ -278,13 +278,13 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         <form onSubmit={handleSubmit} className="px-6 py-4">
           <div className="space-y-6">
             {/* Patient Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="border border-gray-300 rounded-lg p-4">
               <div className="flex items-center mb-3">
-                <User className="h-5 w-5 text-blue-600 mr-2" />
-                <h4 className="font-medium text-blue-900">Informasi Pasien</h4>
+                <User className="h-5 w-5 text-green-600 mr-2" />
+                <h4 className="font-medium text-gray-900">Informasi Pasien</h4>
                 {!isDetailMode && <span className="text-red-500 ml-1">*</span>}
               </div>
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   {!isDetailMode ? (
@@ -294,9 +294,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                       </label>
                       <div className="relative">
                         <select
-                          className={`w-full px-4 py-3 pr-10 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none text-gray-900 font-medium ${
-                            errors.patient ? 'border-red-300' : 'border-gray-300'
-                          }`}
+                          className={`w-full px-4 py-3 pr-10 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none text-gray-900 font-medium ${errors.patient ? 'border-red-300' : 'border-gray-300'
+                            }`}
                           value={selectedPatient}
                           onChange={(e) => {
                             setSelectedPatient(e.target.value);
@@ -334,15 +333,29 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                 </div>
 
                 {selectedPatientData && !isDetailMode && (
-                  <div className="bg-white rounded-lg p-3 border">
+                  <div className="bg-white rounded-lg p-3 border shadow-sm">
                     <h5 className="font-medium text-gray-900 mb-2">Detail Pasien</h5>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="text-gray-600">Nama:</span> <span className="font-semibold text-gray-900">{selectedPatientData.name}</span></p>
-                      <p><span className="text-gray-600">No. RM:</span> <span className="font-semibold text-gray-900">{selectedPatientData.mrNumber}</span></p>
-                      {selectedPatientData.phone && (
-                        <p><span className="text-gray-600">Telepon:</span> <span className="font-semibold text-gray-900">{selectedPatientData.phone}</span></p>
-                      )}
-                    </div>
+                    <table className="text-sm">
+                      <tbody className="align-top">
+                        <tr>
+                          <td className="text-gray-600 pr-4">Nama</td>
+                          <td className="px-1">:</td>
+                          <td className="font-semibold text-gray-900">{selectedPatientData.name}</td>
+                        </tr>
+                        <tr>
+                          <td className="text-gray-600 pr-4">No. RM</td>
+                          <td className="px-1">:</td>
+                          <td className="font-semibold text-gray-900">{selectedPatientData.mrNumber}</td>
+                        </tr>
+                        {selectedPatientData.phone && (
+                          <tr>
+                            <td className="text-gray-600 pr-4">Telepon</td>
+                            <td className="px-1">:</td>
+                            <td className="font-semibold text-gray-900">{selectedPatientData.phone}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
@@ -370,11 +383,11 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
             </div>
 
             {/* Items Section */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="bg-white border border-gray-300 rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
-                  <Package className="h-5 w-5 text-green-600 mr-2" />
-                  <h4 className="font-medium text-green-900">Daftar Obat</h4>
+                  <Pill className="h-5 w-5 text-green-600 mr-2" />
+                  <h4 className="font-medium text-gray-900">Daftar Obat</h4>
                   {!isDetailMode && <span className="text-red-500 ml-1">*</span>}
                 </div>
                 {!isDetailMode && (
@@ -382,7 +395,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                     type="button"
                     onClick={addItem}
                     disabled={isSubmitting}
-                    className="bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 text-sm disabled:opacity-50"
+                    className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 text-sm disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
                     <span>Tambah Obat</span>
@@ -426,7 +439,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         </div>
                         <div className="md:col-span-4">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal</label>
-                          <p className="text-lg font-bold text-emerald-600">Rp {item.subtotal.toLocaleString('id-ID')}</p>
+                          <p className="text-lg font-bold text-green-600">Rp {item.subtotal.toLocaleString('id-ID')}</p>
                         </div>
                       </div>
                     ) : (
@@ -434,9 +447,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         <div className="lg:col-span-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Nama Obat</label>
                           <select
-                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-medium text-gray-900 ${
-                              errors[`drug_${index}`] ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`drug_${index}`] ? 'border-red-300' : 'border-gray-300'
+                              }`}
                             value={item.drugId}
                             onChange={(e) => updateItem(index, 'drugId', e.target.value)}
                             disabled={isSubmitting}
@@ -456,9 +468,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                           <input
                             type="number"
                             min="1"
-                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-medium text-gray-900 ${
-                              errors[`quantity_${index}`] || errors[`stock_${index}`] ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`quantity_${index}`] || errors[`stock_${index}`] ? 'border-red-300' : 'border-gray-300'
+                              }`}
                             value={item.quantity || ''}
                             onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                             disabled={isSubmitting}
@@ -473,9 +484,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                             type="number"
                             min="0"
                             step="100"
-                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-medium text-gray-900 ${
-                              errors[`price_${index}`] ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`price_${index}`] ? 'border-red-300' : 'border-gray-300'
+                              }`}
                             value={item.price || ''}
                             onChange={(e) => updateItem(index, 'price', parseInt(e.target.value) || 0)}
                             disabled={isSubmitting}
@@ -532,7 +542,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                       type="button"
                       onClick={addItem}
                       disabled={isSubmitting}
-                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors inline-flex items-center space-x-2 disabled:opacity-50"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors inline-flex items-center space-x-2 disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Tambah Obat Pertama</span>
@@ -544,7 +554,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
 
             {/* Notes */}
             <div>
-              <label className="block text-base font-medium text-gray-800 mb-2">
+              <label className="flex items-center gap-2 text-base font-medium text-gray-800 mb-2">
+                <FileText className="w-5 h-5 text-green-600" />
                 Catatan Resep / Transaksi
               </label>
               {isDetailMode ? (
@@ -554,7 +565,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               ) : (
                 <>
                   <textarea
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none text-gray-900"
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none text-gray-900"
                     rows={3}
                     placeholder="Catatan resep dokter atau instruksi khusus..."
                     value={notes}
@@ -569,39 +580,47 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
             </div>
 
             {/* Summary */}
-            <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-200 rounded-lg p-5 shadow-sm">
-              <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
-                <CreditCard className="h-5 w-5 mr-2 text-emerald-600" />
+            <div className="bg-white border border-green-400 rounded-xl p-5 shadow-md">
+              <h4 className="font-semibold text-green-900 mb-4 flex items-center">
+                <ShoppingCart className="h-5 w-5 mr-2 text-green-600" />
                 Ringkasan Transaksi
               </h4>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 font-medium">Pasien:</span>
-                  <span className="font-semibold text-gray-900 text-base">
-                    {selectedPatientData ? `${selectedPatientData.name} (${selectedPatientData.mrNumber})` : '-'}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Pasien</span>
+                  <span className="font-semibold text-gray-900 text-base text-right">
+                    {selectedPatientData
+                      ? `${selectedPatientData.name} (${selectedPatientData.mrNumber})`
+                      : '-'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 font-medium">Jenis Obat:</span>
-                  <span className="font-semibold text-gray-900 text-base">{items.length} jenis</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Jenis Obat</span>
+                  <span className="font-semibold text-gray-900 text-base">
+                    {items.length} jenis
+                  </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 font-medium">Total Quantity:</span>
-                  <span className="font-semibold text-gray-900 text-base">{totalQuantity} unit</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Quantity</span>
+                  <span className="font-semibold text-gray-900 text-base">
+                    {totalQuantity} unit
+                  </span>
                 </div>
                 {isDetailMode && editingTransaction && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Status:</span>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status</span>
                     {getStatusBadge(editingTransaction.status)}
                   </div>
                 )}
-                <div className="border-t-2 border-emerald-300 pt-3 mt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900">Total Pembayaran:</span>
-                    <span className="text-2xl font-bold text-emerald-600">
-                      Rp {totalAmount.toLocaleString('id-ID')}
-                    </span>
-                  </div>
+              </div>
+              <div className="border-t border-green-200 mt-4 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold text-gray-900">
+                    Total Pembayaran
+                  </span>
+                  <span className="text-2xl font-bold text-green-600">
+                    Rp {totalAmount.toLocaleString('id-ID')}
+                  </span>
                 </div>
               </div>
             </div>
@@ -621,7 +640,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting || items.length === 0 || !selectedPatient}
-                className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 font-medium"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 font-medium"
               >
                 {isSubmitting ? (
                   <>
@@ -631,7 +650,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                 ) : (
                   <>
                     <ShoppingCart className="h-4 w-4" />
-                    <span>{isEditMode ? 'Update Transaksi' : 'Simpan Transaksi'}</span>
+                    <span>{isEditMode ? 'Update Transaksi' : 'Tambah Transaksi'}</span>
                   </>
                 )}
               </button>

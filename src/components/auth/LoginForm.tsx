@@ -20,7 +20,7 @@ export default function LoginForm() {
     setError('');
 
     try {
-      console.log('🔍 Attempting login for:', login);
+      console.log('Attempting login for:', login);
       
       const result = await signIn('credentials', {
         login,
@@ -28,17 +28,17 @@ export default function LoginForm() {
         redirect: false, // Jangan auto redirect
       });
 
-      console.log('🔍 Sign in result:', result);
+      console.log('Sign in result:', result);
 
       if (result?.error) {
-        console.error('❌ Sign in error:', result.error);
+        console.error('Sign in error:', result.error);
         setError('Email/Username atau password salah');
         setIsLoading(false);
         return;
       }
 
       if (result?.ok) {
-        console.log('✅ Sign in successful');
+        console.log('Sign in successful');
         
         // Tunggu sebentar untuk memastikan session ter-update
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -58,12 +58,12 @@ export default function LoginForm() {
           router.push(dashboardRoute);
           router.refresh(); // Refresh untuk memastikan state terbaru
         } else {
-          console.error('❌ No session found after successful login');
+          console.error('No session found after successful login');
           setError('Terjadi kesalahan sistem. Silakan coba lagi.');
         }
       }
     } catch (error) {
-      console.error('❌ Login error:', error);
+      console.error('Login error:', error);
       setError('Terjadi kesalahan sistem. Silakan coba lagi.');
     }
     
@@ -92,10 +92,10 @@ export default function LoginForm() {
         {/* Hospital Logo and Title */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-3xl">🏥</span>
+            <span className="text-white text-3xl font-bold">KD</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">RS Panti Nugroho</h1>
-          <p className="text-gray-600">Kawan Diabetes</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Kawan Diabetes</h1>
+          <p className="text-gray-600">RS Panti Nugroho</p>
         </div>
 
         {/* Login Form */}

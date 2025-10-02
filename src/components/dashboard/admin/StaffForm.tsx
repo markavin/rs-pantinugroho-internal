@@ -360,7 +360,7 @@ export default function StaffForm({ isOpen, onClose, onSuccess, editingStaff, mo
                 disabled={isLoading}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {isLoading ? 'Menyimpan...' : (mode === 'edit' ? 'Update Staff' : 'Simpan Staff')}
+                {isLoading ? 'Menyimpan...' : (mode === 'edit' ? 'Update Staff' : 'Tambah Staff')}
               </button>
             )}
           </div>

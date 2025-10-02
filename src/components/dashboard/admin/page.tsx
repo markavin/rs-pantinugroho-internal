@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database, Edit, Trash2, Eye, Menu, X } from 'lucide-react';
 import StaffForm from './StaffForm';
 import { useStaffManagement } from './useStaffManagement';
+import SplashScreen from '@/components/SplashScreen';
 
 const AdminDashboard = () => {
   const { staff, setStaff, loading, error, refetchStaff, deleteStaff } = useStaffManagement();
@@ -69,21 +70,26 @@ const AdminDashboard = () => {
   };
 
   const refreshData = async () => {
-    const fetchData = async () => {
-      try {
-        const staffResponse = await fetch('api/dashboard?type=staff');
-        if (staffResponse.ok) {
-          const staffData = await staffResponse.json();
-          setStaff(staffData);
-        }
-      } catch (error) {
-        console.error('Error Refreshing data:', error)
+    setShowRefreshSplash(true);
+    try {
+      const staffResponse = await fetch('api/dashboard?type=staff');
+      if (staffResponse.ok) {
+        const staffData = await staffResponse.json();
+        setStaff(staffData);
       }
-    };
-
-    await fetchData();
+    } catch (error) {
+      console.error('Error Refreshing data:', error)
+    }
   };
+
+  const handleRefreshSplashFinish = () => {
+    setShowRefreshSplash(false);
+    setIsRefreshing(false);
+  };
+
+
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   const filteredStaff = staff.filter(person =>
     person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,7 +144,6 @@ const AdminDashboard = () => {
   };
 
   const maxLogins = Math.max(...realTimeStats.weeklyActivity.map(d => d.logins || 0), 1);
-
   // Navigation items
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
@@ -159,13 +164,13 @@ const AdminDashboard = () => {
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-green-500 to-green-600 text-white">
-          <h2 className="text-lg font-bold text-white-900">Menu Admin</h2>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-m font-semibold text-gray-900">Menu Admin</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
-            className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors flex-shrink-0"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
@@ -201,10 +206,9 @@ const AdminDashboard = () => {
           </button>
 
           <button
-            onClick={async () => {
+            onClick={() => {
               setIsRefreshing(true);
-              await refreshData();
-              setIsRefreshing(false);
+              refreshData();
             }}
             disabled={isRefreshing}
             className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
@@ -227,10 +231,9 @@ const AdminDashboard = () => {
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
-              onClick={async () => {
+              onClick={() => {
                 setIsRefreshing(true);
-                await refreshData();
-                setIsRefreshing(false);
+                refreshData();
               }}
               disabled={isRefreshing}
               className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
@@ -681,6 +684,14 @@ const AdminDashboard = () => {
           editingStaff={editingStaff}
           mode={formMode}
         />
+
+        {showRefreshSplash && (
+          <SplashScreen
+            onFinish={handleRefreshSplashFinish}
+            message="Memuat ulang data..."
+            duration={1500}
+          />
+        )}
       </div>
     </div>
   );
