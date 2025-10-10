@@ -191,6 +191,24 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       });
 
       if (response.ok) {
+        const newPatient = await response.json();
+
+        // CREATE ALERT untuk Perawat Poli
+        if (formMode === 'add') {
+          await fetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'INFO',
+              message: `Pasien baru ${newPatient.name} terdaftar, segera lakukan pemeriksaan awal`,
+              patientId: newPatient.id,
+              category: 'SYSTEM',
+              priority: 'MEDIUM',
+              targetRole: 'PERAWAT_POLI'
+            }),
+          });
+        }
+
         onPatientAdded();
         if (onClose) {
           onClose();
@@ -780,7 +798,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                   type="button"
                   onClick={() => {
                     const newComplaint: PatientComplaint = {
-                      id: `temp_${Date.now()}`, 
+                      id: `temp_${Date.now()}`,
                       patientId: selectedPatient?.id || '',
                       complaint: '',
                       severity: 'RINGAN',
@@ -880,9 +898,9 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <ClipboardList className="h-6 w-6 mr-2 text-green-600" />
-            {getModalTitle()}
-          </h2>
+              <ClipboardList className="h-6 w-6 mr-2 text-green-600" />
+              {getModalTitle()}
+            </h2>
             <button
               onClick={onClose}
               className="text-gray-900 hover:text-gray-600 transition-colors"

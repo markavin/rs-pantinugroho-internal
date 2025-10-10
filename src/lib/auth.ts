@@ -25,9 +25,8 @@ export const ROLE_NAMES: Record<UserRole, string> = {
   FARMASI: 'Farmasi'
 };
 
-// Role permissions for different access levels
 export const ROLE_PERMISSIONS = {
-  SUPER_ADMIN: ['all'], // Full system access
+  SUPER_ADMIN: ['all'],
   DOKTER_SPESIALIS: ['patients', 'appointments', 'prescriptions', 'medical_records', 'education'],
   PERAWAT_RUANGAN: ['patients', 'medications', 'vital_signs', 'lab_results', 'education'],
   PERAWAT_POLI: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
@@ -37,12 +36,10 @@ export const ROLE_PERMISSIONS = {
   FARMASI: ['prescriptions', 'medications', 'drug_interactions', 'patient_conditions', 'inventory']
 };
 
-// Get current session
 export async function getSession() {
   return await getServerSession(authOptions);
 }
 
-// Helper function for requiring authentication
 export async function requireAuth(allowedRoles: UserRole[] = []) {
   const session = await getSession();
 
@@ -57,17 +54,14 @@ export async function requireAuth(allowedRoles: UserRole[] = []) {
   return session;
 }
 
-// Helper function to check if user has specific role
 export function hasRole(session: any, role: UserRole): boolean {
   return session?.user?.role === role;
 }
 
-// Helper function to check if user has any of the specified roles
 export function hasAnyRole(session: any, roles: UserRole[]): boolean {
   return session?.user?.role && roles.includes(session.user.role);
 }
 
-// Helper function to check if user has specific permission
 export function hasPermission(session: any, permission: string): boolean {
   const userRole = session?.user?.role as UserRole;
   if (!userRole) return false;
@@ -76,7 +70,6 @@ export function hasPermission(session: any, permission: string): boolean {
   return permissions.includes('all') || permissions.includes(permission);
 }
 
-// Type guard untuk memastikan user ada
 export function isAuthenticated(session: any): session is {
   user: {
     id: string;
@@ -89,7 +82,6 @@ export function isAuthenticated(session: any): session is {
   return session?.user?.id && session?.user?.role;
 }
 
-// Helper to get role-based dashboard path - FIXED TO MATCH [role] MAPPING
 export function getDashboardPath(role: UserRole): string {
   switch (role) {
     case 'SUPER_ADMIN': return '/dashboard/admin';

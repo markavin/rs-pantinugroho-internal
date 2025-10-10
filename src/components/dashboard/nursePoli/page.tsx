@@ -1,10 +1,12 @@
-// src/components/dashboard/nursePoli/page.tsx
+// src/app/dashboard/nurse-poli/page.tsx
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Search, User, Calendar, Activity, FileText, Users, Menu, X, FlaskConical, History, Eye } from 'lucide-react';
-import LabResultForm from './LabResultForm';
-import LabHistoryView from './LabHistoryView';
+import { Search, User, Activity, History, Eye, Menu, X, FlaskConical, ClipboardCheck, Plus } from 'lucide-react';
+import PatientExaminationForm from '@/components/dashboard/nursePoli/PatientExaminationForm';
+import LabHistoryView from '@/components/dashboard/nursePoli/LabHistoryView';
 import SplashScreen from '@/components/SplashScreen';
-import { triggerAsyncId } from 'async_hooks';
+import { useSession } from 'next-auth/react';
 
 interface Patient {
   id: string;
@@ -15,47 +17,47 @@ interface Patient {
   phone?: string;
   height?: number;
   weight?: number;
+  bmi?: number;
   diabetesType?: string;
   insuranceType: string;
   lastVisit?: Date;
   status?: string;
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+  allergies?: string[];
   createdAt: Date;
 }
 
-interface LabResult {
-  id: string;
-  patientId: string;
-  testType: string;
-  value: string;
-  normalRange: string;
-  testDate: Date;
-  status: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL';
-  notes?: string;
-  patient: {
-    name: string;
-    mrNumber: string;
-  };
-}
-
 interface DashboardStats {
-  totalPatients: number;
-  todayLabResults: number;
-  pendingResults: number;
+  totalPatientsToday: number;
+  examinationsToday: number;
+  waitingForDoctor: number;
+  abnormalResults: number;
 }
 
 const NursePoliDashboard = () => {
+  const { data: session } = useSession();
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'lab-input' | 'lab-history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'history'>('dashboard');
   const [stats, setStats] = useState<DashboardStats>({
-    totalPatients: 0,
-    todayLabResults: 0,
-    pendingResults: 0
+    totalPatientsToday: 0,
+    examinationsToday: 0,
+    waitingForDoctor: 0,
+    abnormalResults: 0
   });
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  
+  // State untuk Modal Pemeriksaan
+  const [showExaminationForm, setShowExaminationForm] = useState(false);
+  const [selectedPatientForExam, setSelectedPatientForExam] = useState<Patient | null>(null);
+  
+  // State untuk Riwayat
+  const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
+  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
+  const [recentExaminations, setRecentExaminations] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -65,33 +67,26 @@ const NursePoliDashboard = () => {
     try {
       setLoading(true);
 
-      // Fetch patients - Perawat Poli can view patients for lab purposes
-      const patientsResponse = await fetch('/api/patients');
-      if (patientsResponse.ok) {
-        const patientsData = await patientsResponse.json();
+      // Fetch patients (aktif/rawat jalan)
+      const patientsRes = await fetch('/api/patients?activeOnly=true');
+      if (patientsRes.ok) {
+        const patientsData = await patientsRes.json();
         setPatients(patientsData);
-      } else {
-        console.error('Failed to fetch patients:', await patientsResponse.text());
-      }
-
-      // Fetch lab results
-      const labResponse = await fetch('/api/lab-results');
-      if (labResponse.ok) {
-        const labData = await labResponse.json();
-        setLabResults(labData);
-      } else {
-        console.error('Failed to fetch lab results:', await labResponse.text());
       }
 
       // Fetch stats
-      const statsResponse = await fetch('/api/dashboard/nurse-poli-stats');
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
+      const statsRes = await fetch('/api/dashboard/nurse-poli-stats');
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
         setStats(statsData);
-      } else {
-        console.error('Failed to fetch stats:', await statsResponse.text());
       }
 
+      // Fetch recent examinations
+      const recordsRes = await fetch('/api/patient-records?type=VITAL_SIGNS&limit=5');
+      if (recordsRes.ok) {
+        const recordsData = await recordsRes.json();
+        setRecentExaminations(recordsData);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -101,25 +96,13 @@ const NursePoliDashboard = () => {
 
   const refreshData = async () => {
     setShowRefreshSplash(true);
-    try {
-      const patientsResponse = await fetch('/api/dashboard?type=patients');
-      if (patientsResponse.ok) {
-        const patientsData = await patientsResponse.json();
-        setPatients(patientsData);
-      }
-
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    }
+    await fetchDashboardData();
   };
 
   const handleRefreshSplashFinish = () => {
     setShowRefreshSplash(false);
     setIsRefreshing(false);
   };
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -128,35 +111,52 @@ const NursePoliDashboard = () => {
 
   const formatDate = (date: Date | string) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('id-ID');
+    return new Date(date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   };
 
-  const handleTabChange = (tab: 'dashboard' | 'patients' | 'lab-input' | 'lab-history') => {
+  const formatTime = (date: Date | string) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const handleTabChange = (tab: 'dashboard' | 'patients' | 'history') => {
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
+    
+    // Reset selection saat pindah tab
+    if (tab !== 'history') setSelectedPatientForHistory(null);
+  };
+
+  const handleOpenExaminationForm = (patient: Patient) => {
+    setSelectedPatientForExam(patient);
+    setShowExaminationForm(true);
+  };
+
+  const handleCloseExaminationForm = () => {
+    setShowExaminationForm(false);
+    setSelectedPatientForExam(null);
+  };
+
+  const handleExaminationComplete = () => {
+    fetchDashboardData(); // Refresh data setelah pemeriksaan selesai
   };
 
   const handleViewPatientHistory = (patient: Patient) => {
-    setSelectedPatient(patient);
-    setActiveTab('lab-history');
+    setSelectedPatientForHistory(patient);
+    setActiveTab('history');
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CRITICAL': return 'text-red-700 bg-red-50 border-red-200';
-      case 'HIGH': return 'text-orange-700 bg-orange-50 border-orange-200';
-      case 'LOW': return 'text-yellow-700 bg-yellow-50 border-yellow-200';
-      case 'NORMAL': return 'text-green-700 bg-green-50 border-green-200';
-      default: return 'text-gray-700 bg-gray-50 border-gray-200';
-    }
-  };
-
-  // Navigation items - Perawat Poli focused on lab work
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
-    { key: 'patients', label: 'Data Pasien', icon: Users },
-    { key: 'lab-input', label: 'Input Lab', icon: FlaskConical },
-    { key: 'lab-history', label: 'Riwayat Lab', icon: History }
+    { key: 'patients', label: 'Daftar Pasien', icon: User },
+    { key: 'history', label: 'Riwayat', icon: History }
   ];
 
   return (
@@ -170,12 +170,11 @@ const NursePoliDashboard = () => {
       )}
 
       {/* Mobile Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
+        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-m font-semibold text-gray-900">Menu Perawat Poli</h2>
-          </div>
+          <h2 className="text-sm font-semibold text-gray-900">Menu Perawat Poli</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -188,25 +187,24 @@ const NursePoliDashboard = () => {
           {navigationItems.map(item => {
             const IconComponent = item.icon;
             return (
-              <div key={item.key}>
-                <button
-                  onClick={() => handleTabChange(item.key as any)}
-                  className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+              <button
+                key={item.key}
+                onClick={() => handleTabChange(item.key as any)}
+                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
+                  activeTab === item.key
                     ? 'bg-green-100 text-green-700 border border-green-200'
                     : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                  <IconComponent className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </button>
-
-              </div>
+                }`}
+              >
+                <IconComponent className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
             );
           })}
         </nav>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
@@ -221,62 +219,62 @@ const NursePoliDashboard = () => {
               refreshData();
             }}
             disabled={isRefreshing}
-            className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-emerald-500 text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
+            className="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-green-500 text-sm text-gray-600 hover:bg-green-50 transition-colors disabled:opacity-50"
           >
             {isRefreshing ? (
               <>
-                <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
-                <span>Refreshing...</span>
+                <div className="animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refresh...</span>
               </>
             ) : (
               <>
-                <Activity className="h-4 w-4 mr-2 text-emerald-600" />
+                <Activity className="h-4 w-4 mr-2 text-green-600" />
                 <span>Refresh</span>
               </>
             )}
           </button>
         </div>
+
         {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-end mb-6">
-          <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
-            <button
-              onClick={() => {
-                setIsRefreshing(true);
-                refreshData();
-              }}
-              disabled={isRefreshing}
-              className="flex items-center bg-white px-3 md:px-4 py-2 rounded-lg shadow-sm border border-emerald-500 
-               text-xs md:text-sm text-gray-600 hover:bg-emerald-300 transition-colors disabled:opacity-50"
-            >
-              {isRefreshing ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
-                  <span>Refreshing...</span>
-                </>
-              ) : (
-                <>
-                  <Activity className="h-4 w-4 mr-2 text-emerald-600" />
-                  <span>Refresh Data</span>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setIsRefreshing(true);
+              refreshData();
+            }}
+            disabled={isRefreshing}
+            className="flex items-center bg-white px-4 py-2 rounded-lg shadow-sm border border-green-500 text-sm text-gray-600 hover:bg-green-50 transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full mr-2"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 mr-2 text-green-600" />
+                <span>Refresh Data</span>
+              </>
+            )}
+          </button>
         </div>
+
         <div className="space-y-6">
           {/* Navigation Tabs - Desktop */}
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-50 px-6 justify-center">
+              <nav className="-mb-px flex space-x-8 px-6 justify-center">
                 {navigationItems.map(tab => {
                   const IconComponent = tab.icon;
                   return (
                     <button
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key as any)}
-                      className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                        }`}
+                      className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                        activeTab === tab.key
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                      }`}
                     >
                       <IconComponent className="h-5 w-5" />
                       <span>{tab.label}</span>
@@ -287,169 +285,170 @@ const NursePoliDashboard = () => {
             </div>
           </div>
 
-          {/* Dashboard Tab */}
+          {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {loading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-green-600">Total Pasien</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalPatients}</p>
-                        <p className="text-xs text-green-600 mt-1">Data untuk keperluan lab</p>
-                      </div>
-                      <div className="bg-green-100 p-3 rounded-full">
-                        <Users className="h-8 w-8 text-green-600" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-blue-600">Lab Hari Ini</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.todayLabResults}</p>
-                        <p className="text-xs text-blue-600 mt-1">Hasil yang diinput</p>
-                      </div>
-                      <div className="bg-blue-100 p-3 rounded-full">
-                        <FlaskConical className="h-8 w-8 text-blue-600" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-orange-600">Hasil Pending</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.pendingResults}</p>
-                        <p className="text-xs text-orange-600 mt-1">Perlu ditindaklanjuti</p>
-                      </div>
-                      <div className="bg-orange-100 p-3 rounded-full">
-                        <History className="h-8 w-8 text-orange-600" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Recent Lab Results */}
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Hasil Lab Terbaru</h3>
-                </div>
-                <div className="p-6">
-                  {labResults.length > 0 ? (
-                    <div className="space-y-4">
-                      {labResults.slice(0, 5).map((result) => (
-                        <div key={result.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                              <FlaskConical className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-900">{result.patient.name}</p>
-                              <p className="text-sm text-gray-500">{result.testType}: {result.value}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(result.status)}`}>
-                              {result.status}
-                            </span>
-                            <p className="text-xs text-gray-400 mt-1">{formatDate(result.testDate)}</p>
-                          </div>
+                <>
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-600">Pasien Aktif</p>
+                          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalPatientsToday}</p>
                         </div>
-                      ))}
+                        <div className="bg-blue-100 p-3 rounded-full">
+                          <User className="h-8 w-8 text-blue-600" />
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      <FlaskConical className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2">Belum ada hasil laboratorium</p>
-                      <p>Mulai dengan menginput hasil lab dari tab "Input Lab"</p>
+
+                    <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-green-600">Pemeriksaan Hari Ini</p>
+                          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.examinationsToday}</p>
+                        </div>
+                        <div className="bg-green-100 p-3 rounded-full">
+                          <ClipboardCheck className="h-8 w-8 text-green-600" />
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-orange-600">Menunggu Dokter</p>
+                          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.waitingForDoctor}</p>
+                        </div>
+                        <div className="bg-orange-100 p-3 rounded-full">
+                          <Activity className="h-8 w-8 text-orange-600" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-red-600">Hasil Abnormal</p>
+                          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.abnormalResults}</p>
+                        </div>
+                        <div className="bg-red-100 p-3 rounded-full">
+                          <FlaskConical className="h-8 w-8 text-red-600" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Examinations */}
+                  <div className="bg-white rounded-lg shadow-sm">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Pemeriksaan Terbaru</h3>
+                    </div>
+                    <div className="p-6">
+                      {recentExaminations.length > 0 ? (
+                        <div className="space-y-3">
+                          {recentExaminations.map((record) => (
+                            <div key={record.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                  <ClipboardCheck className="h-5 w-5 text-green-600" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{record.patient?.name || 'Pasien'}</p>
+                                  <p className="text-sm text-gray-500">{record.title}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-gray-900">{formatDate(record.createdAt)}</p>
+                                <p className="text-xs text-gray-500">{formatTime(record.createdAt)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-500 py-8">
+                          <ClipboardCheck className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                          <p className="text-lg font-medium mb-2">Belum ada pemeriksaan hari ini</p>
+                          <p>Mulai dengan memeriksa pasien dari menu Daftar Pasien</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* Patients Tab - READ ONLY for Perawat Poli */}
+          {/* TAB: DAFTAR PASIEN */}
           {activeTab === 'patients' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-6 border-b border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  {/* Title */}
-                  <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien</h3>
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    {/* Search Input */}
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        placeholder="Cari Pasien..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                    </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien Aktif</h3>
+                  <div className="relative flex-1 max-w-md">
+                    <input
+                      type="text"
+                      placeholder="Cari nama atau RM..."
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                   </div>
                 </div>
               </div>
 
-              {/* Desktop Table View */}
+              {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        No. RM
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Nama
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Jenis Kelamin
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Penjamin
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Kunjungan Terakhir
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Aksi Lab
-                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RM</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">L/P</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penjamin</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredPatients.map((patient) => (
                       <tr key={patient.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {patient.mrNumber}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{patient.mrNumber}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{patient.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {patient.gender === 'MALE' ? 'L' : 'P'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {patient.name}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{patient.insuranceType}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' :
+                            patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {patient.status || 'AKTIF'}
+                          </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {patient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {patient.insuranceType}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(patient.lastVisit || patient.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                          <button
+                            onClick={() => handleOpenExaminationForm(patient)}
+                            className="text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded font-medium inline-flex items-center space-x-1 transition-colors"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Pemeriksaan</span>
+                          </button>
                           <button
                             onClick={() => handleViewPatientHistory(patient)}
-                            className="text-green-600 hover:text-green-900 font-medium inline-flex items-center space-x-1"
+                            className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
                           >
                             <Eye className="h-4 w-4" />
-                            <span>Lihat Riwayat Lab</span>
+                            <span>Riwayat</span>
                           </button>
                         </td>
                       </tr>
@@ -459,18 +458,15 @@ const NursePoliDashboard = () => {
 
                 {filteredPatients.length === 0 && (
                   <div className="text-center py-12 text-gray-500">
-                    <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <User className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p className="text-lg font-medium mb-2">
-                      {searchTerm ? 'Tidak ada pasien yang ditemukan' : 'Belum ada data pasien'}
-                    </p>
-                    <p className="text-sm">
-                      {searchTerm ? 'Coba gunakan kata kunci yang berbeda' : 'Data pasien akan muncul setelah registrasi oleh administrasi'}
+                      {searchTerm ? 'Tidak ada pasien ditemukan' : 'Belum ada pasien aktif'}
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Mobile Card View */}
+              {/* Mobile Cards */}
               <div className="lg:hidden space-y-4 p-4">
                 {filteredPatients.map((patient) => (
                   <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4">
@@ -478,63 +474,69 @@ const NursePoliDashboard = () => {
                       <div>
                         <h4 className="font-semibold text-gray-900">{patient.name}</h4>
                         <p className="text-sm text-gray-600">RM: {patient.mrNumber}</p>
+                        <p className="text-sm text-gray-600">{patient.insuranceType}</p>
                       </div>
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                        {patient.insuranceType}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {patient.status || 'AKTIF'}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-600 mb-3">
-                      <p>{patient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
-                      <p>Terakhir: {formatDate(patient.lastVisit || patient.createdAt)}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleOpenExaminationForm(patient)}
+                        className="bg-green-600 text-white py-2 px-3 rounded-md text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Periksa</span>
+                      </button>
+                      <button
+                        onClick={() => handleViewPatientHistory(patient)}
+                        className="bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Riwayat</span>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleViewPatientHistory(patient)}
-                      className="w-full bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
-                    >
-                      <Eye className="h-4 w-4" />
-                      <span>Lihat Riwayat Lab</span>
-                    </button>
                   </div>
                 ))}
 
                 {filteredPatients.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>
-                      {searchTerm ? 'Tidak ada pasien yang ditemukan' : 'Belum ada data pasien'}
-                    </p>
+                    <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>{searchTerm ? 'Tidak ada pasien ditemukan' : 'Belum ada pasien aktif'}</p>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Lab Input Tab */}
-          {activeTab === 'lab-input' && (
-            <LabResultForm
-              patients={patients}
-              onLabResultAdded={fetchDashboardData}
-            />
-          )}
-
-          {/* Lab History Tab */}
-          {activeTab === 'lab-history' && (
+          {/* TAB: RIWAYAT */}
+          {activeTab === 'history' && (
             <LabHistoryView
               patients={filteredPatients}
-              selectedPatient={selectedPatient}
-              onPatientSelect={setSelectedPatient}
-            />
-          )}
-
-          {showRefreshSplash && (
-            <SplashScreen
-              onFinish={handleRefreshSplashFinish}
-              message="Memuat ulang data..."
-              duration={1500}
+              selectedPatient={selectedPatientForHistory}
+              onPatientSelect={setSelectedPatientForHistory}
             />
           )}
         </div>
       </div>
+
+      {/* Modal: Patient Examination Form */}
+      <PatientExaminationForm
+        isOpen={showExaminationForm}
+        onClose={handleCloseExaminationForm}
+        patient={selectedPatientForExam}
+        onComplete={handleExaminationComplete}
+      />
+
+      {showRefreshSplash && (
+        <SplashScreen
+          onFinish={handleRefreshSplashFinish}
+          message="Memuat ulang data..."
+          duration={1500}
+        />
+      )}
     </div>
   );
 };

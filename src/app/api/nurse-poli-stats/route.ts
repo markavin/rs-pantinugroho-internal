@@ -6,55 +6,71 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to access dashboard stats
     const userRole = (session.user as any).role;
     if (userRole !== 'PERAWAT_POLI' && userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // Get today's date range
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Count total patients
-    const totalPatients = await prisma.patient.count();
-
-    // Count today's registrations
-    const todayRegistrations = await prisma.patient.count({
+    const totalPatientsToday = await prisma.patient.count({
       where: {
-        createdAt: {
-          gte: startOfDay,
-          lt: endOfDay
+        status: {
+          in: ['AKTIF', 'RAWAT_JALAN']
         }
       }
     });
 
-    // Count active complaints (status: BARU or DALAM_PROSES)
-    const activeComplaints = await prisma.patientComplaint.count({
+    const examinationsToday = await prisma.patientRecord.count({
       where: {
+        recordType: 'VITAL_SIGNS',
+        createdAt: {
+          gte: today,
+          lt: tomorrow
+        }
+      }
+    });
+
+    const waitingForDoctor = await prisma.handledPatient.count({
+      where: {
+        status: 'ANTRIAN'
+      }
+    });
+
+    const abnormalResults = await prisma.labResult.count({
+      where: {
+        testDate: {
+          gte: today,
+          lt: tomorrow
+        },
         status: {
-          in: ['BARU', 'DALAM_PROSES']
+          in: ['HIGH', 'CRITICAL', 'LOW']
         }
       }
     });
 
     const stats = {
-      totalPatients,
-      todayRegistrations,
-      activeComplaints
+      totalPatientsToday,
+      examinationsToday,
+      waitingForDoctor,
+      abnormalResults
     };
 
     return NextResponse.json(stats);
   } catch (error) {
-    console.error('Error fetching nurse poli dashboard stats:', error);
+    console.error('Error fetching nurse poli stats:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }

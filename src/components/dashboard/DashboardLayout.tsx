@@ -5,7 +5,22 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useToast } from '../../app/providers';
 import { getRoleTheme, ROLE_NAMES, type UserRole } from '@/lib/auth';
-import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart } from 'lucide-react';
+import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle } from 'lucide-react';
+
+interface Alert {
+  id: string;
+  type: 'CRITICAL' | 'WARNING' | 'INFO';
+  message: string;
+  patientId?: string;
+  category: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  isRead: boolean;
+  createdAt: string;
+  patient?: {
+    name: string;
+    mrNumber: string;
+  };
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -15,6 +30,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { data: session } = useSession();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false); // TAMBAH
+  const [alerts, setAlerts] = useState<Alert[]>([]); // TAMBAH
+  const [unreadCount, setUnreadCount] = useState(0); // TAMBAH
   const { addToast } = useToast();
 
   const userRole = session?.user?.role as UserRole;
@@ -27,6 +45,55 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  // TAMBAH: Fetch alerts
+  useEffect(() => {
+    if (session?.user?.role) {
+      fetchAlerts();
+      // Auto-refresh setiap 30 detik
+      const interval = setInterval(fetchAlerts, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  const fetchAlerts = async () => {
+    try {
+      // NOTE: Menggunakan window.location.origin untuk baseURL fetch di browser
+      const response = await fetch(`/api/alerts?role=${session?.user?.role}&unreadOnly=false`);
+      if (response.ok) {
+        const data = await response.json();
+        setAlerts(data);
+        setUnreadCount(data.filter((a: Alert) => !a.isRead).length);
+      }
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    }
+  };
+
+  const markAlertAsRead = async (alertId: string) => {
+    try {
+      await fetch(`/api/alerts/${alertId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isRead: true }),
+      });
+      // Langsung update state untuk responsivitas UI, lalu fetch lagi
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isRead: true } : a));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      // fetchAlerts(); // Opsional: fetch ulang untuk memastikan sinkronisasi
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+    }
+  };
+
+  const getAlertTypeColor = (type: string) => {
+    switch (type) {
+      case 'CRITICAL': return 'bg-red-50 border-red-400 text-red-800';
+      case 'WARNING': return 'bg-yellow-50 border-yellow-400 text-yellow-800';
+      case 'INFO': return 'bg-blue-50 border-blue-400 text-blue-800';
+      default: return 'bg-gray-50 border-gray-400 text-gray-800';
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -113,24 +180,111 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             {/* Right side - User info and actions */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
 
-              {/* Notifications */}
-              <div className="flex items-center space-x-2">
-                <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              {/* PERUBAHAN: Bell Notification - sekarang fungsional dengan dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
                   <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  {unreadCount > 0 && (
+                    <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                    </div>
+                  )}
                 </button>
 
-                {/* Employee ID display - Progressive reveal */}
-                {session?.user?.employeeId && (
-                  <div className="hidden md:flex lg:hidden xl:flex items-center space-x-2 bg-gray-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
-                    <User className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
-                    <span className="text-xs text-gray-600 hidden lg:inline xl:inline">ID:</span>
-                    <span className="font-mono font-medium text-gray-800 text-xs">
-                      {session.user.employeeId}
-                    </span>
+                {/* TAMBAH: Notifications Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] overflow-hidden origin-top-right animate-in fade-in zoom-in-95">
+                    <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900">Notifikasi</h3>
+                        {unreadCount > 0 && (
+                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                            {unreadCount} Baru
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="overflow-y-auto max-h-[60vh]">
+                      {alerts.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {alerts.slice(0, 10).map((alert) => (
+                            <div
+                              key={alert.id}
+                              className={`p-3 hover:bg-gray-50 transition-colors cursor-pointer ${
+                                !alert.isRead ? 'bg-blue-50/50' : ''
+                              }`}
+                              onClick={() => markAlertAsRead(alert.id)}
+                            >
+                              <div className="flex items-start space-x-2">
+                                <div className={`p-1.5 rounded-lg ${
+                                  alert.type === 'CRITICAL' ? 'bg-red-100' :
+                                  alert.type === 'WARNING' ? 'bg-yellow-100' :
+                                  'bg-blue-100'
+                                }`}>
+                                  <AlertCircle className={`h-4 w-4 ${
+                                    alert.type === 'CRITICAL' ? 'text-red-600' :
+                                    alert.type === 'WARNING' ? 'text-yellow-600' :
+                                    'text-blue-600'
+                                  }`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                    {alert.message}
+                                  </p>
+                                  {alert.patient && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {alert.patient.name} ({alert.patient.mrNumber})
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {new Date(alert.createdAt).toLocaleString('id-ID', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                </div>
+                                {!alert.isRead && (
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-gray-500">
+                          <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Tidak ada notifikasi</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {alerts.length > 10 && (
+                      <div className="p-3 border-t border-gray-200 text-center">
+                        <button className="text-sm text-green-600 hover:text-green-700 font-medium">
+                          Lihat Semua Notifikasi
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Employee ID display - Progressive reveal */}
+              {session?.user?.employeeId && (
+                <div className="hidden md:flex lg:hidden xl:flex items-center space-x-2 bg-gray-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
+                  <span className="text-xs text-gray-600 hidden lg:inline xl:inline">ID:</span>
+                  <span className="font-mono font-medium text-gray-800 text-xs">
+                    {session.user.employeeId}
+                  </span>
+                </div>
+              )}
 
               {/* User profile section - Responsive sizing */}
               <div className="flex items-center space-x-2 sm:space-x-3 bg-white/80 rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 shadow-sm border border-white/30">
@@ -173,6 +327,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </div>
       </header>
+
+      {/* Close dropdown when clicking outside */}
+      {showNotifications && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowNotifications(false)}
+        />
+      )}
 
       {/* Mobile/Tablet Time Display - Only visible on smaller screens */}
       <div className="lg:hidden bg-white/70 backdrop-blur-sm border-b border-white/20 px-3 sm:px-4 py-2 sm:py-3">
@@ -295,8 +457,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Bell className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium text-gray-800">Notifikasi Pending</span>
               </div>
-              <div className="bg-green-50 text-green-700 px-2 py-1 rounded-md">
-                <span className="text-sm font-bold">3</span>
+              <div className="bg-red-100 text-red-800 px-2 py-1 rounded-md"> {/* Diubah agar sesuai dengan unreadCount */}
+                <span className="text-sm font-bold">{unreadCount}</span>
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-1">tugas menunggu perhatian</p>

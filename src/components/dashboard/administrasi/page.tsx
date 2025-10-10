@@ -328,6 +328,25 @@ const AdministrasiDashboard = () => {
     return { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount };
   };
 
+  const createAlertForNewPatient = async (patientId: string, patientName: string) => {
+    try {
+      await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'INFO',
+          message: `Pasien baru ${patientName} terdaftar, segera lakukan pemeriksaan awal`,
+          patientId: patientId,
+          category: 'SYSTEM',
+          priority: 'MEDIUM',
+          targetRole: 'PERAWAT_POLI'
+        }),
+      });
+    } catch (error) {
+      console.error('Error creating alert:', error);
+    }
+  };
+
   const { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount } = getStatusCounts();
 
   const navigationItems = [

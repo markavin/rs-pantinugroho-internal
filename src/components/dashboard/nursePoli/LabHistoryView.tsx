@@ -1,6 +1,6 @@
 // src/components/dashboard/nursePoli/LabHistoryView.tsx
 import React, { useState, useEffect } from 'react';
-import { History, FlaskConical, User, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { History, FlaskConical, User, Calendar, TrendingUp, TrendingDown, Minus, Filter } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -37,6 +37,17 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedTestType, setSelectedTestType] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  const labCategories: Record<string, string[]> = {
+    'Semua': [],
+    'Gula Darah': ['Gula Darah Sewaktu', 'Gula Darah Puasa', 'Glukosa 2 Jam PP', 'HbA1c'],
+    'Lipid': ['Kolesterol Total', 'LDL', 'HDL', 'Trigliserida'],
+    'Fungsi Ginjal': ['Urea', 'Kreatinin'],
+    'Protein': ['Albumin'],
+    'Fungsi Hati': ['SGOT (AST)', 'SGPT (ALT)'],
+    'Darah Lengkap': ['Hemoglobin (Hb)', 'Leukosit (AL)']
+  };
 
   useEffect(() => {
     if (selectedPatient) {
@@ -67,6 +78,13 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     });
   };
 
+  const formatTime = (date: Date | string) => {
+    return new Date(date).toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'CRITICAL': return 'text-red-700 bg-red-50 border-red-200';
@@ -75,6 +93,16 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
       case 'NORMAL': return 'text-green-700 bg-green-50 border-green-200';
       default: return 'text-gray-700 bg-gray-50 border-gray-200';
     }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const labels = {
+      'CRITICAL': 'KRITIS',
+      'HIGH': 'TINGGI',
+      'LOW': 'RENDAH',
+      'NORMAL': 'NORMAL'
+    };
+    return labels[status as keyof typeof labels] || status;
   };
 
   const getTrendIcon = (currentIndex: number, results: LabResult[]) => {
@@ -92,9 +120,16 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
 
   const uniqueTestTypes = Array.from(new Set(labResults.map(result => result.testType)));
   
-  const filteredResults = selectedTestType 
-    ? labResults.filter(result => result.testType === selectedTestType)
-    : labResults;
+  let filteredResults = labResults;
+  
+  if (selectedCategory && selectedCategory !== 'Semua') {
+    const categoryTests = labCategories[selectedCategory];
+    filteredResults = filteredResults.filter(result => categoryTests.includes(result.testType));
+  }
+  
+  if (selectedTestType) {
+    filteredResults = filteredResults.filter(result => result.testType === selectedTestType);
+  }
 
   const sortedResults = filteredResults.sort((a, b) => 
     new Date(b.testDate).getTime() - new Date(a.testDate).getTime()
@@ -169,32 +204,65 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
           </button>
         </div>
 
+        {/* Category Filter */}
+        {Object.keys(labCategories).length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+              <Filter className="h-4 w-4" />
+              <span className="font-medium">Filter Kategori:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(labCategories).map((category) => (
+                <button
+                  key={category}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setSelectedTestType('');
+                  }}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    selectedCategory === category || (category === 'Semua' && !selectedCategory)
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Test Type Filter */}
         {uniqueTestTypes.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedTestType('')}
-              className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                selectedTestType === '' 
-                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Semua Test
-            </button>
-            {uniqueTestTypes.map((testType) => (
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <span className="font-medium">Filter Jenis Test:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <button
-                key={testType}
-                onClick={() => setSelectedTestType(testType)}
+                onClick={() => setSelectedTestType('')}
                 className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  selectedTestType === testType 
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                  selectedTestType === '' 
+                    ? 'bg-green-100 text-green-700 border border-green-200' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {testType}
+                Semua Test
               </button>
-            ))}
+              {uniqueTestTypes.map((testType) => (
+                <button
+                  key={testType}
+                  onClick={() => setSelectedTestType(testType)}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    selectedTestType === testType 
+                      ? 'bg-green-100 text-green-700 border border-green-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {testType}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -225,7 +293,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                       <div className="flex items-center space-x-3 mb-2">
                         <h4 className="font-semibold text-gray-900">{result.testType}</h4>
                         <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(result.status)}`}>
-                          {result.status}
+                          {getStatusBadge(result.status)}
                         </span>
                         {getTrendIcon(index, sortedResults.filter(r => r.testType === result.testType))}
                       </div>
@@ -241,6 +309,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 text-gray-400" />
                           <span className="text-gray-700">{formatDate(result.testDate)}</span>
+                          <span className="text-gray-500 text-xs">{formatTime(result.testDate)}</span>
                         </div>
                       </div>
                       {result.notes && (
@@ -260,6 +329,8 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
               <p>
                 {selectedTestType 
                   ? `Tidak ada hasil untuk test ${selectedTestType}` 
+                  : selectedCategory && selectedCategory !== 'Semua'
+                  ? `Tidak ada hasil untuk kategori ${selectedCategory}`
                   : 'Pasien ini belum memiliki riwayat laboratorium'
                 }
               </p>

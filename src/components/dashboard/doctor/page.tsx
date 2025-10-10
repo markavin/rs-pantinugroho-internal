@@ -63,14 +63,22 @@ interface Alert {
   type: 'CRITICAL' | 'WARNING' | 'INFO';
   message: string;
   patientId?: string;
-  timestamp: string;
   category: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  isRead: boolean;
+  createdAt: string; 
+  patient?: {
+    name: string;
+    mrNumber: string;
+  };
 }
+
 
 const DoctorDashboard = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [handledPatients, setHandledPatients] = useState<HandledPatient[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [handledSearchTerm, setHandledSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'handled-patients' | 'nutrition' | 'pharmacy' | 'nursing'>('dashboard');
@@ -89,22 +97,6 @@ const DoctorDashboard = () => {
   const [showHandledPatientForm, setShowHandledPatientForm] = useState(false);
   const [handledPatientFormMode, setHandledPatientFormMode] = useState<'add' | 'edit' | 'view'>('add');
 
-  const mockAlerts: Alert[] = [
-    {
-      id: '1',
-      type: 'CRITICAL',
-      message: 'Pasien dengan HbA1c > 9% memerlukan perhatian segera',
-      timestamp: '08:30',
-      category: 'blood_sugar'
-    },
-    {
-      id: '2',
-      type: 'WARNING',
-      message: 'Ada pasien dengan tekanan darah tinggi',
-      timestamp: '07:45',
-      category: 'vital_signs'
-    }
-  ];
 
   const fetchPatients = async () => {
     try {
@@ -137,13 +129,28 @@ const DoctorDashboard = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchPatients(), fetchHandledPatients()]);
-      setAlerts(mockAlerts);
+      await Promise.all([
+        fetchPatients(),
+        fetchHandledPatients(),
+        fetchAlerts()
+      ]);
       setLoading(false);
     };
     loadData();
   }, []);
 
+  const fetchAlerts = async () => {
+    try {
+      const response = await fetch('/api/alerts?role=DOKTER_SPESIALIS&unreadOnly=false');
+      if (response.ok) {
+        const data = await response.json();
+        setAlerts(data);
+        setUnreadAlertsCount(data.filter((a: Alert) => !a.isRead).length);
+      }
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    }
+  };
   const calculateAge = (birthDate: string) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -333,7 +340,35 @@ const DoctorDashboard = () => {
 
         if (response.ok) {
           await Promise.all([fetchHandledPatients(), fetchPatients()]);
+          if (handledPatientFormMode === 'edit' &&
+            formData.status === 'SELESAI' &&
+            formData.treatmentPlan) {
+            await fetch('/api/alerts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'INFO',
+                message: `Resep baru untuk pasien ${selectedHandledPatient.patient.name}, segera diproses`,
+                patientId: selectedHandledPatient.patientId,
+                category: 'MEDICATION',
+                priority: 'NORMAL',
+                targetRole: 'FARMASI'
+              }),
+            });
+          }
+          const relatedAlert = alerts.find(
+            a => a.patientId === selectedHandledPatient.patientId && !a.isRead
+          );
+          if (relatedAlert) {
+            await fetch(`/api/alerts/${relatedAlert.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isRead: true }),
+            });
+          }
+
           alert('Data pasien berhasil diperbarui!');
+
         } else {
           const error = await response.json();
           alert(error.error || 'Failed to update handled patient');
@@ -592,21 +627,47 @@ const DoctorDashboard = () => {
               </div>
             </div>
 
+            // CARI bagian "Peringatan & Notifikasi" dan GANTI dengan:
             <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Peringatan & Notifikasi</h3>
+                <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                  {unreadAlertsCount} Belum Dibaca
+                </span>
               </div>
               <div className="p-6">
                 {alerts.length > 0 ? (
                   <div className="space-y-3">
-                    {alerts.map((alert) => (
-                      <div key={alert.id} className={`p-3 rounded-lg border-l-4 ${alert.type === 'CRITICAL' ? 'bg-red-50 border-red-400' :
-                        alert.type === 'WARNING' ? 'bg-yellow-50 border-yellow-400' :
-                          'bg-green-50 border-green-400'
-                        }`}>
+                    {alerts.slice(0, 5).map((alert) => (
+                      <div
+                        key={alert.id}
+                        className={`p-3 rounded-lg border-l-4 ${alert.type === 'CRITICAL' ? 'bg-red-50 border-red-400' :
+                          alert.type === 'WARNING' ? 'bg-yellow-50 border-yellow-400' :
+                            'bg-green-50 border-green-400'
+                          } ${!alert.isRead ? 'ring-2 ring-blue-200' : 'opacity-60'}`}
+                      >
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-gray-900">{alert.message}</p>
-                          <span className="text-xs text-gray-500">{alert.timestamp}</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{alert.message}</p>
+                            {alert.patient && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                {alert.patient.name} ({alert.patient.mrNumber})
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {!alert.isRead && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                Baru
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-500">
+                              {new Date(alert.createdAt).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
