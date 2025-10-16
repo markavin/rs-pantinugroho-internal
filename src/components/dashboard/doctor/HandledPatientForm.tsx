@@ -241,6 +241,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
     }
   }, [isOpen, mode, selectedHandledPatient]);
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === 'view') return;
@@ -296,7 +297,11 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
   const getAvailablePatients = () => {
     return availablePatients.filter(patient => {
-      const isActiveStatus = patient.status === 'AKTIF';
+      const isActiveStatus =
+        patient.status === 'AKTIF' ||
+        patient.status === 'RAWAT_JALAN' ||
+        patient.status === 'RAWAT_INAP' ||
+        patient.status === 'RUJUK_KELUAR';
       const notAlreadyHandled = !handledPatients.some(hp =>
         hp.patientId === patient.id &&
         !['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'].includes(hp.status)
@@ -492,7 +497,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
                 onChange={(e) => handleInputChange('status', e.target.value)}
                 disabled={isDisabled}
               >
-                <option value="ANTRIAN">Antrian</option>
                 <option value="SEDANG_DITANGANI">Sedang Ditangani</option>
                 <option value="KONSULTASI">Konsultasi</option>
                 <option value="OBSERVASI">Observasi</option>

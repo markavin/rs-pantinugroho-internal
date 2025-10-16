@@ -200,7 +200,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'INFO',
-              message: `Pasien baru ${newPatient.name} terdaftar, segera lakukan pemeriksaan awal`,
+              message: `Pasien baru ${newPatient.name} (${newPatient.mrNumber}) terdaftar, segera lakukan pemeriksaan awal`,
               patientId: newPatient.id,
               category: 'SYSTEM',
               priority: 'MEDIUM',

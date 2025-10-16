@@ -1,226 +1,226 @@
-generator client {
-  provider = "prisma-client-js"
-}
+  generator client {
+    provider = "prisma-client-js"
+  }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+  datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+  }
 
-model LoginLog {
-  id         String    @id @default(cuid())
-  userId     String
-  loginTime  DateTime  @default(now())
-  logoutTime DateTime?
-  ipAddress  String?
-  userAgent  String?
-  sessionId  String?   @unique
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  model LoginLog {
+    id         String    @id @default(cuid())
+    userId     String
+    loginTime  DateTime  @default(now())
+    logoutTime DateTime?
+    ipAddress  String?
+    userAgent  String?
+    sessionId  String?   @unique
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
 
-  // Relation to User model
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Indexes for better performance
-  @@index([userId])
-  @@index([sessionId])
-  @@index([loginTime])
-  @@index([logoutTime])
+    // Relation to User model
+    user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    
+    // Indexes for better performance
+    @@index([userId])
+    @@index([sessionId])
+    @@index([loginTime])
+    @@index([logoutTime])
 
-  @@map("login_logs")
-}
+    @@map("login_logs")
+  }
 
-model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  username   String   @unique
-  password   String
-  name       String
-  role       UserRole
-  employeeId String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  model User {
+    id         String   @id @default(cuid())
+    email      String   @unique
+    username   String   @unique
+    password   String
+    name       String
+    role       UserRole
+    employeeId String?
+    isActive   Boolean  @default(true)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
 
-  // Relations
-  loginLogs          LoginLog[]
-  patients           Patient[]
-  handledPatients    HandledPatient[] @relation("HandledPatients")
-  
-  // Staff-specific relations
-  staffRecords       StaffRecord[]
-  labResults         LabResult[] @relation("LabTechnician")
-  visitationLogs     Visitation[]
-  nutritionRecords   NutritionRecord[]
-  pharmacyRecords    PharmacyRecord[]
-  medicalReports     MedicalReport[]
+    // Relations
+    loginLogs          LoginLog[]
+    patients           Patient[]
+    handledPatients    HandledPatient[] @relation("HandledPatients")
+    
+    // Staff-specific relations
+    staffRecords       StaffRecord[]
+    labResults         LabResult[] @relation("LabTechnician")
+    visitationLogs     Visitation[]
+    nutritionRecords   NutritionRecord[]
+    pharmacyRecords    PharmacyRecord[]
+    medicalReports     MedicalReport[]
 
-  @@map("users")
-}
+    @@map("users")
+  }
 
-model Patient {
-  id        String    @id @default(cuid())
-  mrNumber  String    @unique
-  name      String
-  birthDate DateTime
-  gender    Gender
-  phone     String?
-  address   String?
+  model Patient {
+    id        String    @id @default(cuid())
+    mrNumber  String    @unique
+    name      String
+    birthDate DateTime
+    gender    Gender
+    phone     String?
+    address   String?
 
-  // Medical Info
-  height    Float?
-  weight    Float?
-  bmi       Float?
-  bloodType String?
-  allergies String[]
-  medicalHistory String?
+    // Medical Info
+    height    Float?
+    weight    Float?
+    bmi       Float?
+    bloodType String?
+    allergies String[]
+    medicalHistory String?
 
-  // Diabetes specific
-  diabetesType  String?
-  diagnosisDate DateTime?
-  comorbidities String[]
+    // Diabetes specific
+    diabetesType  String?
+    diagnosisDate DateTime?
+    comorbidities String[]
 
-  // Insurance
-  insuranceType   InsuranceType
-  insuranceNumber String?
+    // Insurance
+    insuranceType   InsuranceType
+    insuranceNumber String?
 
-  // Additional fields
-  lastVisit       DateTime?
-  nextAppointment DateTime?
-  riskLevel       RiskLevel?
-  status          PatientStatus?
-  dietCompliance  Int?
-  calorieNeeds    Int?
-  calorieRequirement Int?
-  dietPlan        String?
+    // Additional fields
+    lastVisit       DateTime?
+    nextAppointment DateTime?
+    riskLevel       RiskLevel?
+    status          PatientStatus?
+    dietCompliance  Int?
+    calorieNeeds    Int?
+    calorieRequirement Int?
+    dietPlan        String?
 
-  createdBy String
-  user      User     @relation(fields: [createdBy], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    createdBy String
+    user      User     @relation(fields: [createdBy], references: [id])
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  // Relations
-  handledBy         HandledPatient[]
-  drugTransactions  DrugTransaction[]
-  patientRecords    PatientRecord[]
-  labResults        LabResult[] @relation("PatientLabResults")
-  visitationLogs    Visitation[]
-  nutritionRecords  NutritionRecord[]
-  pharmacyRecords   PharmacyRecord[]
-  medicalReports    MedicalReport[]
-  alerts            Alert[]
-  appointments      Appointment[]
+    // Relations
+    handledBy         HandledPatient[]
+    drugTransactions  DrugTransaction[]
+    patientRecords    PatientRecord[]
+    labResults        LabResult[] @relation("PatientLabResults")
+    visitationLogs    Visitation[]
+    nutritionRecords  NutritionRecord[]
+    pharmacyRecords   PharmacyRecord[]
+    medicalReports    MedicalReport[]
+    alerts            Alert[]
+    appointments      Appointment[]
 
-  @@map("patients")
-}
+    @@map("patients")
+  }
 
-model HandledPatient {
-  id          String   @id @default(cuid())
-  patientId   String
-  handledBy   String   
-  handledDate DateTime @default(now())
-  
-  // Treatment/care details
-  diagnosis       String?
-  treatmentPlan   String?
-  notes          String?
-  status HandledPatientStatus @default(SEDANG_DITANGANI)
-  priority       HandledPatientPriority @default(NORMAL)
-  
-  // Follow-up information
-  nextVisitDate  DateTime?
-  estimatedDuration String?
-  specialInstructions String?
-  
-  // Relations
-  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  handler     User    @relation("HandledPatients", fields: [handledBy], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  model HandledPatient {
+    id          String   @id @default(cuid())
+    patientId   String
+    handledBy   String   
+    handledDate DateTime @default(now())
+    
+    // Treatment/care details
+    diagnosis       String?
+    treatmentPlan   String?
+    notes          String?
+    status HandledPatientStatus @default(SEDANG_DITANGANI)
+    priority       HandledPatientPriority @default(NORMAL)
+    
+    // Follow-up information
+    nextVisitDate  DateTime?
+    estimatedDuration String?
+    specialInstructions String?
+    
+    // Relations
+    patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+    handler     User    @relation("HandledPatients", fields: [handledBy], references: [id])
+    
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 
-  @@unique([patientId, handledBy])
-  @@index([handledBy])
-  @@index([patientId])
+    @@unique([patientId, handledBy])
+    @@index([handledBy])
+    @@index([patientId])
 
-  @@map("handled_patients")
-}
+    @@map("handled_patients")
+  }
 
-// Core data management models based on the system documentation
+  // Core data management models based on the system documentation
 
-model StaffRecord {
-  id        String   @id @default(cuid())
-  staffId   String
-  recordType StaffRecordType
-  title     String
-  content   String
-  metadata  Json?
-  isActive  Boolean  @default(true)
-  
-  staff     User     @relation(fields: [staffId], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  model StaffRecord {
+    id        String   @id @default(cuid())
+    staffId   String
+    recordType StaffRecordType
+    title     String
+    content   String
+    metadata  Json?
+    isActive  Boolean  @default(true)
+    
+    staff     User     @relation(fields: [staffId], references: [id])
+    
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@index([staffId])
-  @@index([recordType])
-  @@map("staff_records")
-}
+    @@index([staffId])
+    @@index([recordType])
+    @@map("staff_records")
+  }
 
-model PatientRecord {
-  id        String   @id @default(cuid())
-  patientId String
-  recordType PatientRecordType
-  title     String
-  content   String
-  metadata  Json?
-  
-  // Clinical data
-  bloodSugar    Float?
-  bloodPressure String?
-  temperature   Float?
-  heartRate     Int?
-  weight        Float?
-  
-  // Medication adherence
-  medicationCompliance Int?
-  
-  // Diet compliance  
-  dietCompliance Int?
-  
-  patient   Patient  @relation(fields: [patientId], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  model PatientRecord {
+    id        String   @id @default(cuid())
+    patientId String
+    recordType PatientRecordType
+    title     String
+    content   String
+    metadata  Json?
+    
+    // Clinical data
+    bloodSugar    Float?
+    bloodPressure String?
+    temperature   Float?
+    heartRate     Int?
+    weight        Float?
+    
+    // Medication adherence
+    medicationCompliance Int?
+    
+    // Diet compliance  
+    dietCompliance Int?
+    
+    patient   Patient  @relation(fields: [patientId], references: [id])
+    
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@index([patientId])
-  @@index([recordType])
-  @@map("patient_records")
-}
+    @@index([patientId])
+    @@index([recordType])
+    @@map("patient_records")
+  }
 
-model LabResult {
-  id           String     @id @default(cuid())
-  patientId    String
-  technicianId String
-  testDate     DateTime
-  testType     String
-  value        String
-  normalRange  String?
-  status       LabStatus?
-  notes        String?
-  isVerified   Boolean    @default(false)
+  model LabResult {
+    id           String     @id @default(cuid())
+    patientId    String
+    technicianId String
+    testDate     DateTime
+    testType     String
+    value        String
+    normalRange  String?
+    status       LabStatus?
+    notes        String?
+    isVerified   Boolean    @default(false)
 
-  patient     Patient @relation("PatientLabResults", fields: [patientId], references: [id])
-  technician  User    @relation("LabTechnician", fields: [technicianId], references: [id])
+    patient     Patient @relation("PatientLabResults", fields: [patientId], references: [id])
+    technician  User    @relation("LabTechnician", fields: [technicianId], references: [id])
 
-  createdAt DateTime @default(now())
+    createdAt DateTime @default(now())
 
-  @@index([patientId])
-  @@index([testDate])
-  @@index([technicianId])
+    @@index([patientId])
+    @@index([testDate])
+    @@index([technicianId])
 
-  @@map("lab_results")
-}
+    @@map("lab_results")
+  }
 
 model Visitation {
   id          String     @id @default(cuid())
@@ -229,7 +229,6 @@ model Visitation {
   visitDate   DateTime   @default(now())
   shift       Shift
   
-  // Clinical observations
   complaints       String?
   vitalSigns       Json
   medicationsGiven String[]
@@ -239,7 +238,10 @@ model Visitation {
   education        String?
   notes            String?
   
-  // Follow-up
+  // TAMBAHKAN INI
+  dietCompliance   Int?
+  dietIssues       String?
+  
   nextVisitNeeded  Boolean @default(false)
   priority         VisitationPriority @default(NORMAL)
 
@@ -256,385 +258,388 @@ model Visitation {
   @@map("visitations")
 }
 
-model NutritionRecord {
-  id             String @id @default(cuid())
-  patientId      String
-  nutritionistId String
+  model NutritionRecord {
+    id             String @id @default(cuid())
+    patientId      String
+    nutritionistId String
 
-  // Dietary assessment
-  foodRecall        Json
-  dietaryPattern    String?
-  foodAllergies     String[]
-  
-  // Nutritional planning
-  targetCalories   Int
-  carbLimit        Int?
-  proteinGoal      Int?
-  fatLimit         Int?
-  mealDistribution Json?
-  dietPlan         String?
-  
-  // Monitoring
-  complianceScore  Int?
-  weightChange     Float?
-  bmiChange        Float?
-  
-  // Goals and recommendations
-  nutritionGoals   String[]
-  recommendations  String[]
+    // Dietary assessment
+    foodRecall        Json
+    dietaryPattern    String?
+    foodAllergies     String[]
+    
+    // Nutritional planning
+    targetCalories   Int
+    carbLimit        Int?
+    proteinGoal      Int?
+    fatLimit         Int?
+    mealDistribution Json?
+    dietPlan         String?
+    
+    // Monitoring
+    complianceScore  Int?
+    weightChange     Float?
+    bmiChange        Float?
+    
+    // Goals and recommendations
+    nutritionGoals   String[]
+    recommendations  String[]
 
-  patient      Patient @relation(fields: [patientId], references: [id])
-  nutritionist User    @relation(fields: [nutritionistId], references: [id])
+    patient      Patient @relation(fields: [patientId], references: [id])
+    nutritionist User    @relation(fields: [nutritionistId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@index([patientId])
-  @@index([nutritionistId])
+    @@index([patientId])
+    @@index([nutritionistId])
 
-  @@map("nutrition_records")
-}
+    @@map("nutrition_records")
+  }
 
-model PharmacyRecord {
-  id           String @id @default(cuid())
-  patientId    String
-  pharmacistId String
-  
-  recordType   PharmacyRecordType
-  
-  // Prescription details
-  medications      Json? // Array of medication objects
-  dosageInstructions String?
-  drugInteractions   String[]
-  contraindications  String[]
-  
-  // Counseling and monitoring
-  counselingNotes  String?
-  adherenceScore   Int?
-  sideEffects      String[]
-  
-  // Transaction info
-  transactionTotal Float?
-  insuranceClaim   String?
+  model PharmacyRecord {
+    id           String @id @default(cuid())
+    patientId    String
+    pharmacistId String
+    
+    recordType   PharmacyRecordType
+    
+    // Prescription details
+    medications      Json? // Array of medication objects
+    dosageInstructions String?
+    drugInteractions   String[]
+    contraindications  String[]
+    
+    // Counseling and monitoring
+    counselingNotes  String?
+    adherenceScore   Int?
+    sideEffects      String[]
+    
+    // Transaction info
+    transactionTotal Float?
+    insuranceClaim   String?
 
-  patient    Patient @relation(fields: [patientId], references: [id])
-  pharmacist User    @relation(fields: [pharmacistId], references: [id])
+    patient    Patient @relation(fields: [patientId], references: [id])
+    pharmacist User    @relation(fields: [pharmacistId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@index([patientId])
-  @@index([pharmacistId])
-  @@index([recordType])
+    @@index([patientId])
+    @@index([pharmacistId])
+    @@index([recordType])
 
-  @@map("pharmacy_records")
-}
+    @@map("pharmacy_records")
+  }
 
-model MedicalReport {
-  id        String @id @default(cuid())
-  patientId String
-  doctorId  String
-  
-  reportType MedicalReportType
-  
-  // Clinical assessment
-  chiefComplaint      String?
-  historyOfIllness    String?
-  physicalExamination Json?
-  diagnosis           String
-  differentialDx      String[]
-  
-  // Treatment plan
-  treatmentPlan       String?
-  medications         Json? // Prescribed medications
-  labOrders           String[]
-  followUpPlan        String?
-  
-  // Referrals and recommendations
-  referrals           String[]
-  recommendations     String[]
-  
-  // Risk assessment
-  riskFactors         String[]
-  complications       String[]
-  prognosis           String?
+  model MedicalReport {
+    id        String @id @default(cuid())
+    patientId String
+    doctorId  String
+    
+    reportType MedicalReportType
+    
+    // Clinical assessment
+    chiefComplaint      String?
+    historyOfIllness    String?
+    physicalExamination Json?
+    diagnosis           String
+    differentialDx      String[]
+    
+    // Treatment plan
+    treatmentPlan       String?
+    medications         Json? // Prescribed medications
+    labOrders           String[]
+    followUpPlan        String?
+    
+    // Referrals and recommendations
+    referrals           String[]
+    recommendations     String[]
+    
+    // Risk assessment
+    riskFactors         String[]
+    complications       String[]
+    prognosis           String?
 
-  patient Patient @relation(fields: [patientId], references: [id])
-  doctor  User    @relation(fields: [doctorId], references: [id])
+    patient Patient @relation(fields: [patientId], references: [id])
+    doctor  User    @relation(fields: [doctorId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@index([patientId])
-  @@index([doctorId])
-  @@index([reportType])
+    @@index([patientId])
+    @@index([doctorId])
+    @@index([reportType])
 
-  @@map("medical_reports")
-}
+    @@map("medical_reports")
+  }
 
-// Drug transaction models (preserved as requested)
-model DrugData {
-  id                String   @id @default(cuid())
-  name              String
-  category          String
-  dosageForm        String
-  strength          String
-  manufacturer      String
-  stock             Int
-  price             Int      @default(5000) // Add default price field (in Rupiah)
-  expiryDate        DateTime
-  interactions      String[]
-  contraindications String[]
-  sideEffects       String[]
-  indications       String[]
+  // Drug transaction models (preserved as requested)
+  model DrugData {
+    id                String   @id @default(cuid())
+    name              String
+    category          String
+    dosageForm        String
+    strength          String
+    manufacturer      String
+    stock             Int
+    price             Int      @default(5000) // Add default price field (in Rupiah)
+    expiryDate        DateTime
+    interactions      String[]
+    contraindications String[]
+    sideEffects       String[]
+    indications       String[]
 
-  transactionItems  DrugTransactionItem[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@map("drug_data")
-}
+    transactionItems  DrugTransactionItem[]
+    
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    
+    @@map("drug_data")
+  }
 
-model DrugTransaction {
-  id          String   @id @default(cuid())
-  patientId   String
-  totalAmount Int
-  status      TransactionStatus @default(PENDING)
-  notes       String?
-  createdAt   DateTime @default(now())
-  completedAt DateTime?
+  model DrugTransaction {
+    id          String   @id @default(cuid())
+    patientId   String
+    totalAmount Int
+    status      TransactionStatus @default(PENDING)
+    notes       String?
+    createdAt   DateTime @default(now())
+    completedAt DateTime?
 
-  // Relations
-  patient Patient @relation(fields: [patientId], references: [id])
-  items   DrugTransactionItem[]
+    // Relations
+    patient Patient @relation(fields: [patientId], references: [id])
+    items   DrugTransactionItem[]
 
-  @@index([patientId])
-  @@index([status])
-  @@index([createdAt])
+    @@index([patientId])
+    @@index([status])
+    @@index([createdAt])
 
-  @@map("drug_transactions")
-}
+    @@map("drug_transactions")
+  }
 
-model DrugTransactionItem {
-  id            String @id @default(cuid())
-  transactionId String
-  drugId        String
-  quantity      Int
-  price         Int
-  subtotal      Int
+  model DrugTransactionItem {
+    id            String @id @default(cuid())
+    transactionId String
+    drugId        String
+    quantity      Int
+    price         Int
+    subtotal      Int
 
-  // Relations
-  transaction DrugTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  drug        DrugData        @relation(fields: [drugId], references: [id])
+    // Relations
+    transaction DrugTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+    drug        DrugData        @relation(fields: [drugId], references: [id])
 
-  @@index([transactionId])
-  @@index([drugId])
+    @@index([transactionId])
+    @@index([drugId])
 
-  @@map("drug_transaction_items")
-}
+    @@map("drug_transaction_items")
+  }
 
-// Support models
-model Alert {
-  id        String    @id @default(cuid())
-  type      AlertType
-  message   String
-  patientId String
-  category  AlertCategory
-  priority  AlertPriority @default(MEDIUM)
-  isRead    Boolean   @default(false)
-  
-  patient Patient @relation(fields: [patientId], references: [id])
+  // Support models
+  model Alert {
+    id        String    @id @default(cuid())
+    type      AlertType
+    message   String
+    patientId String?
+    category  AlertCategory
+    priority  AlertPriority @default(MEDIUM)
+    isRead    Boolean   @default(false)
+    targetRole UserRole?
+    
+    patient Patient? @relation(fields: [patientId], references: [id]) // ← Tambah optional
+    
+    createdAt DateTime @default(now())
+    
+    @@index([patientId])
+    @@index([type])
+    @@index([priority])
+    @@index([targetRole])
 
-  createdAt DateTime @default(now())
-  
-  @@index([patientId])
-  @@index([type])
-  @@index([priority])
+    @@map("alerts")
+  }
+  model Appointment {
+    id              String   @id @default(cuid())
+    patientId       String
+    appointmentDate DateTime
+    appointmentTime String
+    type            AppointmentType
+    status          AppointmentStatus
+    priority        AppointmentPriority @default(NORMAL)
+    notes           String?
 
-  @@map("alerts")
-}
+    patient Patient @relation(fields: [patientId], references: [id])
 
-model Appointment {
-  id              String   @id @default(cuid())
-  patientId       String
-  appointmentDate DateTime
-  appointmentTime String
-  type            AppointmentType
-  status          AppointmentStatus
-  priority        AppointmentPriority @default(NORMAL)
-  notes           String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  patient Patient @relation(fields: [patientId], references: [id])
+    @@index([patientId])
+    @@index([appointmentDate])
+    @@index([status])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    @@map("appointments")
+  }
 
-  @@index([patientId])
-  @@index([appointmentDate])
-  @@index([status])
+  // Enums
+  enum UserRole {
+    SUPER_ADMIN
+    DOKTER_SPESIALIS
+    PERAWAT_RUANGAN
+    PERAWAT_POLI
+    AHLI_GIZI
+    FARMASI
+    MANAJER
+    ADMINISTRASI
+  }
 
-  @@map("appointments")
-}
+  enum Gender {
+    MALE
+    FEMALE
+  }
 
-// Enums
-enum UserRole {
-  SUPER_ADMIN
-  DOKTER_SPESIALIS
-  PERAWAT_RUANGAN
-  PERAWAT_POLI
-  AHLI_GIZI
-  FARMASI
-  MANAJER
-  ADMINISTRASI
-}
+  enum InsuranceType {
+    PRIVATE
+    BPJS
+    CORPORATE
+  }
 
-enum Gender {
-  MALE
-  FEMALE
-}
+  enum RiskLevel {
+    LOW
+    MEDIUM
+    HIGH
+  }
 
-enum InsuranceType {
-  PRIVATE
-  BPJS
-  CORPORATE
-}
+  enum PatientStatus {
+    AKTIF
+    RAWAT_JALAN
+    RAWAT_INAP
+    RUJUK_KELUAR
+    PULANG
+    PULANG_PAKSA
+    MENINGGAL
+  }
 
-enum RiskLevel {
-  LOW
-  MEDIUM
-  HIGH
-}
+  enum HandledPatientStatus {
+    ANTRIAN
+    SEDANG_DITANGANI
+    KONSULTASI
+    OBSERVASI
+    EMERGENCY
+    STABIL
+    RUJUK_KELUAR
+    SELESAI
+    MENINGGAL
+  }
 
-enum PatientStatus {
-  AKTIF
-  RAWAT_JALAN
-  RAWAT_INAP
-  RUJUK_KELUAR
-  PULANG
-  PULANG_PAKSA
-  MENINGGAL
-}
+  enum HandledPatientPriority {
+    LOW
+    NORMAL
+    HIGH
+    URGENT
+  }
 
-enum HandledPatientStatus {
-  ANTRIAN
-  SEDANG_DITANGANI
-  KONSULTASI
-  OBSERVASI
-  EMERGENCY
-  STABIL
-  RUJUK_KELUAR
-  SELESAI
-  MENINGGAL
-}
+  enum StaffRecordType {
+    CREDENTIALS
+    TRAINING
+    PERFORMANCE
+    SCHEDULE
+    NOTES
+  }
 
-enum HandledPatientPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
+  enum PatientRecordType {
+    VITAL_SIGNS
+    COMPLAINTS
+    MEDICATION_LOG
+    DIET_LOG
+    EDUCATION
+    PROGRESS_NOTE
+  }
 
-enum StaffRecordType {
-  CREDENTIALS
-  TRAINING
-  PERFORMANCE
-  SCHEDULE
-  NOTES
-}
+  enum LabStatus {
+    NORMAL
+    HIGH
+    LOW
+    CRITICAL
+  }
 
-enum PatientRecordType {
-  VITAL_SIGNS
-  COMPLAINTS
-  MEDICATION_LOG
-  DIET_LOG
-  EDUCATION
-  PROGRESS_NOTE
-}
+  enum Shift {
+    PAGI
+    SORE
+    MALAM
+  }
 
-enum LabStatus {
-  NORMAL
-  HIGH
-  LOW
-  CRITICAL
-}
+  enum VisitationPriority {
+    LOW
+    NORMAL
+    HIGH
+    URGENT
+  }
 
-enum Shift {
-  PAGI
-  SORE
-  MALAM
-}
+  enum PharmacyRecordType {
+    PRESCRIPTION
+    DISPENSING
+    COUNSELING
+    MONITORING
+    ADVERSE_EVENT
+  }
 
-enum VisitationPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
+  enum MedicalReportType {
+    INITIAL_ASSESSMENT
+    PROGRESS_NOTE
+    DISCHARGE_SUMMARY
+    CONSULTATION
+    EMERGENCY
+  }
 
-enum PharmacyRecordType {
-  PRESCRIPTION
-  DISPENSING
-  COUNSELING
-  MONITORING
-  ADVERSE_EVENT
-}
+  enum TransactionStatus {
+    PENDING
+    COMPLETED
+    CANCELLED
+  }
 
-enum MedicalReportType {
-  INITIAL_ASSESSMENT
-  PROGRESS_NOTE
-  DISCHARGE_SUMMARY
-  CONSULTATION
-  EMERGENCY
-}
+  enum AlertType {
+    CRITICAL
+    WARNING
+    INFO
+  }
 
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
-}
+  enum AlertCategory {
+    SYSTEM
+    BLOOD_SUGAR
+    VITAL_SIGNS
+    APPOINTMENT
+    LAB_RESULT
+    MEDICATION
+    NUTRITION
+    REGISTRATION
+  }
 
-enum AlertType {
-  CRITICAL
-  WARNING
-  INFO
-}
+  enum AlertPriority {
+    LOW
+    MEDIUM
+    HIGH
+    URGENT
+  }
 
-enum AlertCategory {
-  MEDICATION
-  BLOOD_SUGAR
-  VITAL_SIGNS
-  APPOINTMENT
-  LAB_RESULT
-  SYSTEM
-}
+  enum AppointmentType {
+    INITIAL_VISIT
+    FOLLOW_UP
+    EMERGENCY
+    CONSULTATION
+    LAB_CHECK
+  }
 
-enum AlertPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
+  enum AppointmentStatus {
+    SCHEDULED
+    CONFIRMED
+    COMPLETED
+    CANCELLED
+    NO_SHOW
+  }
 
-enum AppointmentType {
-  INITIAL_VISIT
-  FOLLOW_UP
-  EMERGENCY
-  CONSULTATION
-  LAB_CHECK
-}
-
-enum AppointmentStatus {
-  SCHEDULED
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-}
-
-enum AppointmentPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
+  enum AppointmentPriority {
+    LOW
+    NORMAL
+    HIGH
+    URGENT
+  }

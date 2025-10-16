@@ -18,29 +18,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Only nutritionists can access this endpoint' }, { status: 403 });
     }
 
-    // Step 1: Ambil pasien dengan status RAWAT_INAP atau RAWAT_JALAN
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+
+    const whereClause: any = {
+      status: status || 'RAWAT_INAP'
+    };
+
     const patients = await prisma.patient.findMany({
-      where: {
-        status: {
-          in: ['RAWAT_INAP', 'RAWAT_JALAN']
-        }
-      },
+      where: whereClause,
       orderBy: {
         updatedAt: 'desc'
       }
     });
 
-    // Step 2: Cross-check dengan HandledPatient untuk pastikan masih dalam penanganan
     const patientIds = patients.map(p => p.id);
-    
+
     const activeHandledPatients = await prisma.handledPatient.findMany({
       where: {
-        patientId: {
-          in: patientIds
-        },
-        status: {
-          notIn: ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL']
-        }
+        patientId: { in: patientIds },
+        status: { notIn: ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'] }
       },
       select: {
         patientId: true,
@@ -49,33 +46,19 @@ export async function GET(request: Request) {
         handledDate: true,
         handledBy: true,
         handler: {
-          select: {
-            name: true,
-            role: true
-          }
+          select: { name: true, role: true }
         }
       }
     });
 
-    // Step 3: Ambil nutrition records untuk setiap pasien (ambil yang terakhir)
     const latestNutritionRecords = await prisma.nutritionRecord.findMany({
-      where: {
-        patientId: {
-          in: patientIds
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
+      where: { patientId: { in: patientIds } },
+      orderBy: { createdAt: 'desc' },
       distinct: ['patientId']
     });
 
-    // Combine data
     const combinedData = patients
-      .filter(patient => {
-        // Hanya tampilkan pasien yang masih dalam handled patients
-        return activeHandledPatients.some(hp => hp.patientId === patient.id);
-      })
+      .filter(patient => activeHandledPatients.some(hp => hp.patientId === patient.id))
       .map(patient => {
         const handledInfo = activeHandledPatients.find(hp => hp.patientId === patient.id);
         const latestNutritionRecord = latestNutritionRecords.find(nr => nr.patientId === patient.id);
@@ -87,7 +70,6 @@ export async function GET(request: Request) {
           diagnosis: handledInfo?.diagnosis,
           handlingDoctor: handledInfo?.handler,
           latestNutritionRecord,
-          // Mapping dari nutrition record ke format yang diharapkan komponen
           dietCompliance: latestNutritionRecord?.complianceScore || null,
           calorieRequirement: latestNutritionRecord?.targetCalories || null,
           dietPlan: latestNutritionRecord?.dietPlan || null

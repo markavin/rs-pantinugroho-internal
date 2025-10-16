@@ -729,35 +729,6 @@ async function main() {
     });
   }
 
-  // Create Alerts
-  await prisma.alert.createMany({
-    data: [
-      {
-        type: 'CRITICAL',
-        message: 'Ahmad Wijaya: Gula darah sangat tinggi (220 mg/dL)',
-        patientId: patient3.id,
-        category: 'BLOOD_SUGAR',
-        priority: 'URGENT',
-        isRead: false
-      },
-      {
-        type: 'WARNING',
-        message: 'Budi Santoso: Keluhan mual berulang, evaluasi obat',
-        patientId: patient1.id,
-        category: 'MEDICATION',
-        priority: 'HIGH',
-        isRead: false
-      },
-      {
-        type: 'INFO',
-        message: 'Dewi Lestari: Jadwal kontrol rutin minggu depan',
-        patientId: patient4.id,
-        category: 'APPOINTMENT',
-        priority: 'MEDIUM',
-        isRead: false
-      }
-    ]
-  });
 
   // Create Appointments
   await prisma.appointment.createMany({

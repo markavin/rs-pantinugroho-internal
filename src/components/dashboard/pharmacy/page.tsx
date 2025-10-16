@@ -3,6 +3,7 @@ import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu,
 import DataObatForm, { DrugData } from './DataObatForm';
 import TransaksiObatForm from './TransaksiObatForm';
 import SplashScreen from '@/components/SplashScreen';
+// import PrescriptionSourceModal from './PrescriptionSourceModal';
 
 interface Patient {
   id: string;
@@ -48,6 +49,8 @@ const PharmacyDashboard = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSplash, setShowRefreshSplash] = useState(false);
+  const [prescriptionSource, setPrescriptionSource] = useState<'DOCTOR_PRESCRIPTION' | 'MANUAL' | undefined>(undefined);
+  const [relatedHandledPatientId, setRelatedHandledPatientId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -174,16 +177,25 @@ const PharmacyDashboard = () => {
   const handleViewDetail = async (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setViewMode('detail');
+    setPrescriptionSource(undefined);
     setShowTransactionForm(true);
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setViewMode('edit');
+    setPrescriptionSource(undefined);
     setShowTransactionForm(true);
   };
 
   const handleNewTransaction = () => {
+
+    const isDoctorPrescription = confirm(
+      'Apakah ini resep dari dokter?\n\nOK = Ya (dari dokter)\nCancel = Tidak (manual/rujukan)'
+    );
+
+    setPrescriptionSource(isDoctorPrescription ? 'DOCTOR_PRESCRIPTION' : 'MANUAL');
+    setRelatedHandledPatientId(undefined);
     setEditingTransaction(null);
     setViewMode('create');
     setShowTransactionForm(true);
@@ -246,6 +258,8 @@ const PharmacyDashboard = () => {
       setShowTransactionForm(false);
       setEditingTransaction(null);
       setViewMode('create');
+      setPrescriptionSource(undefined);
+      setRelatedHandledPatientId(undefined);
     } catch (error) {
       console.error('Error saving transaction:', error);
       alert('Terjadi kesalahan saat menyimpan transaksi');
@@ -980,12 +994,16 @@ const PharmacyDashboard = () => {
           setShowTransactionForm(false);
           setEditingTransaction(null);
           setViewMode('create');
+          setPrescriptionSource(undefined);
+          setRelatedHandledPatientId(undefined);
         }}
         onSave={handleSaveTransaction}
         patients={patients}
         drugs={drugData}
         editingTransaction={editingTransaction}
         viewMode={viewMode}
+        prescriptionSource={prescriptionSource}
+        relatedHandledPatientId={relatedHandledPatientId}
       />
 
       {showRefreshSplash && (

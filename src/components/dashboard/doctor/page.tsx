@@ -66,7 +66,7 @@ interface Alert {
   category: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   isRead: boolean;
-  createdAt: string; 
+  createdAt: string;
   patient?: {
     name: string;
     mrNumber: string;
@@ -144,13 +144,18 @@ const DoctorDashboard = () => {
       const response = await fetch('/api/alerts?role=DOKTER_SPESIALIS&unreadOnly=false');
       if (response.ok) {
         const data = await response.json();
+        console.log('Alerts fetched for DOKTER_SPESIALIS:', data.length, 'alerts');
+        console.log('Alert details:', data);
         setAlerts(data);
         setUnreadAlertsCount(data.filter((a: Alert) => !a.isRead).length);
+      } else {
+        console.error('Failed to fetch alerts:', response.status);
       }
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
   };
+
   const calculateAge = (birthDate: string) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -269,12 +274,18 @@ const DoctorDashboard = () => {
       matchesStatus = ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY', 'STABIL'].includes(handledPatient.status);
     } else if (statusFilter === 'SELESAI') {
       matchesStatus = ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'].includes(handledPatient.status);
+    } else if (statusFilter === 'RAWAT_JALAN') {
+      matchesStatus = handledPatient.patient.status === 'RAWAT_JALAN';
+    } else if (statusFilter === 'RAWAT_INAP') {
+      matchesStatus = handledPatient.patient.status === 'RAWAT_INAP';
     }
 
     const matchesPriority = priorityFilter === 'ALL' || handledPatient.priority === priorityFilter;
 
     return matchesSearch && matchesStatus && matchesPriority;
   });
+
+
 
   const refreshData = async () => {
     setShowRefreshSplash(true);
@@ -311,6 +322,12 @@ const DoctorDashboard = () => {
 
   const handleHandledPatientFormSubmit = async (formData) => {
     try {
+      const sessionResponse = await fetch('/api/auth/session');
+      const sessionData = await sessionResponse.json();
+      const doctorName = sessionData?.user?.name || 'Dokter';
+
+      let savedPatientId = null;
+
       if (handledPatientFormMode === 'add') {
         const response = await fetch('/api/handled-patients', {
           method: 'POST',
@@ -322,11 +339,34 @@ const DoctorDashboard = () => {
         });
 
         if (response.ok) {
+          const result = await response.json();
+          savedPatientId = formData.patientId; // ← Simpan patient ID
+
           await fetchHandledPatients();
+
+          // Mark alerts as read
+          try {
+            const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
+            if (alertsResponse.ok) {
+              const alertsData = await alertsResponse.json();
+              await Promise.all(
+                alertsData
+                  .filter((alert: any) => !alert.isRead)
+                  .map((alert: any) =>
+                    fetch(`/api/alerts/${alert.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ isRead: true }),
+                    })
+                  )
+              );
+            }
+          } catch (err) {
+            console.error('Error marking alerts as read:', err);
+          }
+
+          await fetchAlerts();
           alert('Pasien berhasil ditambahkan ke daftar yang ditangani!');
-        } else {
-          const error = await response.json();
-          alert(error.error || 'Failed to add handled patient');
         }
       } else if (handledPatientFormMode === 'edit') {
         const response = await fetch(`/api/handled-patients/${selectedHandledPatient.id}`, {
@@ -339,41 +379,98 @@ const DoctorDashboard = () => {
         });
 
         if (response.ok) {
+          savedPatientId = selectedHandledPatient.patientId; // ← Simpan patient ID
+
           await Promise.all([fetchHandledPatients(), fetchPatients()]);
-          if (handledPatientFormMode === 'edit' &&
-            formData.status === 'SELESAI' &&
-            formData.treatmentPlan) {
-            await fetch('/api/alerts', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                type: 'INFO',
-                message: `Resep baru untuk pasien ${selectedHandledPatient.patient.name}, segera diproses`,
-                patientId: selectedHandledPatient.patientId,
-                category: 'MEDICATION',
-                priority: 'NORMAL',
-                targetRole: 'FARMASI'
-              }),
-            });
+
+          // Mark alerts as read
+          try {
+            const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
+            if (alertsResponse.ok) {
+              const alertsData = await alertsResponse.json();
+              await Promise.all(
+                alertsData
+                  .filter((alert: any) => !alert.isRead)
+                  .map((alert: any) =>
+                    fetch(`/api/alerts/${alert.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ isRead: true }),
+                    })
+                  )
+              );
+            }
+          } catch (err) {
+            console.error('Error marking alerts as read:', err);
           }
-          const relatedAlert = alerts.find(
-            a => a.patientId === selectedHandledPatient.patientId && !a.isRead
-          );
-          if (relatedAlert) {
-            await fetch(`/api/alerts/${relatedAlert.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ isRead: true }),
-            });
+
+          await fetchAlerts();
+
+          // Medical report creation code...
+          if (formData.diagnosis?.trim()) {
+            try {
+              await fetch('/api/medical-reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  patientId: savedPatientId,
+                  reportType: formData.status === 'SELESAI' ? 'DISCHARGE_SUMMARY' : 'PROGRESS_NOTE',
+                  diagnosis: formData.diagnosis,
+                  treatmentPlan: formData.treatmentPlan || null,
+                  chiefComplaint: formData.notes || null,
+                  recommendations: formData.specialInstructions ? [formData.specialInstructions] : [],
+                  prognosis: 'Baik dengan pengobatan teratur'
+                }),
+              });
+            } catch (reportError) {
+              console.error('Error creating medical report:', reportError);
+            }
           }
 
           alert('Data pasien berhasil diperbarui!');
-
         } else {
           const error = await response.json();
           alert(error.error || 'Failed to update handled patient');
         }
       }
+
+      if (savedPatientId && formData.treatmentPlan?.trim()) {
+        // Langsung kirim tanpa cek pattern
+        const treatmentPreview = formData.treatmentPlan.length > 100
+          ? formData.treatmentPlan.substring(0, 100) + '...'
+          : formData.treatmentPlan;
+
+        // Ambil data pasien
+        const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+        let patientName = 'Pasien';
+        let patientMRNumber = '';
+
+        if (patientResponse.ok) {
+          const patientData = await patientResponse.json();
+          patientName = patientData.name;
+          patientMRNumber = patientData.mrNumber;
+        }
+
+        try {
+          await fetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'INFO',
+              message: `Resep baru dari Dr. ${doctorName} untuk pasien ${patientName} (${patientMRNumber}).\n\nResep:\n${treatmentPreview}\n\nSegera proses di Farmasi.`,
+              patientId: savedPatientId,
+              category: 'MEDICATION',
+              priority: formData.priority === 'URGENT' || formData.priority === 'HIGH' ? 'HIGH' : 'MEDIUM',
+              targetRole: 'FARMASI'
+            }),
+          });
+
+          console.log('Notifikasi resep berhasil dikirim ke Farmasi');
+        } catch (alertError) {
+          console.error('Error sending alert to pharmacy:', alertError);
+        }
+      }
+
       setShowHandledPatientForm(false);
     } catch (error) {
       console.error('Error submitting handled patient form:', error);
@@ -1085,6 +1182,24 @@ const DoctorDashboard = () => {
                     }`}
                 >
                   Sedang Ditangani ({handledPatients.filter(hp => ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY', 'STABIL'].includes(hp.status)).length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('RAWAT_INAP')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'RAWAT_INAP'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  Rawat Inap ({handledPatients.filter(hp => hp.patient.status === 'RAWAT_INAP').length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('RAWAT_JALAN')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'RAWAT_JALAN'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  Rawat Jalan ({handledPatients.filter(hp => hp.patient.status === 'RAWAT_JALAN').length})
                 </button>
                 <button
                   onClick={() => setStatusFilter('SELESAI')}

@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
     // Filter pasien berdasarkan status AKTIF untuk farmasi
     const whereClause: any = {};
-    
+
     if (activeOnly) {
       whereClause.status = {
         in: ['AKTIF', 'RAWAT_JALAN', 'RAWAT_INAP']
@@ -127,10 +127,27 @@ export async function POST(request: Request) {
         allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
         comorbidities: [],
-        status: status || 'AKTIF', 
+        status: status || 'AKTIF',
         createdBy: (session.user as any).id,
       }
     });
+
+    await prisma.alert.create({
+      data: {
+        type: 'INFO',
+        category: 'SYSTEM',
+        message: `Pasien baru ${patient.name} (${patient.mrNumber}) terdaftar. Segera lakukan pemeriksaan awal.
+        Detail:
+        - Diabetes Type: ${patient.diabetesType || 'Belum diketahui'}
+        - Penjamin: ${patient.insuranceType}
+        - Alergi: ${patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(', ') : 'Tidak ada'}`,
+        patientId: patient.id,
+        priority: 'MEDIUM',
+        isRead: false
+      }
+    });
+
+    return NextResponse.json(patient, { status: 201 });
 
     // if (complaint && complaint.trim()) {
     //   await prisma.patientComplaint.create({

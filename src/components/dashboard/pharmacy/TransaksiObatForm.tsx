@@ -1,7 +1,7 @@
 // src/components/dashboard/pharmacy/TransaksiObatForm.tsx
 
 import React, { useState, useEffect } from 'react';
-import { XCircle, Plus, Trash2, ShoppingCart, User, Package, ChevronDown, FileText, Calendar, CreditCard, Pill } from 'lucide-react';
+import { XCircle, Plus, Trash2, ShoppingCart, User, Package, ChevronDown, FileText, Calendar, CreditCard, Pill, AlertCircle, Info } from 'lucide-react';
 
 interface DrugData {
   id: string;
@@ -52,6 +52,15 @@ interface TransaksiObatFormProps {
   drugs: DrugData[];
   editingTransaction?: DrugTransaction | null;
   viewMode?: 'create' | 'edit' | 'detail';
+  prescriptionSource?: 'DOCTOR_PRESCRIPTION' | 'MANUAL';
+  relatedHandledPatientId?: string;
+}
+
+interface PrescriptionAlert {
+  id: string;
+  message: string;
+  patientId: string;
+  createdAt: string;
 }
 
 const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
@@ -61,7 +70,9 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   patients,
   drugs,
   editingTransaction,
-  viewMode = 'create'
+  viewMode = 'create',
+  prescriptionSource,
+  relatedHandledPatientId
 }) => {
   const [selectedPatient, setSelectedPatient] = useState<string>('');
   const [items, setItems] = useState<DrugTransactionItem[]>([]);
@@ -72,6 +83,10 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   const isDetailMode = viewMode === 'detail';
   const isEditMode = viewMode === 'edit';
   const isCreateMode = viewMode === 'create';
+  const [prescriptionAlerts, setPrescriptionAlerts] = useState<PrescriptionAlert[]>([]);
+  const [selectedPrescription, setSelectedPrescription] = useState<PrescriptionAlert | null>(null);
+  const [showPrescriptionInfo, setShowPrescriptionInfo] = useState(false);
+
 
   useEffect(() => {
     if (isOpen) {
@@ -137,6 +152,49 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     setErrors(newErrors);
   };
 
+  useEffect(() => {
+    if (selectedPatient && prescriptionSource === 'DOCTOR_PRESCRIPTION') {
+      fetchPrescriptionAlerts(selectedPatient);
+    }
+  }, [selectedPatient, prescriptionSource]);
+
+  const fetchPrescriptionAlerts = async (patientId: string) => {
+    try {
+      const response = await fetch(`/api/alerts?patientId=${patientId}&category=MEDICATION`);
+      if (response.ok) {
+        const alerts = await response.json();
+        const unprocessedAlerts = alerts.filter((a: any) => !a.isRead);
+        setPrescriptionAlerts(unprocessedAlerts);
+
+        // Auto-select first prescription if exists
+        if (unprocessedAlerts.length > 0) {
+          setSelectedPrescription(unprocessedAlerts[0]);
+          setShowPrescriptionInfo(true);
+          // Parse dan auto-fill medications dari resep
+          parseAndFillPrescription(unprocessedAlerts[0].message);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching prescription alerts:', error);
+    }
+  };
+
+  const parseAndFillPrescription = (prescriptionMessage: string) => {
+    // Extract resep dari message alert
+    const resepMatch = prescriptionMessage.match(/Resep:\s*([\s\S]+?)(?:\n\n|$)/);
+    if (!resepMatch) return;
+
+    const resepText = resepMatch[1];
+    setNotes(resepText); // Set ke notes field
+
+    // Optional: Auto-parse medications (contoh sederhana)
+    // Format: "Metformin 500mg 3x1, Glimepiride 2mg 1x1"
+    const medications = resepText.split(',').map(med => med.trim());
+
+    // TODO: Implement smart matching dengan drug database
+    console.log('Parsed medications:', medications);
+  }
+
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -190,6 +248,11 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       return;
     }
 
+    if (!isEditMode && !prescriptionSource) {
+      alert('Sumber resep harus ditentukan');
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -213,10 +276,24 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         })),
         totalAmount,
         status: 'COMPLETED' as const,
-        notes: notes.trim() || undefined
+        notes: notes.trim() || undefined,
+        prescriptionSource,
+        relatedPrescriptionAlertId: selectedPrescription?.id
       };
 
       await onSave(transactionData);
+
+      if (selectedPrescription && prescriptionSource === 'DOCTOR_PRESCRIPTION') {
+        try {
+          await fetch(`/api/alerts/${selectedPrescription.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isRead: true })
+          });
+        } catch (err) {
+          console.error('Error marking prescription as processed:', err);
+        }
+      }
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -332,6 +409,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                   )}
                 </div>
 
+
                 {selectedPatientData && !isDetailMode && (
                   <div className="bg-white rounded-lg p-3 border shadow-sm">
                     <h5 className="font-medium text-gray-900 mb-2">Detail Pasien</h5>
@@ -381,6 +459,128 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                 )}
               </div>
             </div>
+
+            {prescriptionSource === 'DOCTOR_PRESCRIPTION' && selectedPatient && (
+              <div className="bg-white border border-gray-300 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900 flex items-center">
+                    <FileText className="h-5 w-5 mr-2 text-green-600" />
+                    Resep dari Dokter
+                  </h4>
+                  {prescriptionAlerts.length > 0 && (
+                    <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+                      {prescriptionAlerts.length} resep tersedia
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  {prescriptionAlerts.length === 0 ? (
+                    <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
+                      <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700 mb-1">
+                        Tidak ada resep dokter untuk pasien ini
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Silakan gunakan mode "Input Manual"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Dropdown pilih resep jika ada multiple */}
+                      {prescriptionAlerts.length > 1 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Pilih Resep:
+                          </label>
+                          <div className="relative">
+                            <select
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none pr-10"
+                              value={selectedPrescription?.id || ''}
+                              onChange={(e) => {
+                                const alert = prescriptionAlerts.find(a => a.id === e.target.value);
+                                setSelectedPrescription(alert || null);
+                                if (alert) parseAndFillPrescription(alert.message);
+                              }}
+                            >
+                              {prescriptionAlerts.map((alert, index) => (
+                                <option key={alert.id} value={alert.id}>
+                                  Resep #{index + 1} - {new Date(alert.createdAt).toLocaleDateString('id-ID', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Display selected prescription */}
+                      {selectedPrescription && (
+                        <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center text-xs text-gray-600">
+                              <Calendar className="h-4 w-4 mr-1.5" />
+                              <span className="font-medium">
+                                {new Date(selectedPrescription.createdAt).toLocaleDateString('id-ID', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowPrescriptionInfo(!showPrescriptionInfo)}
+                              className="text-xs text-green-600 hover:text-green-800 font-medium flex items-center"
+                            >
+                              {showPrescriptionInfo ? (
+                                <>
+                                  <ChevronDown className="h-4 w-4 mr-1" />
+                                  Sembunyikan
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-4 w-4 mr-1 transform rotate-180" />
+                                  Tampilkan Detail
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {showPrescriptionInfo && (
+                            <div className="mb-3">
+                              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                  {selectedPrescription.message}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                            <div className="flex items-start">
+                              <Info className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-blue-800 leading-relaxed">
+                                Resep ini akan otomatis ditandai sebagai <span className="font-semibold">"sudah diproses"</span> setelah transaksi berhasil dibuat
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Items Section */}
             <div className="bg-white border border-gray-300 rounded-lg p-4">

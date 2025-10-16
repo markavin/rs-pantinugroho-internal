@@ -1,5 +1,4 @@
-// src/app/api/alerts/route.ts - VERSI LENGKAP
-
+// src/app/api/alerts/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
@@ -9,46 +8,28 @@ const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get('role'); // User's current role
+    const role = searchParams.get('role');
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const patientId = searchParams.get('patientId');
+    const category = searchParams.get('category');
 
     const whereClause: any = {};
-    
-    // Filter by read status
+
     if (unreadOnly) {
       whereClause.isRead = false;
     }
 
-    // Filter by patient
     if (patientId) {
       whereClause.patientId = patientId;
     }
 
-    // PENTING: Filter alerts sesuai target role
-    // Karena field targetRole belum ada di schema, kita gunakan category sebagai proxy
-    // Nanti perlu migration untuk add targetRole field
-    
-    // Mapping role ke category yang relevan
-    const roleCategoryMap: Record<string, string[]> = {
-      'PERAWAT_POLI': ['SYSTEM', 'BLOOD_SUGAR', 'VITAL_SIGNS'],
-      'DOKTER_SPESIALIS': ['SYSTEM', 'BLOOD_SUGAR', 'VITAL_SIGNS', 'MEDICATION'],
-      'FARMASI': ['MEDICATION'],
-      'GIZI': ['DIET', 'NUTRITION'],
-      'ADMINISTRASI': ['SYSTEM', 'REGISTRATION']
-    };
+    if (category) {
+      whereClause.category = category;
+    }
 
-    // Filter berdasarkan role jika ada mapping
-    if (role && roleCategoryMap[role]) {
-      whereClause.category = {
-        in: roleCategoryMap[role]
-      };
+    if (role && !category) {
+      whereClause.targetRole = role;
     }
 
     const alerts = await prisma.alert.findMany({
@@ -62,17 +43,20 @@ export async function GET(request: Request) {
         }
       },
       orderBy: [
-        { isRead: 'asc' },  // Unread first
-        { priority: 'desc' }, // Then by priority
-        { createdAt: 'desc' } // Then by date
+        { isRead: 'asc' },
+        { priority: 'desc' },
+        { createdAt: 'desc' }
       ],
-      take: 100 // Limit untuk performa
+      take: 100
     });
 
     return NextResponse.json(alerts);
   } catch (error) {
     console.error('Error fetching alerts:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch alerts', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }
@@ -86,23 +70,104 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { 
-      type, 
-      message, 
-      patientId, 
-      category, 
+    
+    console.log('Alert Request Body:', JSON.stringify(body, null, 2));
+    
+    const {
+      type,
+      message,
+      patientId,
+      category,
       priority = 'MEDIUM',
-      targetRole // Akan diabaikan sampai field ini ditambahkan ke schema
+      targetRole
     } = body;
+
+    console.log('Parsed Values:', {
+      type,
+      category,
+      priority,
+      targetRole,
+      hasPatientId: !!patientId
+    });
 
     // Validasi required fields
     if (!type || !message || !category) {
       return NextResponse.json(
-        { error: 'Missing required fields: type, message, category' }, 
+        { error: 'Missing required fields: type, message, category' },
         { status: 400 }
       );
     }
 
+    // Validasi enum values
+    const validTypes = ['CRITICAL', 'WARNING', 'INFO'];
+    const validCategories = [
+      'SYSTEM',
+      'BLOOD_SUGAR',
+      'VITAL_SIGNS',
+      'LAB_RESULT',
+      'MEDICATION',
+      'NUTRITION',
+      'APPOINTMENT',
+      'REGISTRATION'
+    ];
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const validRoles = [
+      'SUPER_ADMIN',
+      'DOKTER_SPESIALIS',
+      'PERAWAT_RUANGAN',
+      'PERAWAT_POLI',
+      'AHLI_GIZI',
+      'FARMASI',
+      'MANAJER',
+      'ADMINISTRASI'
+    ];
+
+    if (!validTypes.includes(type)) {
+      return NextResponse.json(
+        { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    if (!validCategories.includes(category)) {
+      return NextResponse.json(
+        { error: `Invalid category. Must be one of: ${validCategories.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    if (!validPriorities.includes(priority)) {
+      return NextResponse.json(
+        { error: `Invalid priority. Must be one of: ${validPriorities.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    let finalTargetRole = null;
+    
+    if (targetRole) {
+      const trimmedRole = String(targetRole).trim();
+      
+      // Hanya set jika bukan string kosong atau 'null'
+      if (trimmedRole && trimmedRole !== 'null' && trimmedRole !== 'undefined') {
+        if (validRoles.includes(trimmedRole)) {
+          finalTargetRole = trimmedRole;
+          console.log('Valid targetRole:', finalTargetRole);
+        } else {
+          console.error('Invalid targetRole:', trimmedRole);
+          return NextResponse.json(
+            { error: `Invalid targetRole '${trimmedRole}'. Must be one of: ${validRoles.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      } else {
+        console.warn('targetRole is empty/null/undefined, will be set to null');
+      }
+    }
+
+    console.log('✅ Final targetRole to save:', finalTargetRole);
+
+    // Create alert
     const alert = await prisma.alert.create({
       data: {
         type,
@@ -110,8 +175,8 @@ export async function POST(request: Request) {
         patientId: patientId || null,
         category,
         priority,
+        targetRole: finalTargetRole,
         isRead: false,
-        // targetRole akan ditambahkan setelah migration
       },
       include: {
         patient: {
@@ -123,16 +188,25 @@ export async function POST(request: Request) {
       }
     });
 
+    console.log('✅ Alert created successfully:', {
+      id: alert.id,
+      type: alert.type,
+      targetRole: alert.targetRole,
+      category: alert.category
+    });
+
     return NextResponse.json(alert, { status: 201 });
   } catch (error) {
-    console.error('Error creating alert:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('❌ Error creating alert:', error);
+    return NextResponse.json(
+      { error: 'Failed to create alert', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }
 }
 
-// DELETE all read alerts (cleanup)
 export async function DELETE(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -155,13 +229,16 @@ export async function DELETE(request: Request) {
       }
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: `Deleted ${result.count} old read alerts`,
-      count: result.count 
+      count: result.count
     });
   } catch (error) {
     console.error('Error deleting old alerts:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to delete alerts', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }

@@ -6,7 +6,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -19,8 +19,16 @@ export async function GET() {
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    const whereClause: any = {};
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
 
     const transactions = await prisma.drugTransaction.findMany({
+      where: whereClause,
       include: {
         patient: {
           select: {
@@ -48,7 +56,6 @@ export async function GET() {
       }
     });
 
-    // Transform the data to match frontend expectations
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       patientId: transaction.patientId,
@@ -87,6 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
     const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
 
     if (!allowedRoles.includes(userRole)) {
@@ -98,7 +106,10 @@ export async function POST(request: NextRequest) {
       patientId,
       items,
       totalAmount,
-      notes
+      notes,
+      prescriptionSource, // 'DOCTOR_PRESCRIPTION' atau 'MANUAL'
+      relatedHandledPatientId,
+      relatedPrescriptionAlertId
     } = body;
 
     // Validate required fields
@@ -154,7 +165,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate price is reasonable (should be > 0)
       if (item.price <= 0) {
         return NextResponse.json(
           { error: `Price for ${drug.name} must be greater than 0` },
@@ -162,7 +172,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate subtotal calculation
       const expectedSubtotal = item.quantity * item.price;
       if (Math.abs(item.subtotal - expectedSubtotal) > 0.01) {
         return NextResponse.json(
@@ -175,22 +184,22 @@ export async function POST(request: NextRequest) {
     // Create transaction with items and REDUCE STOCK IMMEDIATELY
     const result = await prisma.$transaction(async (tx) => {
       const now = new Date();
-      
-      // Create the drug transaction with COMPLETED status and reduce stock
+
+      // Create the drug transaction with COMPLETED status
       const drugTransaction = await tx.drugTransaction.create({
         data: {
           patientId,
           totalAmount,
-          status: 'COMPLETED', // Langsung COMPLETED
+          status: 'COMPLETED',
           notes: notes?.trim() || null,
           createdAt: now,
-          completedAt: now, // Set completedAt juga
+          completedAt: now,
         }
       });
 
       // Create transaction items
       const transactionItems = await Promise.all(
-        items.map((item: any) => 
+        items.map((item: any) =>
           tx.drugTransactionItem.create({
             data: {
               transactionId: drugTransaction.id,
@@ -212,6 +221,59 @@ export async function POST(request: NextRequest) {
               decrement: item.quantity
             }
           }
+        });
+      }
+
+      // Create PharmacyRecord
+      await tx.pharmacyRecord.create({
+        data: {
+          patientId,
+          pharmacistId: userId,
+          recordType: 'DISPENSING',
+          medications: items.map((item: any) => ({
+            drugId: item.drugId,
+            drugName: item.drugName,
+            quantity: item.quantity,
+            dosageInstructions: `${item.quantity} unit - sesuai resep`
+          })),
+          transactionTotal: totalAmount,
+          counselingNotes: notes || 'Tidak ada catatan khusus',
+        }
+      });
+
+      // 🔧 PERBAIKAN: Kirim alert HANYA jika dari resep dokter DAN pasien rawat inap
+      if (prescriptionSource === 'DOCTOR_PRESCRIPTION' && patient.status === 'RAWAT_INAP') {
+        // Format daftar obat untuk pesan
+        const medicationList = items
+          .map((item: any) => `- ${item.drugName}: ${item.quantity} unit`)
+          .join('\n');
+
+        await tx.alert.create({
+          data: {
+            type: 'INFO',
+            message: `📦 Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.
+
+Daftar Obat:
+${medicationList}
+
+Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit
+Nilai: Rp ${totalAmount.toLocaleString('id-ID')}
+
+⚠️ Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
+            patientId,
+            category: 'MEDICATION',
+            priority: 'MEDIUM',
+            targetRole: 'PERAWAT_RUANGAN',
+            isRead: false
+          }
+        });
+      }
+
+      // Mark prescription alert as read if exists
+      if (relatedPrescriptionAlertId) {
+        await tx.alert.update({
+          where: { id: relatedPrescriptionAlertId },
+          data: { isRead: true }
         });
       }
 
@@ -275,5 +337,7 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create drug transaction' },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }

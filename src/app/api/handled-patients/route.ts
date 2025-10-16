@@ -1,4 +1,4 @@
-// src/app/api/handled-patients/route.ts
+// src/app/api/handled-patients/route.ts 
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
@@ -31,6 +31,104 @@ function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string):
     }
 }
 
+// src/app/api/handled-patients/route.ts
+export async function POST(request: Request) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const userId = (session.user as any).id;
+        const userRole = (session.user as any).role;
+
+        // TAMBAHKAN: Validasi role yang boleh create handled patient
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN'];
+        if (!allowedRoles.includes(userRole)) {
+            return NextResponse.json({
+                error: 'Insufficient permissions. Only nurses and doctors can handle patients.'
+            }, { status: 403 });
+        }
+
+        const body = await request.json();
+        const {
+            patientId,
+            diagnosis,
+            treatmentPlan,
+            notes,
+            status,
+            priority,
+            nextVisitDate,
+            estimatedDuration,
+            specialInstructions
+        } = body;
+
+        if (!patientId) {
+            return NextResponse.json(
+                { error: 'Missing required field: patientId' },
+                { status: 400 }
+            );
+        }
+
+        // Verify patient exists
+        const patient = await prisma.patient.findUnique({
+            where: { id: patientId }
+        });
+
+        if (!patient) {
+            return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+        }
+
+        // PERBAIKAN: Auto-assign handledBy dari session user
+        const handledPatient = await prisma.handledPatient.create({
+            data: {
+                patientId,
+                handledBy: userId, // ← PENTING: Auto dari session
+                handledDate: new Date(),
+                diagnosis: diagnosis || null,
+                treatmentPlan: treatmentPlan || null,
+                notes: notes || null,
+                status: status || 'ANTRIAN',
+                priority: priority || 'NORMAL',
+                nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
+                estimatedDuration: estimatedDuration || null,
+                specialInstructions: specialInstructions || null
+            },
+            include: {
+                patient: true,
+                handler: {
+                    select: {
+                        name: true,
+                        role: true,
+                        employeeId: true
+                    }
+                }
+            }
+        });
+
+        return NextResponse.json(handledPatient, { status: 201 });
+    } catch (error) {
+        console.error('Error creating handled patient:', error);
+
+        if ((error as any).code === 'P2002') {
+            return NextResponse.json({
+                error: 'Patient is already being handled'
+            }, { status: 400 });
+        }
+
+        if ((error as any).code === 'P2003') {
+            return NextResponse.json({
+                error: 'Invalid reference data provided'
+            }, { status: 400 });
+        }
+
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        }, { status: 500 });
+    }
+}
+
 export async function GET(request: Request) {
     try {
         const session = await getServerSession(authOptions);
@@ -52,7 +150,13 @@ export async function GET(request: Request) {
 
         let whereClause: any = {};
 
-        if (userRole !== 'SUPER_ADMIN') {
+        // PERBAIKAN 4: Dokter melihat semua ANTRIAN + pasien yang dia tangani
+        if (userRole === 'DOKTER_SPESIALIS') {
+            whereClause.OR = [
+                { status: 'ANTRIAN' },
+                { handledBy: userId }
+            ];
+        } else if (userRole !== 'SUPER_ADMIN') {
             whereClause.handledBy = userId;
         }
 
@@ -63,11 +167,6 @@ export async function GET(request: Request) {
         if (handledBy && userRole === 'SUPER_ADMIN') {
             whereClause.handledBy = handledBy;
         }
-
-        // TAMBAHKAN KODE INI
-        console.log('User ID from Session:', userId);
-        console.log('Prisma WHERE Clause:', whereClause);
-        // HINGGA SINI
 
         const handledPatients = await prisma.handledPatient.findMany({
             where: whereClause,
@@ -96,142 +195,16 @@ export async function GET(request: Request) {
                     }
                 }
             },
-            orderBy: {
-                handledDate: 'desc'
-            }
+            orderBy: [
+                { status: 'asc' }, // ANTRIAN first
+                { priority: 'desc' },
+                { handledDate: 'desc' }
+            ]
         });
 
         return NextResponse.json(handledPatients);
     } catch (error) {
         console.error('Error fetching handled patients:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-}
-
-export async function POST(request: Request) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const userRole = (session.user as any).role;
-        const userId = (session.user as any).id;
-        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
-
-        if (!allowedRoles.includes(userRole)) {
-            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-        }
-
-        const body = await request.json();
-        const {
-            patientId,
-            diagnosis,
-            treatmentPlan,
-            notes,
-            priority = 'NORMAL',
-            nextVisitDate,
-            estimatedDuration,
-            specialInstructions,
-            status = 'SEDANG_DITANGANI'
-        } = body;
-
-        if (!patientId) {
-            return NextResponse.json(
-                { error: 'Missing required field: patientId' },
-                { status: 400 }
-            );
-        }
-
-        const patient = await prisma.patient.findUnique({
-            where: { id: patientId }
-        });
-
-        if (!patient) {
-            return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
-        }
-
-        if (patient.status !== 'AKTIF') {
-            return NextResponse.json({
-                error: 'Only patients with AKTIF status can be added to handled patients'
-            }, { status: 400 });
-        }
-
-        const existingHandled = await prisma.handledPatient.findFirst({
-            where: {
-                patientId,
-                status: {
-                    notIn: ['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL']
-                }
-            }
-        });
-
-        if (existingHandled) {
-            return NextResponse.json({
-                error: 'Patient is already being handled'
-            }, { status: 400 });
-        }
-
-        try {
-            const result = await prisma.$transaction(async (tx) => {
-                const newPatientStatus = mapHandledStatusToPatientStatus(status, notes);
-
-                await tx.patient.update({
-                    where: { id: patientId },
-                    data: {
-                        status: newPatientStatus as any
-                    }
-                });
-
-                const handledPatient = await tx.handledPatient.create({
-                    data: {
-                        patientId,
-                        handledBy: userId,
-                        diagnosis: diagnosis || null,
-                        treatmentPlan: treatmentPlan || null,
-                        notes: notes || null,
-                        status: status as any,
-                        priority: priority as any,
-                        nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
-                        estimatedDuration: estimatedDuration || null,
-                        specialInstructions: specialInstructions || null,
-                    },
-                    include: {
-                        patient: {
-                            select: {
-                                id: true,
-                                mrNumber: true,
-                                name: true,
-                                birthDate: true,
-                                gender: true,
-                                diabetesType: true,
-                                insuranceType: true,
-                                riskLevel: true,
-                                status: true
-                            }
-                        },
-                        handler: {
-                            select: {
-                                name: true,
-                                role: true
-                            }
-                        }
-                    }
-                });
-
-                return handledPatient;
-            });
-
-            return NextResponse.json(result, { status: 201 });
-        } catch (error) {
-            console.error('Transaction error:', error);
-            return NextResponse.json({
-                error: 'Failed to create handled patient record',
-                details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-            }, { status: 500 });
-        }
-    } catch (error) {
-        console.error('Error creating handled patient:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

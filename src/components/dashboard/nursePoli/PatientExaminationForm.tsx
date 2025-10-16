@@ -177,6 +177,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     setLoading(true);
 
     try {
+      // 1. Save complaint
       await fetch('/api/patient-records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -192,6 +193,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         })
       });
 
+      // 2. Save vital signs
       const vitalSigns = {
         bloodPressure: `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic}`,
         heartRate: parseInt(formData.heartRate),
@@ -216,6 +218,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         })
       });
 
+      // 3. Save lab results
       const labPromises: Promise<any>[] = [];
       let hasAbnormal = false;
       const abnormalTests: string[] = [];
@@ -228,7 +231,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
 
           if (status === 'HIGH' || status === 'CRITICAL' || status === 'LOW') {
             hasAbnormal = true;
-            abnormalTests.push(`${testDef.name}: ${value} ${testDef.unit}`);
+            abnormalTests.push(`${testDef.name}: ${value} ${testDef.unit} (${status})`);
           }
 
           labPromises.push(
@@ -251,53 +254,90 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
 
       await Promise.all(labPromises);
 
+      // 4. HANYA jika ada hasil lab abnormal → kirim alert WARNING ke dokter
       if (hasAbnormal) {
-        await fetch('/api/alerts', {
+        const abnormalAlertPayload = {
+          type: abnormalTests.some(t => t.includes('CRITICAL')) ? 'CRITICAL' : 'WARNING',
+          message: `Hasil lab abnormal untuk ${patient.name} (${patient.mrNumber}):\n\n${abnormalTests.join('\n')}`,
+          patientId: patient.id,
+          category: 'LAB_RESULT',
+          priority: abnormalTests.some(t => t.includes('CRITICAL')) ? 'URGENT' : 'HIGH',
+          targetRole: 'DOKTER_SPESIALIS'
+        };
+
+        console.log('Sending abnormal lab alert:', abnormalAlertPayload);
+
+        const abnormalAlertResponse = await fetch('/api/alerts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: abnormalTests.some(t => t.includes('CRITICAL')) ? 'CRITICAL' : 'WARNING',
-            message: `Hasil lab abnormal untuk ${patient.name} (${patient.mrNumber}):\n${abnormalTests.join(', ')}`,
-            patientId: patient.id,
-            category: 'LAB_RESULT',
-            priority: abnormalTests.some(t => t.includes('CRITICAL')) ? 'URGENT' : 'HIGH'
-          })
-        });
-      }
-
-      if (sendToDoctor) {
-        const handledResponse = await fetch('/api/handled-patients', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            patientId: patient.id,
-            status: 'ANTRIAN',
-            priority: hasAbnormal ? 'HIGH' : 'NORMAL',
-            notes: `Pemeriksaan awal selesai. Keluhan: ${formData.complaint.substring(0, 100)}...${hasAbnormal ? '\nAda hasil lab abnormal!' : ''}`
-          })
+          body: JSON.stringify(abnormalAlertPayload)
         });
 
-        if (handledResponse.ok) {
-          await fetch('/api/alerts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'INFO',
-              message: `Pasien ${patient.name} (${patient.mrNumber}) siap diperiksa. Pemeriksaan awal sudah lengkap.`,
-              patientId: patient.id,
-              category: 'SYSTEM',
-              priority: 'NORMAL'
-            })
-          });
+        if (!abnormalAlertResponse.ok) {
+          const errorText = await abnormalAlertResponse.text();
+          console.error('Failed to create abnormal lab alert:', errorText);
+        } else {
+          const result = await abnormalAlertResponse.json();
+          console.log('Abnormal lab alert created:', result);
         }
       }
 
+      // 5. HANYA jika checkbox "sendToDoctor" dicentang → kirim alert INFO
+      if (sendToDoctor) {
+        const doctorAlertPayload = {
+          type: 'INFO',
+          message: `Pasien ${patient.name} (${patient.mrNumber}) siap diperiksa.\n\nKeluhan: ${formData.complaint.substring(0, 100)}...${hasAbnormal ? '\n\n⚠️ Catatan: Ada hasil lab abnormal' : '\n\nPemeriksaan awal sudah lengkap'}`,
+          patientId: patient.id,
+          category: 'SYSTEM',
+          priority: hasAbnormal ? 'HIGH' : 'MEDIUM',
+          targetRole: 'DOKTER_SPESIALIS'
+        };
+
+        console.log('Sending doctor notification alert:', doctorAlertPayload);
+
+        const doctorAlertResponse = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(doctorAlertPayload)
+        });
+
+        if (!doctorAlertResponse.ok) {
+          const errorText = await doctorAlertResponse.text();
+          console.error('Failed to create doctor notification alert:', errorText);
+        } else {
+          const result = await doctorAlertResponse.json();
+          console.log('Doctor notification alert created:', result);
+        }
+      }
+
+      try {
+        const alertsResponse = await fetch(`/api/alerts?patientId=${patient.id}&role=PERAWAT_POLI`);
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+
+          await Promise.all(
+            alertsData
+              .filter((alert: any) => !alert.isRead && alert.targetRole === 'PERAWAT_POLI')
+              .map((alert: any) =>
+                fetch(`/api/alerts/${alert.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ isRead: true }),
+                })
+              )
+          );
+        }
+      } catch (err) {
+        console.error('Error marking alerts as read:', err);
+      }
+
       alert(
-        `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n${labPromises.length} hasil lab tersimpan.` : ''
-        }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim.' : ''
-        }${sendToDoctor ? '\n\nPasien telah dikirim ke antrian dokter.' : ''
+        `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n📊 ${labPromises.length} hasil lab tersimpan.` : ''
+        }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim ke dokter.' : ''
+        }${sendToDoctor ? '\n\nNotifikasi telah dikirim ke dokter.' : ''
         }`
       );
+
       onComplete();
       onClose();
     } catch (error) {
