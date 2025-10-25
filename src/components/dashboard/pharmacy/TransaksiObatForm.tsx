@@ -7,6 +7,7 @@ interface DrugData {
   id: string;
   name: string;
   category: string;
+  categoryKehamilan: string;
   dosageForm: string;
   strength: string;
   manufacturer: string;
@@ -187,8 +188,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     const resepText = resepMatch[1];
     setNotes(resepText); // Set ke notes field
 
-    // Optional: Auto-parse medications (contoh sederhana)
-    // Format: "Metformin 500mg 3x1, Glimepiride 2mg 1x1"
+   
     const medications = resepText.split(',').map(med => med.trim());
 
     // TODO: Implement smart matching dengan drug database
@@ -709,8 +709,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                           return selectedDrug ? (
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                               <div>
-                                <span className="text-gray-600">Kategori:</span>
-                                <p className="font-semibold text-gray-900">{selectedDrug.category}</p>
+                                <span className="text-gray-600">Kategori - Kehamilan:</span>
+                                <p className="font-semibold text-gray-900">{selectedDrug.category} - {selectedDrug.categoryKehamilan}</p>
                               </div>
                               <div>
                                 <span className="text-gray-600">Bentuk:</span>

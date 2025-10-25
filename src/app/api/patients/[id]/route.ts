@@ -109,6 +109,7 @@ export async function PUT(
       diagnosisDate,
       insuranceType,
       insuranceNumber,
+      smokingStatus, // ← TAMBAHKAN INI
       allergies,
       medicalHistory,
       comorbidities,
@@ -117,7 +118,8 @@ export async function PUT(
       calorieNeeds,
       calorieRequirement,
       dietPlan,
-      dietCompliance
+      dietCompliance,
+      complaints // untuk update keluhan jika ada
     } = body;
 
     // Validate required fields
@@ -136,6 +138,7 @@ export async function PUT(
       bmi = Math.round(bmi * 100) / 100;
     }
 
+    // Update patient data
     const patient = await prisma.patient.update({
       where: { id: params.id },
       data: {
@@ -152,6 +155,7 @@ export async function PUT(
         diagnosisDate: diagnosisDate ? new Date(diagnosisDate) : null,
         insuranceType,
         insuranceNumber: insuranceNumber || null,
+        smokingStatus: smokingStatus || 'TIDAK_MEROKOK', // ← TAMBAHKAN INI
         allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
         comorbidities: comorbidities && Array.isArray(comorbidities) && comorbidities.length > 0 ? comorbidities : [],
@@ -163,6 +167,62 @@ export async function PUT(
         dietCompliance: dietCompliance ? parseInt(dietCompliance) : null,
       }
     });
+
+    // Handle complaints update if provided (untuk edit mode)
+    if (complaints && Array.isArray(complaints)) {
+      // Get existing complaints from DB
+      const existingComplaints = await prisma.patientRecord.findMany({
+        where: {
+          patientId: params.id,
+          recordType: 'COMPLAINTS'
+        }
+      });
+
+      // Delete complaints that are not in the update list
+      const updatedIds = complaints
+        .filter((c: any) => c.id && !c.id.startsWith('temp_'))
+        .map((c: any) => c.id);
+      
+      const toDelete = existingComplaints
+        .filter(ec => !updatedIds.includes(ec.id))
+        .map(ec => ec.id);
+
+      if (toDelete.length > 0) {
+        await prisma.patientRecord.deleteMany({
+          where: {
+            id: { in: toDelete }
+          }
+        });
+      }
+
+      // Update or create complaints
+      for (const complaint of complaints) {
+        const complaintData = {
+          patientId: params.id,
+          recordType: 'COMPLAINTS' as const,
+          title: 'Keluhan Pasien',
+          content: complaint.complaint,
+          metadata: {
+            severity: complaint.severity,
+            status: complaint.status || 'BARU',
+            notes: complaint.notes || ''
+          }
+        };
+
+        if (complaint.id && !complaint.id.startsWith('temp_')) {
+          // Update existing complaint
+          await prisma.patientRecord.update({
+            where: { id: complaint.id },
+            data: complaintData
+          });
+        } else {
+          // Create new complaint
+          await prisma.patientRecord.create({
+            data: complaintData
+          });
+        }
+      }
+    }
 
     return NextResponse.json(patient);
   } catch (error) {

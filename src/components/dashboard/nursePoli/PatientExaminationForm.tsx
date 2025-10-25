@@ -1,6 +1,6 @@
 // src/components/dashboard/nursePoli/PatientExaminationForm.tsx
 import React, { useState, useEffect } from 'react';
-import { XCircle, Save, Send, Stethoscope, ClipboardList, Heart, FlaskConical, User, AlertCircle } from 'lucide-react';
+import { XCircle, Save, Send, Stethoscope, ClipboardList, Heart, FlaskConical, User, AlertCircle, TrendingUp, Activity } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -8,7 +8,18 @@ interface Patient {
   name: string;
   birthDate: Date;
   gender: 'MALE' | 'FEMALE';
+  phone?: string;
+  height?: number;
+  weight?: number;
+  bmi?: number;
+  diabetesType?: string;
   insuranceType: string;
+  lastVisit?: Date;
+  status?: string;
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+  allergies?: string[];
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK'; // 👈 TAMBAHKAN
+  createdAt: Date;
 }
 
 interface PatientExaminationFormProps {
@@ -358,6 +369,132 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     }));
   };
 
+  const calculateAge = (birthDate: Date): number => {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const convertCholesterolToMmol = (mgDl: number): number => {
+    return parseFloat((mgDl / 38.67).toFixed(2));
+  };
+
+  const getCholesterolColor = (mmol: number): string => {
+    if (mmol < 5) return 'text-green-700';
+    if (mmol < 6) return 'text-yellow-600';
+    if (mmol < 7) return 'text-orange-600';
+    return 'text-red-700';
+  };
+
+  const calculateSearBRisk = () => {
+    if (!patient || !formData.bloodPressureSystolic || !formData.labTests.cholesterol) {
+      return null;
+    }
+
+    const age = calculateAge(patient.birthDate);
+    if (age < 40) return null;
+
+    const getAgeGroup = (age: number): number => {
+      if (age < 45) return 40;
+      if (age < 55) return 50;
+      if (age < 65) return 60;
+      return 70;
+    };
+
+    const cholMmol = convertCholesterolToMmol(parseFloat(formData.labTests.cholesterol));
+    const cholCol = Math.max(4, Math.min(8, Math.round(cholMmol)));
+
+    const systolic = parseInt(formData.bloodPressureSystolic);
+    const bpRow = Math.max(120, Math.min(180, Math.round(systolic / 20) * 20));
+
+    const RISK_MATRIX: any = {
+      // TANPA DIABETES - LAKI-LAKI - TIDAK MEROKOK
+      'false-MALE-false': {
+        40: { 120: [0, 0, 0, 0, 1], 140: [0, 0, 0, 1, 1], 160: [0, 0, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
+        50: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [0, 1, 1, 2, 2], 180: [1, 1, 2, 2, 3] },
+        60: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
+        70: { 120: [1, 1, 1, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] }
+      },
+      // TANPA DIABETES - LAKI-LAKI - MEROKOK
+      'false-MALE-true': {
+        40: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [0, 1, 1, 2, 2], 180: [1, 1, 2, 2, 3] },
+        50: { 120: [0, 1, 1, 2, 2], 140: [1, 1, 2, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
+        60: { 120: [1, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] },
+        70: { 120: [1, 2, 2, 2, 3], 140: [2, 2, 2, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 4, 4] }
+      },
+      // TANPA DIABETES - PEREMPUAN - TIDAK MEROKOK
+      'false-FEMALE-false': {
+        40: { 120: [0, 0, 0, 0, 0], 140: [0, 0, 0, 0, 1], 160: [0, 0, 0, 1, 1], 180: [0, 0, 1, 1, 1] },
+        50: { 120: [0, 0, 0, 1, 1], 140: [0, 0, 1, 1, 1], 160: [0, 1, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
+        60: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [1, 1, 1, 2, 2], 180: [1, 1, 2, 2, 2] },
+        70: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 2, 3] }
+      },
+      // TANPA DIABETES - PEREMPUAN - MEROKOK
+      'false-FEMALE-true': {
+        40: { 120: [0, 0, 0, 1, 1], 140: [0, 0, 1, 1, 1], 160: [0, 1, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
+        50: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [1, 1, 1, 2, 2], 180: [1, 1, 2, 2, 2] },
+        60: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 2, 3] },
+        70: { 120: [1, 1, 1, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 2, 3, 3] }
+      },
+      // DENGAN DIABETES - LAKI-LAKI - TIDAK MEROKOK
+      'true-MALE-false': {
+        40: { 120: [0, 0, 1, 1, 2], 140: [0, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
+        50: { 120: [1, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [2, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] },
+        60: { 120: [1, 2, 2, 3, 3], 140: [2, 2, 3, 3, 3], 160: [2, 3, 3, 3, 4], 180: [3, 3, 3, 4, 4] },
+        70: { 120: [2, 2, 3, 3, 4], 140: [2, 3, 3, 4, 4], 160: [3, 3, 4, 4, 4], 180: [3, 4, 4, 4, 4] }
+      },
+      // DENGAN DIABETES - LAKI-LAKI - MEROKOK
+      'true-MALE-true': {
+        40: { 120: [1, 1, 2, 2, 3], 140: [1, 2, 2, 3, 3], 160: [2, 2, 3, 3, 3], 180: [2, 3, 3, 3, 4] },
+        50: { 120: [2, 2, 2, 3, 3], 140: [2, 2, 3, 3, 4], 160: [2, 3, 3, 4, 4], 180: [3, 3, 4, 4, 4] },
+        60: { 120: [2, 3, 3, 3, 4], 140: [3, 3, 3, 4, 4], 160: [3, 3, 4, 4, 4], 180: [3, 4, 4, 4, 4] },
+        70: { 120: [3, 3, 4, 4, 4], 140: [3, 4, 4, 4, 4], 160: [4, 4, 4, 4, 4], 180: [4, 4, 4, 4, 4] }
+      },
+      // DENGAN DIABETES - PEREMPUAN - TIDAK MEROKOK
+      'true-FEMALE-false': {
+        40: { 120: [0, 0, 1, 1, 2], 140: [0, 1, 1, 2, 2], 160: [1, 1, 2, 2, 2], 180: [1, 2, 2, 2, 3] },
+        50: { 120: [0, 1, 2, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 3] },
+        60: { 120: [1, 2, 2, 2, 3], 140: [2, 2, 2, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 3, 4] },
+        70: { 120: [2, 2, 2, 3, 3], 140: [2, 2, 3, 3, 4], 160: [2, 3, 3, 4, 4], 180: [3, 3, 4, 4, 4] }
+      },
+      // DENGAN DIABETES - PEREMPUAN - MEROKOK
+      'true-FEMALE-true': {
+        40: { 120: [0, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 3] },
+        50: { 120: [1, 2, 2, 3, 3], 140: [2, 2, 3, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 4, 4] },
+        60: { 120: [2, 2, 3, 3, 4], 140: [2, 3, 3, 4, 4], 160: [2, 3, 4, 4, 4], 180: [3, 3, 4, 4, 4] },
+        70: { 120: [2, 3, 3, 4, 4], 140: [3, 3, 4, 4, 4], 160: [3, 4, 4, 4, 4], 180: [3, 4, 4, 4, 4] }
+      }
+    };
+
+    const isSmoker = patient.smokingStatus === 'PEROKOK';
+    const hasDiabetes = !!patient.diabetesType;
+    const matrixKey = `${hasDiabetes}-${patient.gender}-${isSmoker}`;
+
+    const ageGrp = getAgeGroup(age);
+    const cholIndex = cholCol - 4;
+
+    const riskIndex = RISK_MATRIX[matrixKey]?.[ageGrp]?.[bpRow]?.[cholIndex];
+
+    if (riskIndex === undefined) return null;
+
+    const riskLevels = [
+      { range: '<10%', level: 'Sangat Rendah', color: 'bg-green-100 text-green-800 border-green-300', percentage: 5 },
+      { range: '10-20%', level: 'Rendah', color: 'bg-yellow-100 text-yellow-800 border-yellow-300', percentage: 15 },
+      { range: '20-30%', level: 'Sedang', color: 'bg-orange-100 text-orange-800 border-orange-300', percentage: 25 },
+      { range: '30-40%', level: 'Tinggi', color: 'bg-red-100 text-red-800 border-red-300', percentage: 35 },
+      { range: '≥40%', level: 'Sangat Tinggi', color: 'bg-red-900 text-white border-red-900', percentage: 45 }
+    ];
+
+    return riskLevels[riskIndex];
+  };
+
+  const searBResult = calculateSearBRisk();
+
   const groupedTests: Record<string, string[]> = {
     'Gula Darah': ['gulaDarahSewaktu', 'gulaDarahPuasa', 'glukosa2JamPP', 'hba1c'],
     'Lipid': ['cholesterol', 'ldl', 'hdl', 'trigliseride'],
@@ -416,11 +553,13 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
             </div>
 
             <div className="border border-green-300 rounded-lg p-4 bg-white">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                <ClipboardList className="h-5 w-5 text-green-600" />
-                <span>1. Keluhan Pasien</span>
-                <span className="text-red-500">*</span>
-              </h4>
+              <div className="border-b border-gray-300 mb-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                  <ClipboardList className="h-5 w-5 text-green-600" />
+                  <span>1. Keluhan Pasien</span>
+                  <span className="text-red-500">*</span>
+                </h4>
+              </div>
 
               <div className="space-y-3">
                 <div>
@@ -466,14 +605,17 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   </select>
                 </div>
               </div>
+
             </div>
 
             <div className="border border-green-300 rounded-lg p-4 bg-white">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                <Heart className="h-5 w-5 text-green-600" />
-                <span>2. Tanda Vital</span>
-                <span className="text-red-500">*</span>
-              </h4>
+              <div className="border-b border-gray-300 mb-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                  <Heart className="h-5 w-5 text-green-600" />
+                  <span>2. Tanda Vital</span>
+                  <span className="text-red-500">*</span>
+                </h4>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
@@ -606,79 +748,160 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
               </div>
             </div>
 
-            <div className="border border-green-300 rounded-lg bg-white">
-              <button
-                type="button"
-                onClick={() => setShowLabSection(!showLabSection)}
-                className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                disabled={loading}
-              >
-                <h4 className="font-semibold text-gray-900 flex items-center space-x-2">
+
+            <div className="border border-green-300 rounded-lg p-4 bg-white">
+              <div className="border-b border-gray-300 mb-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <FlaskConical className="h-5 w-5 text-green-600" />
-                  <span>3. Pemeriksaan Laboratorium (Opsional)</span>
+                  <span>3. Pemeriksaan Lab</span>
                 </h4>
-                <span className="text-sm text-gray-900 font-medium">
-                  {showLabSection ? 'Sembunyikan' : 'Tampilkan'}
-                </span>
-              </button>
+              </div>
 
-              {showLabSection && (
-                <div className="p-4 border-t border-gray-200 space-y-6">
-                  {Object.entries(groupedTests).map(([category, tests]) => (
-                    <div key={category}>
-                      <h5 className="font-medium text-gray-900 mb-3 pb-2 border-b border-gray-200">
-                        {category}
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {tests.map(testKey => {
-                          const testDef = labTestDefinitions[testKey];
-                          return (
-                            <div key={testKey}>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {testDef.name}
-                              </label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={formData.labTests[testKey as keyof typeof formData.labTests]}
-                                  onChange={(e) => handleLabTestChange(testKey, e.target.value)}
-                                  placeholder={testDef.normalRange}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                                  disabled={loading}
-                                />
-                                <span className="text-xs text-gray-500 whitespace-nowrap">{testDef.unit}</span>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5">Normal: {testDef.normalRange}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Catatan Laboratorium
-                    </label>
-                    <textarea
-                      value={formData.labNotes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, labNotes: e.target.value }))}
-                      placeholder="Catatan tambahan tentang pemeriksaan lab..."
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                      disabled={loading}
-                    />
-                  </div>
-
-                  <div className="bg-blue-50 p-3 rounded border border-blue-300 flex items-start space-x-2">
-                    <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-blue-700">
-                      <strong>Info:</strong> Jika hasil abnormal terdeteksi, sistem akan otomatis membuat notifikasi untuk dokter dan menandai prioritas pasien.
-                    </p>
+              {Object.entries(groupedTests).map(([category, tests]) => (
+                <div key={category}>
+                  <h5 className="font-medium text-gray-900 mb-2 mt-4 pb-2 border-b border-gray-200 ">
+                    {category}
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {tests.map(testKey => {
+                      const testDef = labTestDefinitions[testKey];
+                      return (
+                        <div key={testKey}>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {testDef.name}
+                          </label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={formData.labTests[testKey as keyof typeof formData.labTests]}
+                              onChange={(e) => handleLabTestChange(testKey, e.target.value)}
+                              placeholder={testDef.normalRange}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900 mb-4"
+                              disabled={loading}
+                            />
+                            <span className="text-xs text-gray-500 whitespace-nowrap">{testDef.unit}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">Normal: {testDef.normalRange}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
+              ))}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catatan Laboratorium
+                </label>
+                <textarea
+                  value={formData.labNotes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, labNotes: e.target.value }))}
+                  placeholder="Catatan tambahan tentang pemeriksaan lab..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded border border-blue-300 flex items-start space-x-2">
+                <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-blue-700">
+                  <strong>Info:</strong> Jika hasil abnormal terdeteksi, sistem akan otomatis membuat notifikasi untuk dokter dan menandai prioritas pasien.
+                </p>
+              </div>
+            </div>
+
+
+
+            {/* SECTION 4: SEAR B - REPLACE ENTIRE SECTION */}
+            <div className="border border-green-300 rounded-lg p-4 bg-white">
+              <div className="border-b border-gray-300 mb-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                  <Activity className="h-5 w-5 text-green-600" />
+                  <span>4. Prediksi Risiko Kardiovaskular (SEAR B WHO)</span>
+                </h4>
+              </div>
+             
+              <div className="p-3 space-y-3">
+                {/* Data Ringkas */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                    <p className="text-xs text-gray-600">Umur</p>
+                    <p className="text-lg font-bold text-blue-700">{calculateAge(patient.birthDate)} tahun</p>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded p-2">
+                    <p className="text-xs text-gray-600">Gender</p>
+                    <p className="text-lg font-bold text-purple-700">{patient.gender === 'MALE' ? '♂ Laki-laki' : '♀ Perempuan'}</p>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded p-2">
+                    <p className="text-xs text-gray-600">Status Merokok</p>
+                    <p className="text-sm font-bold text-orange-700">
+                      {patient.smokingStatus === 'PEROKOK' ? 'Ya' : 'Tidak'}
+                    </p>
+                  </div>
+                  <div className="bg-pink-50 border border-pink-200 rounded p-2">
+                    <p className="text-xs text-gray-600">Diabetes</p>
+                    <p className="text-lg font-bold text-pink-700">{patient.diabetesType ? 'Ya' : 'Tidak'}</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded p-2">
+                    <p className="text-xs text-gray-600">TD Sistolik</p>
+                    <p className="text-lg font-bold text-red-700">
+                      {formData.bloodPressureSystolic || '-'} mmHg
+                    </p>
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                    <p className="text-xs text-gray-600">Kolesterol</p>
+                    {formData.labTests.cholesterol ? (
+                      <p className="text-sm font-bold text-indigo-700">
+                        {convertCholesterolToMmol(parseFloat(formData.labTests.cholesterol))} mmol/L
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-400">Belum diisi</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Hasil Prediksi */}
+                {searBResult ? (
+                  <div className={`rounded-lg border-2 p-4 ${searBResult.color}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium mb-1">Risiko Kardiovaskular 10 Tahun</h5>
+                        <p className="text-3xl font-bold">{searBResult.range}</p>
+                        <p className="text-lg font-semibold mt-1">Level: {searBResult.level}</p>
+                      </div>
+                      <div className="text-right">
+                        <TrendingUp className="h-12 w-12 opacity-50 mb-2" />
+                        <p className="text-xs">Perkiraan risiko serangan jantung atau stroke dalam 10 tahun ke depan</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                    <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      {calculateAge(patient.birthDate) < 40
+                        ? 'SEAR B hanya untuk pasien usia ≥40 tahun'
+                        : 'Lengkapi data Tekanan Darah Sistolik dan Kolesterol Total untuk melihat prediksi risiko'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Panduan Chart */}
+                <details className="bg-gray-50 border border-gray-200 rounded-lg">
+                  <summary className="p-3 cursor-pointer font-medium text-sm text-gray-700 hover:bg-gray-100">
+                    📖 Panduan Membaca Chart WHO SEAR B
+                  </summary>
+                  <div className="p-3 border-t">
+                    <img src="/sear-b-chart.png" alt="WHO SEAR B Chart" className="w-full rounded border" />
+                    <p className="text-xs text-gray-600 mt-2">
+                      <strong>Cara:</strong> Pilih chart (diabetes/tanpa) → Pilih gender → Tentukan umur →
+                      Cari kolesterol (sumbu X) → Cari TD (sumbu Y) → Lihat warna zona risiko
+                    </p>
+                  </div>
+                </details>
+              </div>
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">

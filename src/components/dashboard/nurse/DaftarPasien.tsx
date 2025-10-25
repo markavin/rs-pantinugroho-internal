@@ -122,7 +122,7 @@ const DaftarPasien = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                                                     RAWAT INAP
                                                 </span>
                                             </td>
@@ -263,7 +263,7 @@ const DaftarPasien = () => {
                                     <div>
                                         <label className="text-sm font-medium text-gray-600">Status Rawat</label>
                                         <div className="mt-1">
-                                            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                                            <span className="px-3 py-1 bg-amber-100 text-blue-800 rounded-full text-sm font-medium">
                                                 RAWAT INAP
                                             </span>
                                         </div>

@@ -2,14 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Eye, Filter, Edit, Trash2 } from 'lucide-react';
 import TambahVisitasiForm from './TambahVisitasiForm';
 import DetailVisitasiModal from './DetailVisitasiModal';
-import { Patient, Visitation } from './types';
+import { Patient, Visitation } from '@prisma/client';
+
+// Type untuk Visitation dengan relations
+type VisitationWithRelations = Visitation & {
+    patient: {
+        id: string;
+        name: string;
+        mrNumber: string;
+    };
+    nurse: {
+        id: string;
+        name: string;
+    };
+};
 
 interface VisitasiProps {
     currentShift: 'PAGI' | 'SORE' | 'MALAM';
 }
 
 const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
-    const [visitations, setVisitations] = useState<Visitation[]>([]);
+    const [visitations, setVisitations] = useState<VisitationWithRelations[]>([]);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'vital' | 'medication' | 'education'>('all');
@@ -18,8 +31,6 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [selectedPatientForDetail, setSelectedPatientForDetail] = useState<string | null>(null);
     const [editingVisitation, setEditingVisitation] = useState<Visitation | null>(null);
-    const [dietIssue, setDietIssue] = useState('');
-    const [dietIssuePatientId, setDietIssuePatientId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -38,8 +49,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                 const patientsData = await patientsRes.json();
 
                 setVisitations(visitationsData);
-                // HANYA FILTER PASIEN RAWAT_INAP SAJA
-                setPatients(patientsData.filter((p: any) =>
+                setPatients(patientsData.filter((p: Patient) =>
                     p.status === 'RAWAT_INAP'
                 ));
             }
@@ -84,9 +94,13 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
             visit.patient.name.toLowerCase().includes(searchLower) ||
             visit.patient.mrNumber.toLowerCase().includes(searchLower);
 
+        const hasVitalSigns = visit.temperature || visit.bloodPressure ||
+            visit.heartRate || visit.respiratoryRate ||
+            visit.oxygenSaturation || visit.bloodSugar;
+
         const matchesType =
             filterType === 'all' ||
-            (filterType === 'vital' && visit.vitalSigns && Object.keys(visit.vitalSigns).length > 0) ||
+            (filterType === 'vital' && hasVitalSigns) ||
             (filterType === 'medication' && visit.medicationsGiven && visit.medicationsGiven.length > 0) ||
             (filterType === 'education' && visit.education);
 
@@ -98,24 +112,10 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
         return matchesSearch && matchesType && matchesDate;
     });
 
-    const createNutritionistAlert = async (patientId: string, message: string) => {
-        try {
-            await fetch('/api/alerts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'WARNING',
-                    category: 'NUTRITION',
-                    message,
-                    patientId,
-                    priority: 'HIGH',
-                    targetRole: 'AHLI_GIZI'
-                })
-            });
-        } catch (error) {
-            console.error('Error creating nutrition alert:', error);
-        }
-    };
+    // Get visitations for selected patient
+    const selectedPatientVisitations = selectedPatientForDetail
+        ? visitations.filter(v => v.patientId === selectedPatientForDetail)
+        : [];
 
     return (
         <div className="space-y-6">
@@ -176,6 +176,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                     </div>
                 ) : (
                     <>
+                        {/* Desktop Table View */}
                         <div className="hidden lg:block overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
@@ -189,149 +190,160 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredVisitations.map((visit) => (
-                                        <tr key={visit.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {new Date(visit.createdAt).toLocaleDateString('id-ID', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric'
-                                                })}
-                                                <br />
-                                                <span className="text-xs text-gray-500">
-                                                    {new Date(visit.createdAt).toLocaleTimeString('id-ID', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
+                                    {filteredVisitations.map((visit) => {
+                                        const hasVitalSigns = visit.temperature || visit.bloodPressure ||
+                                            visit.heartRate || visit.bloodSugar;
+
+                                        return (
+                                            <tr key={visit.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(visit.createdAt).toLocaleDateString('id-ID', {
+                                                        day: 'numeric',
+                                                        month: 'short',
+                                                        year: 'numeric'
                                                     })}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div>
-                                                    <p className="text-sm font-medium text-gray-900">{visit.patient.name}</p>
-                                                    <p className="text-sm text-gray-500">{visit.patient.mrNumber}</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {visit.vitalSigns && Object.keys(visit.vitalSigns).length > 0 && (
-                                                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Vital</span>
-                                                    )}
-                                                    {visit.medicationsGiven && visit.medicationsGiven.length > 0 && (
-                                                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Obat</span>
-                                                    )}
-                                                    {visit.education && (
-                                                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">Edukasi</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {visit.nurse.name}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
-                                                    visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-purple-100 text-purple-800'
-                                                    }`}>
-                                                    {visit.shift}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => setSelectedPatientForDetail(visit.patientId)}
-                                                        className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                        <span>Detail</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingVisitation(visit);
-                                                            setShowAddForm(true);
-                                                        }}
-                                                        className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                        <span>Edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(visit.id)}
-                                                        className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                        <span>Delete</span>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    <br />
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(visit.createdAt).toLocaleTimeString('id-ID', {
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">{visit.patient.name}</p>
+                                                        <p className="text-sm text-gray-500">{visit.patient.mrNumber}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {hasVitalSigns && (
+                                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Vital</span>
+                                                        )}
+                                                        {visit.medicationsGiven && visit.medicationsGiven.length > 0 && (
+                                                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Obat</span>
+                                                        )}
+                                                        {visit.education && (
+                                                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">Edukasi</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visit.nurse.name}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
+                                                            visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                                                'bg-purple-100 text-purple-800'
+                                                        }`}>
+                                                        {visit.shift}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => setSelectedPatientForDetail(visit.patientId)}
+                                                            className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                            <span>Detail</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingVisitation(visit);
+                                                                setShowAddForm(true);
+                                                            }}
+                                                            className="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center space-x-1"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                            <span>Edit</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(visit.id)}
+                                                            className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                            <span>Delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
 
+                        {/* Mobile Card View */}
                         <div className="lg:hidden space-y-4 p-4">
-                            {filteredVisitations.map((visit) => (
-                                <div key={visit.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex-1">
-                                            <h4 className="font-semibold text-gray-900">{visit.patient.name}</h4>
-                                            <p className="text-sm text-gray-600">{visit.patient.mrNumber}</p>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                {new Date(visit.createdAt).toLocaleString('id-ID', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
-                                            </p>
+                            {filteredVisitations.map((visit) => {
+                                const hasVitalSigns = visit.temperature || visit.bloodPressure ||
+                                    visit.heartRate || visit.bloodSugar;
+
+                                return (
+                                    <div key={visit.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-gray-900">{visit.patient.name}</h4>
+                                                <p className="text-sm text-gray-600">{visit.patient.mrNumber}</p>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    {new Date(visit.createdAt).toLocaleString('id-ID', {
+                                                        day: 'numeric',
+                                                        month: 'short',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </p>
+                                            </div>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
+                                                    visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-purple-100 text-purple-800'
+                                                }`}>
+                                                {visit.shift}
+                                            </span>
                                         </div>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
-                                            visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
-                                                'bg-purple-100 text-purple-800'
-                                            }`}>
-                                            {visit.shift}
-                                        </span>
+                                        <div className="flex flex-wrap gap-2 mb-3">
+                                            {hasVitalSigns && (
+                                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Vital</span>
+                                            )}
+                                            {visit.medicationsGiven && visit.medicationsGiven.length > 0 && (
+                                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Obat</span>
+                                            )}
+                                            {visit.education && (
+                                                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">Edukasi</span>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mb-3">Perawat: {visit.nurse.name}</p>
+                                        <div className="flex gap-2 mt-3">
+                                            <button
+                                                onClick={() => setSelectedPatientForDetail(visit.patientId)}
+                                                className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                                <span>Detail</span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingVisitation(visit);
+                                                    setShowAddForm(true);
+                                                }}
+                                                className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                                <span>Edit</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(visit.id)}
+                                                className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                <span>Delete</span>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2 mb-3">
-                                        {visit.vitalSigns && Object.keys(visit.vitalSigns).length > 0 && (
-                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Vital</span>
-                                        )}
-                                        {visit.medicationsGiven && visit.medicationsGiven.length > 0 && (
-                                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Obat</span>
-                                        )}
-                                        {visit.education && (
-                                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">Edukasi</span>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mb-3">Perawat: {visit.nurse.name}</p>
-                                    <div className="flex gap-2 mt-3">
-                                        <button
-                                            onClick={() => setSelectedPatientForDetail(visit.patientId)}
-                                            className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
-                                        >
-                                            <Eye className="h-4 w-4" />
-                                            <span>Detail</span>
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setEditingVisitation(visit);
-                                                setShowAddForm(true);
-                                            }}
-                                            className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                            <span>Edit</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(visit.id)}
-                                            className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                            <span>Delete</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {filteredVisitations.length === 0 && (
@@ -359,7 +371,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                 isOpen={!!selectedPatientForDetail}
                 onClose={() => setSelectedPatientForDetail(null)}
                 patientId={selectedPatientForDetail}
-                visitations={filteredVisitations}
+                visitations={selectedPatientVisitations}
             />
         </div>
     );

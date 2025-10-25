@@ -55,13 +55,29 @@ export async function POST(request: Request) {
     const {
       patientId,
       shift,
-      vitalSigns,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      oxygenSaturation,
+      bloodSugar,
+      weight,
+      height,
       medicationsGiven,
       education,
       complications,
       notes,
       dietCompliance,
-      dietIssues
+      dietIssues,
+      energyRequirement,
+      calculatedBMI,
+      calculatedBBI,
+      basalMetabolicRate,
+      activityLevel,
+      stressLevel,
+      stressFactor,
+      nutritionStatus,
+      energyCalculationDetail
     } = body;
 
     if (!patientId || !shift) {
@@ -94,7 +110,14 @@ export async function POST(request: Request) {
       patientId,
       nurseId: nurse.id,
       shift,
-      vitalSigns: vitalSigns || {},
+      temperature: temperature ? parseFloat(temperature) : null,
+      bloodPressure: bloodPressure || null,
+      heartRate: heartRate ? parseInt(heartRate) : null,
+      respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : null,
+      oxygenSaturation: oxygenSaturation ? parseInt(oxygenSaturation) : null,
+      bloodSugar: bloodSugar ? parseInt(bloodSugar) : null,
+      weight: weight ? parseFloat(weight) : null,
+      height: height ? parseInt(height) : null,
       medicationsGiven: medicationsGiven || [],
       nextVisitNeeded: false,
       priority: 'NORMAL'
@@ -122,6 +145,35 @@ export async function POST(request: Request) {
       visitationData.dietIssues = dietIssues;
     }
 
+    // ENERGY CALCULATION DATA
+    if (energyRequirement) {
+      visitationData.energyRequirement = energyRequirement;
+    }
+    if (calculatedBMI) {
+      visitationData.calculatedBMI = calculatedBMI;
+    }
+    if (calculatedBBI) {
+      visitationData.calculatedBBI = calculatedBBI;
+    }
+    if (basalMetabolicRate) {
+      visitationData.basalMetabolicRate = basalMetabolicRate;
+    }
+    if (activityLevel) {
+      visitationData.activityLevel = activityLevel;
+    }
+    if (stressLevel) {
+      visitationData.stressLevel = stressLevel;
+    }
+    if (stressFactor) {
+      visitationData.stressFactor = stressFactor;
+    }
+    if (nutritionStatus) {
+      visitationData.nutritionStatus = nutritionStatus;
+    }
+    if (energyCalculationDetail) {
+      visitationData.energyCalculationDetail = energyCalculationDetail;
+    }
+
     console.log('=== CREATING VISITATION ===');
     console.log(JSON.stringify(visitationData, null, 2));
 
@@ -133,12 +185,14 @@ export async function POST(request: Request) {
         include: {
           patient: {
             select: {
+              id: true,
               name: true,
               mrNumber: true
             }
           },
           nurse: {
             select: {
+              id: true,
               name: true
             }
           }
@@ -147,23 +201,39 @@ export async function POST(request: Request) {
 
       console.log('Visitation created:', newVisitation.id);
 
-      if (visitationData.dietCompliance !== null && visitationData.dietCompliance !== undefined) {
-        console.log('Updating patient diet compliance...');
-        await tx.patient.update({
-          where: { id: patientId },
-          data: {
-            dietCompliance: visitationData.dietCompliance
-          }
-        });
+      // UPDATE PATIENT DATA
+      const patientUpdateData: any = {};
+      
+      if (visitationData.weight) {
+        patientUpdateData.weight = visitationData.weight;
+        patientUpdateData.lastWeightUpdate = new Date();
+      }
+      
+      if (visitationData.height) {
+        patientUpdateData.height = visitationData.height;
+        patientUpdateData.lastHeightUpdate = new Date();
+      }
+      
+      if (visitationData.calculatedBMI) {
+        patientUpdateData.latestBMI = visitationData.calculatedBMI;
+        patientUpdateData.bmi = visitationData.calculatedBMI;
+      }
+      
+      if (visitationData.energyRequirement) {
+        patientUpdateData.latestEnergyRequirement = visitationData.energyRequirement;
+        patientUpdateData.lastEnergyCalculation = visitationData.energyCalculationDetail;
+      }
+      
+      if (visitationData.dietCompliance !== null) {
+        patientUpdateData.dietCompliance = visitationData.dietCompliance;
       }
 
-      if (vitalSigns?.weight) {
-        console.log('Updating patient weight...');
+      // Update patient jika ada data yang perlu diupdate
+      if (Object.keys(patientUpdateData).length > 0) {
+        console.log('Updating patient with:', patientUpdateData);
         await tx.patient.update({
           where: { id: patientId },
-          data: {
-            weight: parseFloat(vitalSigns.weight)
-          }
+          data: patientUpdateData
         });
       }
 
@@ -296,7 +366,14 @@ export async function PUT(request: Request) {
     const {
       shift,
       complaints,
-      vitalSigns,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      oxygenSaturation,
+      bloodSugar,
+      weight,
+      height,
       medicationsGiven,
       labResults,
       actions,
@@ -304,7 +381,16 @@ export async function PUT(request: Request) {
       education,
       notes,
       dietCompliance,
-      dietIssues
+      dietIssues,
+      energyRequirement,
+      calculatedBMI,
+      calculatedBBI,
+      basalMetabolicRate,
+      activityLevel,
+      stressLevel,
+      stressFactor,
+      nutritionStatus,
+      energyCalculationDetail
     } = body;
 
     // Check if visitation exists
@@ -313,6 +399,7 @@ export async function PUT(request: Request) {
       include: {
         patient: {
           select: {
+            id: true,
             name: true,
             mrNumber: true
           }
@@ -331,7 +418,17 @@ export async function PUT(request: Request) {
         data: {
           shift: shift || existingVisitation.shift,
           complaints: complaints !== undefined ? complaints : existingVisitation.complaints,
-          vitalSigns: vitalSigns || existingVisitation.vitalSigns,
+          
+          // VITAL SIGNS - Field terpisah
+          temperature: temperature !== undefined ? (temperature ? parseFloat(temperature) : null) : existingVisitation.temperature,
+          bloodPressure: bloodPressure !== undefined ? bloodPressure : existingVisitation.bloodPressure,
+          heartRate: heartRate !== undefined ? (heartRate ? parseInt(heartRate) : null) : existingVisitation.heartRate,
+          respiratoryRate: respiratoryRate !== undefined ? (respiratoryRate ? parseInt(respiratoryRate) : null) : existingVisitation.respiratoryRate,
+          oxygenSaturation: oxygenSaturation !== undefined ? (oxygenSaturation ? parseInt(oxygenSaturation) : null) : existingVisitation.oxygenSaturation,
+          bloodSugar: bloodSugar !== undefined ? (bloodSugar ? parseInt(bloodSugar) : null) : existingVisitation.bloodSugar,
+          weight: weight !== undefined ? (weight ? parseFloat(weight) : null) : existingVisitation.weight,
+          height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
+          
           medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
           labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
           actions: actions !== undefined ? actions : existingVisitation.actions,
@@ -340,47 +437,83 @@ export async function PUT(request: Request) {
           notes: notes !== undefined ? notes : existingVisitation.notes,
           dietCompliance: dietCompliance !== undefined ? (dietCompliance ? parseInt(dietCompliance) : null) : existingVisitation.dietCompliance,
           dietIssues: dietIssues !== undefined ? dietIssues : existingVisitation.dietIssues,
+          
+          // ENERGY CALCULATION
+          energyRequirement: energyRequirement !== undefined ? energyRequirement : existingVisitation.energyRequirement,
+          calculatedBMI: calculatedBMI !== undefined ? calculatedBMI : existingVisitation.calculatedBMI,
+          calculatedBBI: calculatedBBI !== undefined ? calculatedBBI : existingVisitation.calculatedBBI,
+          basalMetabolicRate: basalMetabolicRate !== undefined ? basalMetabolicRate : existingVisitation.basalMetabolicRate,
+          activityLevel: activityLevel !== undefined ? activityLevel : existingVisitation.activityLevel,
+          stressLevel: stressLevel !== undefined ? stressLevel : existingVisitation.stressLevel,
+          stressFactor: stressFactor !== undefined ? stressFactor : existingVisitation.stressFactor,
+          nutritionStatus: nutritionStatus !== undefined ? nutritionStatus : existingVisitation.nutritionStatus,
+          energyCalculationDetail: energyCalculationDetail !== undefined ? energyCalculationDetail : existingVisitation.energyCalculationDetail,
+          
           nextVisitNeeded: complications ? true : existingVisitation.nextVisitNeeded,
           priority: complications ? 'HIGH' : existingVisitation.priority
         },
         include: {
           patient: {
             select: {
+              id: true,
               name: true,
               mrNumber: true
             }
           },
           nurse: {
             select: {
+              id: true,
               name: true
             }
           }
         }
       });
 
-      // Update patient diet compliance if changed
-      if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
-        await tx.patient.update({
-          where: { id: existingVisitation.patientId },
-          data: {
-            dietCompliance: dietCompliance ? parseInt(dietCompliance) : null
-          }
-        });
-      }
-
-      // Update patient weight if changed
-      if (vitalSigns?.weight) {
-        const existingWeight = (existingVisitation.vitalSigns as any)?.weight;
-        if (vitalSigns.weight !== existingWeight) {
-          await tx.patient.update({
-            where: { id: existingVisitation.patientId },
-            data: {
-              weight: parseFloat(vitalSigns.weight)
-            }
-          });
+      // UPDATE PATIENT DATA
+      const patientUpdateData: any = {};
+      
+      // Update weight if changed
+      if (weight !== undefined && weight) {
+        const newWeight = parseFloat(weight);
+        if (newWeight !== existingVisitation.weight) {
+          patientUpdateData.weight = newWeight;
+          patientUpdateData.lastWeightUpdate = new Date();
         }
       }
+      
+      // Update height if changed
+      if (height !== undefined && height) {
+        const newHeight = parseInt(height);
+        if (newHeight !== existingVisitation.height) {
+          patientUpdateData.height = newHeight;
+          patientUpdateData.lastHeightUpdate = new Date();
+        }
+      }
+      
+      // Update BMI if changed
+      if (calculatedBMI !== undefined && calculatedBMI !== existingVisitation.calculatedBMI) {
+        patientUpdateData.latestBMI = calculatedBMI;
+        patientUpdateData.bmi = calculatedBMI;
+      }
+      
+      // Update energy requirement if changed
+      if (energyRequirement !== undefined && energyRequirement !== existingVisitation.energyRequirement) {
+        patientUpdateData.latestEnergyRequirement = energyRequirement;
+        patientUpdateData.lastEnergyCalculation = energyCalculationDetail || existingVisitation.energyCalculationDetail;
+      }
+      
+      // Update diet compliance if changed
+      if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
+        patientUpdateData.dietCompliance = dietCompliance ? parseInt(dietCompliance) : null;
+      }
 
+      // Update patient if there's data to update
+      if (Object.keys(patientUpdateData).length > 0) {
+        await tx.patient.update({
+          where: { id: existingVisitation.patientId },
+          data: patientUpdateData
+        });
+      }
 
       // Create new alert if complications added/changed
       if (complications && complications !== existingVisitation.complications) {

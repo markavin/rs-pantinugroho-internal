@@ -75,10 +75,21 @@
     allergies String[]
     medicalHistory String?
 
+    latestEnergyRequirement Int? 
+    latestBMI               Float?
+    lastWeightUpdate        DateTime?
+    lastHeightUpdate        DateTime?
+    lastEnergyCalculation   Json?
+
+    searBRiskPercentage  Float?
+    searBRiskLevel       String?
+    searBLastCalculated  DateTime?
+    
     // Diabetes specific
     diabetesType  String?
     diagnosisDate DateTime?
     comorbidities String[]
+    smokingStatus SmokingStatus?
 
     // Insurance
     insuranceType   InsuranceType
@@ -222,41 +233,60 @@
     @@map("lab_results")
   }
 
-model Visitation {
-  id          String     @id @default(cuid())
-  patientId   String
-  nurseId     String
-  visitDate   DateTime   @default(now())
-  shift       Shift
-  
-  complaints       String?
-  vitalSigns       Json
-  medicationsGiven String[]
-  labResults       String?
-  actions          String?
-  complications    String?
-  education        String?
-  notes            String?
-  
-  // TAMBAHKAN INI
-  dietCompliance   Int?
-  dietIssues       String?
-  
-  nextVisitNeeded  Boolean @default(false)
-  priority         VisitationPriority @default(NORMAL)
+  model Visitation {
+    id          String     @id @default(cuid())
+    patientId   String
+    nurseId     String
+    visitDate   DateTime   @default(now())
+    shift       Shift
+    
+    temperature       Float?
+    bloodPressure     String?
+    heartRate         Int?
+    respiratoryRate   Int?
+    oxygenSaturation  Int?
+    bloodSugar        Int?
+    weight            Float?
+    height            Int?
+    
+    // MEDICAL DATA
+    complaints        String?
+    medicationsGiven  String[]
+    labResults        String?
+    actions           String?
+    complications     String?
+    education         String?
+    notes             String?
 
-  patient Patient @relation(fields: [patientId], references: [id])
-  nurse   User    @relation(fields: [nurseId], references: [id])
+    // DIET MONITORING
+    dietCompliance    Int?
+    dietIssues        String?
+    
+    energyRequirement       Int?
+    calculatedBMI           Float?
+    calculatedBBI           Float?
+    basalMetabolicRate      Int?
+    activityLevel           String?
+    stressLevel             String?
+    stressFactor            Float?
+    nutritionStatus         String?
+    energyCalculationDetail Json?
+    
+    nextVisitNeeded  Boolean @default(false)
+    priority         VisitationPriority @default(NORMAL)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    patient Patient @relation(fields: [patientId], references: [id])
+    nurse   User    @relation(fields: [nurseId], references: [id])
 
-  @@index([patientId])
-  @@index([nurseId])
-  @@index([visitDate])
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-  @@map("visitations")
-}
+    @@index([patientId])
+    @@index([nurseId])
+    @@index([visitDate])
+
+    @@map("visitations")
+  }
 
   model NutritionRecord {
     id             String @id @default(cuid())
@@ -382,6 +412,7 @@ model Visitation {
     dosageForm        String
     strength          String
     manufacturer      String
+    categoryKehamilan String
     stock             Int
     price             Int      @default(5000) // Add default price field (in Rupiah)
     expiryDate        DateTime
@@ -643,3 +674,9 @@ model Visitation {
     HIGH
     URGENT
   }
+
+  enum SmokingStatus {
+  TIDAK_MEROKOK
+  PEROKOK
+  MANTAN_PEROKOK
+}

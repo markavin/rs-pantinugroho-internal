@@ -24,6 +24,7 @@ interface Patient {
   status?: string;
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   allergies?: string[];
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK'; // 👈 TAMBAHKAN
   createdAt: Date;
 }
 
@@ -429,8 +430,9 @@ const NursePoliDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' :
-                            patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800' :
-                            'bg-gray-100 text-gray-800'
+                            patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800'
+                             :
+                            'bg-yellow-100 text-yellow-800'
                           }`}>
                             {patient.status || 'AKTIF'}
                           </span>

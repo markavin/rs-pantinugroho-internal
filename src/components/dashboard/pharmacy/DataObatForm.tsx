@@ -8,6 +8,7 @@ export interface DrugData {
     id: string;
     name: string;
     category: string;
+    categoryKehamilan: string;
     dosageForm: string;
     strength: string;
     manufacturer: string;
@@ -40,6 +41,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
     const [formData, setFormData] = useState<Partial<DrugData>>({
         name: '',
         category: '',
+        categoryKehamilan: '',
         dosageForm: '',
         strength: '',
         manufacturer: '',
@@ -61,31 +63,33 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
 
     // Categories untuk dropdown
     const categories = [
-        'Antidiabetes',
-        'Antihipertensi',
-        'Analgesik',
-        'Antibiotik',
-        'Antiinflamasi',
-        'Kardiovaskular',
-        'Neurologi',
-        'Gastroenterologi',
-        'Respiratori',
-        'Endokrin',
+        'INSULINS',
+        'ORAL ANTIDIABETIC AGENTS',
         'Lain-lain'
     ];
 
     // Dosage forms untuk dropdown
     const dosageForms = [
-        'Tablet',
-        'Kapsul',
-        'Sirup',
-        'Injeksi',
-        'Infus',
-        'Topikal',
-        'Tetes',
-        'Spray',
-        'Suppositoria',
-        'Patch'
+
+        'Injeksi 100 IU/ml',
+        'Injeksi 300 IU/ml',
+        'Injeksi 200 IU/ml',
+
+        'Tablet 30 mg',
+        'Tablet 2 mg',
+        'Tablet 4 mg',
+        'Tablet 500 mg',
+        'Tablet 850 mg',
+        'Tablet 1000 mg',
+        'Tablet 15 mg'
+    ];
+
+    const categorieshamil = [
+        'A',
+        'B',
+        'C',
+        'NA'
+
     ];
 
     // Reset form ketika modal dibuka/tutup
@@ -102,6 +106,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                 setFormData({
                     name: '',
                     category: '',
+                    categoryKehamilan: '',
                     dosageForm: '',
                     strength: '',
                     manufacturer: '',
@@ -149,6 +154,10 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
 
         if (!formData.category?.trim()) {
             newErrors.category = 'Kategori obat wajib dipilih';
+        }
+
+        if (!formData.categoryKehamilan?.trim()) {
+            newErrors.categoryKehamilan = 'Kategori Kehamilan wajib dipilih';
         }
 
         if (!formData.dosageForm?.trim()) {
@@ -206,6 +215,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                 ...formData,
                 name: formData.name!,
                 category: formData.category!,
+                categoryKehamilan: formData.categoryKehamilan!,
                 dosageForm: formData.dosageForm!,
                 strength: formData.strength!,
                 manufacturer: formData.manufacturer!,
@@ -281,44 +291,66 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                         /* DETAIL MODE VIEW */
                         <div className="space-y-6">
                             {/* Basic Info Card */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
-                                <h4 className="font-semibold text-blue-900 mb-4 flex items-center">
-                                    <Info className="h-5 w-5 mr-2" />
-                                    Informasi Umum
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Nama Obat</label>
-                                        <p className="text-base font-semibold text-gray-900">{formData.name}</p>
+                            <div className="border border-gray-300 rounded-lg p-4">
+                                <div className="flex items-center mb-3">
+                                    <Info className="h-5 w-5 text-green-600 mr-2" />
+                                    <h4 className="font-medium text-gray-900">Informasi Obat</h4>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div className="bg-white rounded-lg p-3 border">
+                                        <table className="text-sm w-full">
+                                            <tbody className="align-top">
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Nama Obat</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.name}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Kekuatan</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.strength}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Bentuk Sediaan</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.dosageForm}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Kekuatan</label>
-                                        <p className="text-base font-semibold text-gray-900">{formData.strength}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Kategori</label>
-                                        <p className="text-base font-semibold text-gray-900">{formData.category}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Bentuk Sediaan</label>
-                                        <p className="text-base font-semibold text-gray-900">{formData.dosageForm}</p>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Produsen</label>
-                                        <p className="text-base font-semibold text-gray-900">{formData.manufacturer}</p>
+                                    <div className="bg-white rounded-lg p-3 border">
+                                        <table className="text-sm w-full">
+                                            <tbody className="align-top">
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Kategori</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.category}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Kat. Kehamilan</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.categoryKehamilan}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="text-gray-600 pr-4 py-1">Produsen</td>
+                                                    <td className="px-1 py-1">:</td>
+                                                    <td className="font-semibold text-gray-900 py-1">{formData.manufacturer}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Stock & Price Card */}
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-5">
-                                <h4 className="font-semibold text-green-900 mb-4 flex items-center">
-                                    <DollarSign className="h-5 w-5 mr-2" />
-                                    Stok & Harga
-                                </h4>
+                            <div className="border border-gray-300 rounded-lg p-4">
+                                <div className="flex items-center mb-3">
+                                    <Package className="h-5 w-5 text-green-600 mr-2" />
+                                    <h4 className="font-medium text-gray-900">Stok & Harga</h4>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Jumlah Stok</label>
+                                    <div className="bg-white rounded-lg p-3 border">
+                                        <label className="block text-sm text-gray-600 mb-1">Jumlah Stok</label>
                                         <div className="flex items-center space-x-2">
                                             <p className="text-2xl font-bold text-gray-900">{formData.stock}</p>
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStockStatus().bg} ${getStockStatus().color}`}>
@@ -326,14 +358,14 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Harga Satuan</label>
+                                    <div className="bg-white rounded-lg p-3 border">
+                                        <label className="block text-sm text-gray-600 mb-1">Harga Satuan</label>
                                         <p className="text-2xl font-bold text-green-600">
                                             Rp {formData.price?.toLocaleString('id-ID') || '0'}
                                         </p>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Nilai Total Stok</label>
+                                    <div className="bg-white rounded-lg p-3 border">
+                                        <label className="block text-sm text-gray-600 mb-1">Nilai Total Stok</label>
                                         <p className="text-2xl font-bold text-blue-600">
                                             Rp {((formData.stock || 0) * (formData.price || 0)).toLocaleString('id-ID')}
                                         </p>
@@ -342,29 +374,34 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                             </div>
 
                             {/* Expiry Date Card */}
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-5">
-                                <h4 className="font-semibold text-orange-900 mb-4 flex items-center">
-                                    <Calendar className="h-5 w-5 mr-2" />
-                                    Tanggal Kedaluwarsa
-                                </h4>
-                                <div className="flex items-center space-x-3">
-                                    <p className="text-base font-semibold text-gray-900">
-                                        {formData.expiryDate ? new Date(formData.expiryDate).toLocaleDateString('id-ID', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        }) : '-'}
-                                    </p>
-                                    {formData.expiryDate && (() => {
-                                        const daysUntilExpiry = Math.ceil((new Date(formData.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                                        if (daysUntilExpiry < 30) {
-                                            return <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">SEGERA KADALUARSA</span>;
-                                        } else if (daysUntilExpiry < 90) {
-                                            return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">PERHATIAN</span>;
-                                        }
-                                        return null;
-                                    })()}
+                            <div className="border border-gray-300 rounded-lg p-4">
+                                <div className="flex items-center mb-3">
+                                    <Calendar className="h-5 w-5 text-green-600 mr-2" />
+                                    <h4 className="font-medium text-gray-900">Tanggal Kedaluwarsa</h4>
+                                </div>
+                                <div className="bg-white rounded-lg p-3 border">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-sm text-gray-600">Tanggal Kadaluarsa:</span>
+                                            <p className="text-base font-semibold text-gray-900 mt-1">
+                                                {formData.expiryDate ? new Date(formData.expiryDate).toLocaleDateString('id-ID', {
+                                                    weekday: 'long',
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                }) : '-'}
+                                            </p>
+                                        </div>
+                                        {formData.expiryDate && (() => {
+                                            const daysUntilExpiry = Math.ceil((new Date(formData.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                                            if (daysUntilExpiry < 30) {
+                                                return <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">SEGERA KADALUARSA</span>;
+                                            } else if (daysUntilExpiry < 90) {
+                                                return <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">PERHATIAN</span>;
+                                            }
+                                            return <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">AMAN</span>;
+                                        })()}
+                                    </div>
                                 </div>
                             </div>
 
@@ -454,6 +491,24 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                     ))}
                                 </select>
                                 {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category}</p>}
+                            </div>
+
+                            <div className="md:col-span-1">
+                                <label className="block text-base font-medium text-gray-800 mb-2">
+                                    Kategori Kehamilan<span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    required
+                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.categoryKehamilan ? 'border-red-300' : 'border-gray-300'}`}
+                                    value={formData.categoryKehamilan || ''}
+                                    onChange={(e) => handleInputChange('categoryKehamilan', e.target.value)}
+                                >
+                                    <option value="">Pilih kategori</option>
+                                    {categorieshamil.map(categoryhamil => (
+                                        <option key={categoryhamil} value={categoryhamil}>{categoryhamil}</option>
+                                    ))}
+                                </select>
+                                {errors.categorieshamil && <p className="mt-1 text-sm text-red-600">{errors.categorieshamil}</p>}
                             </div>
 
                             {/* Bentuk Sediaan */}

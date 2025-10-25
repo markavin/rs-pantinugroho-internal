@@ -16,6 +16,7 @@ interface Patient {
   insuranceType: string;
   allergies?: string[];
   medicalHistory?: string;
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK';
   status?: string;
   createdAt: Date;
 }
@@ -90,6 +91,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     diabetesType: selectedPatient?.diabetesType || '',
     insuranceType: selectedPatient?.insuranceType || '',
     medicalHistory: selectedPatient?.medicalHistory || '',
+    smokingStatus: selectedPatient?.smokingStatus || 'TIDAK_MEROKOK',
     status: selectedPatient?.status || 'AKTIF',
     complaint: '',
     complaintSeverity: 'RINGAN' as 'RINGAN' | 'SEDANG' | 'BERAT'
@@ -129,6 +131,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       insuranceType: '',
       medicalHistory: '',
       status: 'AKTIF',
+      smokingStatus: 'TIDAK_MEROKOK',
       complaint: '',
       complaintSeverity: 'RINGAN'
     });
@@ -168,6 +171,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         weight: patientData.weight ? parseFloat(patientData.weight) : undefined,
         diabetesType: patientData.diabetesType || undefined,
         insuranceType: patientData.insuranceType,
+        smokingStatus: patientData.smokingStatus,
         allergies: allergies.length > 0 ? allergies : undefined,
         medicalHistory: patientData.medicalHistory || undefined,
         status: patientData.status,
@@ -425,6 +429,30 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               <option value="PULANG">Pulang</option>
               <option value="PULANG_PAKSA">Pulang Paksa</option>
               <option value="MENINGGAL">Meninggal</option>
+            </select>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Status Merokok {formMode !== "view" && <span className="text-red-500">*</span>}
+          </label>
+          {formMode === 'view' ? (
+            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+              {selectedPatient?.smokingStatus === 'PEROKOK' ? 'Perokok' :
+                selectedPatient?.smokingStatus === 'MANTAN_PEROKOK' ? 'Mantan Perokok' :
+                  'Tidak Merokok'}
+            </div>
+          ) : (
+            <select
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+              value={patientData.smokingStatus}
+              onChange={(e) => setPatientData({ ...patientData, smokingStatus: e.target.value as any })}
+            >
+              <option value="TIDAK_MEROKOK">Tidak Merokok</option>
+              <option value="PEROKOK">Perokok</option>
+              <option value="MANTAN_PEROKOK">Mantan Perokok</option>
             </select>
           )}
         </div>
