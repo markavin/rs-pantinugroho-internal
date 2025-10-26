@@ -24,7 +24,7 @@ interface Patient {
   status?: string;
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   allergies?: string[];
-  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK'; // 👈 TAMBAHKAN
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK';
   createdAt: Date;
 }
 
@@ -33,6 +33,20 @@ interface DashboardStats {
   examinationsToday: number;
   waitingForDoctor: number;
   abnormalResults: number;
+}
+
+interface PatientRecord {
+  id: string;
+  patientId: string;
+  patient?: Patient;
+  recordType: string;
+  title: string;
+  content: string;
+  metadata?: any;
+  bloodPressure?: string;
+  heartRate?: number;
+  temperature?: number;
+  createdAt: Date;
 }
 
 const NursePoliDashboard = () => {
@@ -49,16 +63,14 @@ const NursePoliDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
-  // State untuk Modal Pemeriksaan
   const [showExaminationForm, setShowExaminationForm] = useState(false);
   const [selectedPatientForExam, setSelectedPatientForExam] = useState<Patient | null>(null);
   
-  // State untuk Riwayat
   const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
   
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSplash, setShowRefreshSplash] = useState(false);
-  const [recentExaminations, setRecentExaminations] = useState<any[]>([]);
+  const [recentExaminations, setRecentExaminations] = useState<PatientRecord[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -68,26 +80,68 @@ const NursePoliDashboard = () => {
     try {
       setLoading(true);
 
-      // Fetch patients (aktif/rawat jalan)
+      let activePatientsData: Patient[] = [];
+      
       const patientsRes = await fetch('/api/patients?activeOnly=true');
       if (patientsRes.ok) {
-        const patientsData = await patientsRes.json();
-        setPatients(patientsData);
+        activePatientsData = await patientsRes.json();
+        setPatients(activePatientsData);
       }
 
-      // Fetch stats
-      const statsRes = await fetch('/api/dashboard/nurse-poli-stats');
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
-      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      // Fetch recent examinations
-      const recordsRes = await fetch('/api/patient-records?type=VITAL_SIGNS&limit=5');
+      const [recordsRes, labsRes, alertsRes] = await Promise.all([
+        fetch('/api/patient-records'),
+        fetch('/api/lab-results'),
+        fetch('/api/alerts?targetRole=PERAWAT_POLI')
+      ]);
+
+      let vitalSignsToday = 0;
+      let recentExams: PatientRecord[] = [];
+
       if (recordsRes.ok) {
-        const recordsData = await recordsRes.json();
-        setRecentExaminations(recordsData);
+        const allRecords = await recordsRes.json();
+        
+        const vitalRecords = allRecords.filter((r: PatientRecord) => 
+          r.recordType === 'VITAL_SIGNS' && new Date(r.createdAt) >= today
+        );
+        vitalSignsToday = vitalRecords.length;
+
+        recentExams = allRecords
+          .filter((r: PatientRecord) => r.recordType === 'VITAL_SIGNS')
+          .sort((a: PatientRecord, b: PatientRecord) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 5);
       }
+
+      let abnormalCount = 0;
+      if (labsRes.ok) {
+        const allLabs = await labsRes.json();
+        const labsToday = allLabs.filter((lab: any) => new Date(lab.testDate) >= today);
+        abnormalCount = labsToday.filter((lab: any) => 
+          lab.status === 'HIGH' || lab.status === 'LOW' || lab.status === 'CRITICAL'
+        ).length;
+      }
+
+      let waitingCount = 0;
+      if (alertsRes.ok) {
+        const alerts = await alertsRes.json();
+        waitingCount = alerts.filter((alert: any) => 
+          !alert.isRead && alert.category === 'SYSTEM'
+        ).length;
+      }
+
+      setStats({
+        totalPatientsToday: activePatientsData.length,
+        examinationsToday: vitalSignsToday,
+        waitingForDoctor: waitingCount,
+        abnormalResults: abnormalCount
+      });
+
+      setRecentExaminations(recentExams);
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -131,7 +185,6 @@ const NursePoliDashboard = () => {
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
     
-    // Reset selection saat pindah tab
     if (tab !== 'history') setSelectedPatientForHistory(null);
   };
 
@@ -146,7 +199,7 @@ const NursePoliDashboard = () => {
   };
 
   const handleExaminationComplete = () => {
-    fetchDashboardData(); // Refresh data setelah pemeriksaan selesai
+    fetchDashboardData();
   };
 
   const handleViewPatientHistory = (patient: Patient) => {
@@ -162,7 +215,6 @@ const NursePoliDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -170,7 +222,6 @@ const NursePoliDashboard = () => {
         />
       )}
 
-      {/* Mobile Sidebar */}
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
         isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
@@ -206,7 +257,6 @@ const NursePoliDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Mobile Header */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -236,7 +286,6 @@ const NursePoliDashboard = () => {
           </button>
         </div>
 
-        {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-end mb-6">
           <button
             onClick={() => {
@@ -261,7 +310,6 @@ const NursePoliDashboard = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Navigation Tabs - Desktop */}
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8 px-6 justify-center">
@@ -286,7 +334,6 @@ const NursePoliDashboard = () => {
             </div>
           </div>
 
-          {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               {loading ? (
@@ -295,7 +342,6 @@ const NursePoliDashboard = () => {
                 </div>
               ) : (
                 <>
-                  {/* Stats Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                       <div className="flex items-center justify-between">
@@ -346,7 +392,6 @@ const NursePoliDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Recent Examinations */}
                   <div className="bg-white rounded-lg shadow-sm">
                     <div className="px-6 py-4 border-b border-gray-200">
                       <h3 className="text-lg font-semibold text-gray-900">Pemeriksaan Terbaru</h3>
@@ -362,7 +407,7 @@ const NursePoliDashboard = () => {
                                 </div>
                                 <div>
                                   <p className="font-medium text-gray-900">{record.patient?.name || 'Pasien'}</p>
-                                  <p className="text-sm text-gray-500">{record.title}</p>
+                                  <p className="text-sm text-gray-500">RM: {record.patient?.mrNumber || '-'}</p>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -386,7 +431,6 @@ const NursePoliDashboard = () => {
             </div>
           )}
 
-          {/* TAB: DAFTAR PASIEN */}
           {activeTab === 'patients' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-6 border-b border-gray-100">
@@ -405,7 +449,6 @@ const NursePoliDashboard = () => {
                 </div>
               </div>
 
-              {/* Desktop Table */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -430,8 +473,7 @@ const NursePoliDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' :
-                            patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800'
-                             :
+                            patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800' :
                             'bg-yellow-100 text-yellow-800'
                           }`}>
                             {patient.status || 'AKTIF'}
@@ -468,7 +510,6 @@ const NursePoliDashboard = () => {
                 )}
               </div>
 
-              {/* Mobile Cards */}
               <div className="lg:hidden space-y-4 p-4">
                 {filteredPatients.map((patient) => (
                   <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4">
@@ -513,7 +554,6 @@ const NursePoliDashboard = () => {
             </div>
           )}
 
-          {/* TAB: RIWAYAT */}
           {activeTab === 'history' && (
             <LabHistoryView
               patients={filteredPatients}
@@ -524,7 +564,6 @@ const NursePoliDashboard = () => {
         </div>
       </div>
 
-      {/* Modal: Patient Examination Form */}
       <PatientExaminationForm
         isOpen={showExaminationForm}
         onClose={handleCloseExaminationForm}

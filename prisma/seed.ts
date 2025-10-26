@@ -412,62 +412,62 @@ async function main() {
   });
 
   // Create Visitation Records
-  await prisma.visitation.createMany({
-    data: [
-      {
-        patientId: patient1.id,
-        nurseId: nurse.id,
-        visitDate: new Date('2024-08-29'),
-        shift: 'PAGI',
-        complaints: 'Mual setelah makan, kaki kesemutan',
+  // await prisma.visitation.createMany({
+  //   data: [
+  //     {
+  //       patientId: patient1.id,
+  //       nurseId: nurse.id,
+  //       visitDate: new Date('2024-08-29'),
+  //       shift: 'PAGI',
+  //       complaints: 'Mual setelah makan, kaki kesemutan',
 
-        // VITAL SIGNS - Field terpisah (bukan Json lagi)
-        temperature: 36.8,
-        bloodPressure: '140/90',
-        heartRate: 85,
-        respiratoryRate: 20,
-        oxygenSaturation: 98,
-        bloodSugar: 180,
-        weight: 75,
-        // height: null, // Opsional
+  //       // VITAL SIGNS - Field terpisah (bukan Json lagi)
+  //       temperature: 36.8,
+  //       bloodPressure: '140/90',
+  //       heartRate: 85,
+  //       respiratoryRate: 20,
+  //       oxygenSaturation: 98,
+  //       bloodSugar: 180,
+  //       weight: 75,
+  //       // height: null, // Opsional
 
-        medicationsGiven: ['Metformin 500mg', 'Glimepiride 2mg'],
-        labResults: 'HbA1c: 8.5%, Kreatinin: 1.2 mg/dL',
-        actions: 'Berikan obat anti mual, pantau intake makanan, edukasi diet diabetes',
-        complications: 'Neuropati ringan pada ekstremitas bawah',
-        education: 'Edukasi tentang pentingnya kontrol gula darah dan diet yang tepat',
-        notes: 'Pasien kooperatif, perlu monitoring ketat untuk mencegah komplikasi lebih lanjut',
-        nextVisitNeeded: true,
-        priority: 'HIGH'
-      },
-      {
-        patientId: patient3.id,
-        nurseId: nurse.id,
-        visitDate: new Date('2024-08-29'),
-        shift: 'SORE',
-        complaints: 'Penglihatan kabur, kaki kesemutan, sering haus',
+  //       medicationsGiven: ['Metformin 500mg', 'Glimepiride 2mg'],
+  //       labResults: 'HbA1c: 8.5%, Kreatinin: 1.2 mg/dL',
+  //       actions: 'Berikan obat anti mual, pantau intake makanan, edukasi diet diabetes',
+  //       complications: 'Neuropati ringan pada ekstremitas bawah',
+  //       education: 'Edukasi tentang pentingnya kontrol gula darah dan diet yang tepat',
+  //       notes: 'Pasien kooperatif, perlu monitoring ketat untuk mencegah komplikasi lebih lanjut',
+  //       nextVisitNeeded: true,
+  //       priority: 'HIGH'
+  //     },
+  //     {
+  //       patientId: patient3.id,
+  //       nurseId: nurse.id,
+  //       visitDate: new Date('2024-08-29'),
+  //       shift: 'SORE',
+  //       complaints: 'Penglihatan kabur, kaki kesemutan, sering haus',
 
-        // VITAL SIGNS - Field terpisah
-        temperature: 36.7,
-        bloodPressure: '150/95',
-        heartRate: 88,
-        respiratoryRate: 22,
-        oxygenSaturation: 97,
-        bloodSugar: 220,
-        weight: 82,
-        height: 172,
+  //       // VITAL SIGNS - Field terpisah
+  //       temperature: 36.7,
+  //       bloodPressure: '150/95',
+  //       heartRate: 88,
+  //       respiratoryRate: 22,
+  //       oxygenSaturation: 97,
+  //       bloodSugar: 220,
+  //       weight: 82,
+  //       height: 172,
 
-        medicationsGiven: ['Metformin 850mg', 'Insulin Regular 10 unit'],
-        labResults: 'HbA1c: 9.2%',
-        actions: 'Konsultasi dokter mata, fisioterapi untuk neuropati, adjustment insulin',
-        complications: 'Retinopati diabetik, neuropati perifer',
-        education: 'Pentingnya kontrol gula darah yang ketat, tanda-tanda komplikasi',
-        notes: 'Kondisi memburuk, perlu intensifikasi terapi dan monitoring ketat',
-        nextVisitNeeded: true,
-        priority: 'URGENT'
-      }
-    ]
-  });
+  //       medicationsGiven: ['Metformin 850mg', 'Insulin Regular 10 unit'],
+  //       labResults: 'HbA1c: 9.2%',
+  //       actions: 'Konsultasi dokter mata, fisioterapi untuk neuropati, adjustment insulin',
+  //       complications: 'Retinopati diabetik, neuropati perifer',
+  //       education: 'Pentingnya kontrol gula darah yang ketat, tanda-tanda komplikasi',
+  //       notes: 'Kondisi memburuk, perlu intensifikasi terapi dan monitoring ketat',
+  //       nextVisitNeeded: true,
+  //       priority: 'URGENT'
+  //     }
+  //   ]
+  // });
   // Create Nutrition Records
   await prisma.nutritionRecord.createMany({
     data: [

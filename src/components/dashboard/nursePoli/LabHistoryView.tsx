@@ -1,6 +1,6 @@
-// src/components/dashboard/nursePoli/LabHistoryView.tsx
-import React, { useState, useEffect } from 'react';
-import { History, FlaskConical, User, Calendar, TrendingUp, TrendingDown, Minus, Filter } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { History, FlaskConical, User, Calendar, TrendingUp, Filter, ChevronDown, ChevronUp, Activity, Heart, FileText, AlertCircle, Thermometer, Wind, Droplets } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Patient {
   id: string;
@@ -9,6 +9,8 @@ interface Patient {
   birthDate: Date;
   gender: 'MALE' | 'FEMALE';
   insuranceType: string;
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK';
+  diabetesType?: string;
   createdAt: Date;
 }
 
@@ -23,11 +25,26 @@ interface LabResult {
   notes?: string;
 }
 
+interface PatientRecord {
+  id: string;
+  patientId: string;
+  recordType: string;
+  title: string;
+  content: string;
+  metadata?: any;
+  bloodPressure?: string;
+  heartRate?: number;
+  temperature?: number;
+  createdAt: Date;
+}
+
 interface LabHistoryViewProps {
   patients: Patient[];
   selectedPatient: Patient | null;
   onPatientSelect: (patient: Patient | null) => void;
 }
+
+type FilterType = 'all' | 'vital' | 'lab' | 'complaints';
 
 const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   patients,
@@ -35,38 +52,51 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   onPatientSelect
 }) => {
   const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTestType, setSelectedTestType] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-
-  const labCategories: Record<string, string[]> = {
-    'Semua': [],
-    'Gula Darah': ['Gula Darah Sewaktu', 'Gula Darah Puasa', 'Glukosa 2 Jam PP', 'HbA1c'],
-    'Lipid': ['Kolesterol Total', 'LDL', 'HDL', 'Trigliserida'],
-    'Fungsi Ginjal': ['Urea', 'Kreatinin'],
-    'Protein': ['Albumin'],
-    'Fungsi Hati': ['SGOT (AST)', 'SGPT (ALT)'],
-    'Darah Lengkap': ['Hemoglobin (Hb)', 'Leukosit (AL)']
-  };
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '3m' | '6m' | 'all'>('30d');
+  const [expandedDates, setExpandedDates] = useState<{ [key: string]: boolean }>({});
+  const [chartFilter, setChartFilter] = useState<{ [key: string]: boolean }>({});
+  const [lastFetch, setLastFetch] = useState<Date>(new Date());
 
   useEffect(() => {
     if (selectedPatient) {
-      fetchLabHistory(selectedPatient.id);
+      fetchAllHistory(selectedPatient.id);
     }
   }, [selectedPatient]);
 
-  const fetchLabHistory = async (patientId: string) => {
+  const fetchAllHistory = async (patientId: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/lab-results?patientId=${patientId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setLabResults(data);
+      const [labResponse, recordsResponse] = await Promise.all([
+        fetch(`/api/lab-results?patientId=${patientId}&_t=${Date.now()}`),
+        fetch(`/api/patient-records?patientId=${patientId}&_t=${Date.now()}`)
+      ]);
+
+      if (labResponse.ok) {
+        const labData = await labResponse.json();
+        console.log('Fetched lab results:', labData.length);
+        setLabResults(labData);
       }
+
+      if (recordsResponse.ok) {
+        const recordsData = await recordsResponse.json();
+        console.log('Fetched patient records:', recordsData.length);
+        setPatientRecords(recordsData);
+      }
+
+      setLastFetch(new Date());
     } catch (error) {
-      console.error('Error fetching lab history:', error);
+      console.error('Error fetching history:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (selectedPatient) {
+      console.log('Manual refresh triggered');
+      fetchAllHistory(selectedPatient.id);
     }
   };
 
@@ -105,50 +135,540 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     return labels[status as keyof typeof labels] || status;
   };
 
-  const getTrendIcon = (currentIndex: number, results: LabResult[]) => {
-    if (currentIndex === results.length - 1) return <Minus className="h-4 w-4 text-gray-400" />;
-    
-    const current = parseFloat(results[currentIndex].value);
-    const previous = parseFloat(results[currentIndex + 1].value);
-    
-    if (isNaN(current) || isNaN(previous)) return <Minus className="h-4 w-4 text-gray-400" />;
-    
-    if (current > previous) return <TrendingUp className="h-4 w-4 text-red-500" />;
-    if (current < previous) return <TrendingDown className="h-4 w-4 text-green-500" />;
-    return <Minus className="h-4 w-4 text-gray-400" />;
+  const getFilteredDataByTimeRange = (data: any[]) => {
+    const now = new Date();
+    const ranges = {
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '3m': 90 * 24 * 60 * 60 * 1000,
+      '6m': 180 * 24 * 60 * 60 * 1000,
+      'all': Infinity
+    };
+
+    const rangeMs = ranges[timeRange];
+
+    return data.filter(item => {
+      const itemDate = new Date(item.testDate || item.createdAt);
+      return (now.getTime() - itemDate.getTime()) <= rangeMs;
+    });
   };
 
-  const uniqueTestTypes = Array.from(new Set(labResults.map(result => result.testType)));
-  
-  let filteredResults = labResults;
-  
-  if (selectedCategory && selectedCategory !== 'Semua') {
-    const categoryTests = labCategories[selectedCategory];
-    filteredResults = filteredResults.filter(result => categoryTests.includes(result.testType));
-  }
-  
-  if (selectedTestType) {
-    filteredResults = filteredResults.filter(result => result.testType === selectedTestType);
-  }
+  const groupDataByDate = () => {
+    const groups: {
+      [key: string]: {
+        complaints: PatientRecord[];
+        vitals: PatientRecord[];
+        labs: LabResult[];
+      }
+    } = {};
 
-  const sortedResults = filteredResults.sort((a, b) => 
-    new Date(b.testDate).getTime() - new Date(a.testDate).getTime()
-  );
+    patientRecords.forEach(record => {
+      const dateKey = new Date(record.createdAt).toISOString().split('T')[0];
+      if (!groups[dateKey]) {
+        groups[dateKey] = { complaints: [], vitals: [], labs: [] };
+      }
+
+      if (record.recordType === 'COMPLAINTS') {
+        groups[dateKey].complaints.push(record);
+      } else if (record.recordType === 'VITAL_SIGNS') {
+        groups[dateKey].vitals.push(record);
+      }
+    });
+
+    labResults.forEach(result => {
+      const dateKey = new Date(result.testDate).toISOString().split('T')[0];
+      if (!groups[dateKey]) {
+        groups[dateKey] = { complaints: [], vitals: [], labs: [] };
+      }
+      groups[dateKey].labs.push(result);
+    });
+
+    return groups;
+  };
+
+
+  const prepareVitalSignsChart = () => {
+    const vitalRecords = patientRecords.filter(r => r.recordType === 'VITAL_SIGNS');
+    const filteredByTime = getFilteredDataByTimeRange(vitalRecords);
+
+    return filteredByTime
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map((record, index) => {
+        const date = new Date(record.createdAt);
+        const metadata = record.metadata || {};
+
+        return {
+          index: index,
+          date: date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: '2-digit',
+            year: timeRange === '3m' || timeRange === '6m' || timeRange === 'all' ? '2-digit' : undefined
+          }),
+          time: date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          fullDateTime: `${date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          })} ${date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`,
+          suhu: record.temperature || null,
+          nadi: record.heartRate || null,
+          tekananDarah: record.bloodPressure ? parseInt(record.bloodPressure.split('/')[0]) : null,
+          tekananDarahFull: record.bloodPressure || null,
+          spo2: metadata.oxygenSaturation || null,
+          rr: metadata.respiratoryRate || null,
+        };
+      });
+  };
+
+  const prepareLabChart = () => {
+    const filteredByTime = getFilteredDataByTimeRange(labResults);
+
+    const groupedByDateTime: { [key: string]: { [testType: string]: number } } = {};
+
+    filteredByTime.forEach(result => {
+      const date = new Date(result.testDate);
+      // Group by date + hour + minute (round to nearest 5 minutes to group similar times)
+      const roundedMinutes = Math.floor(date.getMinutes() / 5) * 5;
+      const dateTimeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
+
+      if (!groupedByDateTime[dateTimeKey]) {
+        groupedByDateTime[dateTimeKey] = {};
+      }
+      const numValue = parseFloat(result.value);
+      if (!isNaN(numValue)) {
+        groupedByDateTime[dateTimeKey][result.testType] = numValue;
+      }
+    });
+
+    return Object.keys(groupedByDateTime)
+      .sort()
+      .map(dateTimeKey => {
+        const [datePart, timePart] = dateTimeKey.split('_');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute] = timePart.split(':').map(Number);
+        const date = new Date(year, month - 1, day, hour, minute);
+
+        return {
+          date: date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            year: timeRange === '3m' || timeRange === '6m' || timeRange === 'all' ? '2-digit' : undefined
+          }),
+          fullDateTime: `${date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          })} ${date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`,
+          ...groupedByDateTime[dateTimeKey]
+        };
+      });
+  };
+
+  const vitalSignsData = prepareVitalSignsChart();
+  const labChartData = prepareLabChart();
+
+  const uniqueTestTypes = Array.from(new Set(labResults.map(result => result.testType)));
+
+  useEffect(() => {
+    const initialFilter: { [key: string]: boolean } = {};
+    uniqueTestTypes.forEach(type => {
+      initialFilter[type] = true;
+    });
+    setChartFilter(initialFilter);
+  }, [labResults]);
+
+  const dataByDate = React.useMemo(() => groupDataByDate(), [patientRecords, labResults]);
+
+  const toggleDateExpansion = (dateKey: string) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [dateKey]: !prev[dateKey]
+    }));
+  };
+
+  const toggleChartFilter = (key: string) => {
+    setChartFilter(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const toggleAllChartFilters = () => {
+    const allActive = Object.values(chartFilter).every(v => v);
+    const newState = !allActive;
+    const newFilter: { [key: string]: boolean } = {};
+    Object.keys(chartFilter).forEach(key => {
+      newFilter[key] = newState;
+    });
+    setChartFilter(newFilter);
+  };
+
+  const getLineColor = (index: number) => {
+    const colors = [
+      '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
+      '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
+    ];
+    return colors[index % colors.length];
+  };
+
+  const renderComplaintsSection = (complaints: PatientRecord[]) => {
+    if (complaints.length === 0) return null;
+
+    return (
+      <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+          <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Keluhan Pasien
+          </h4>
+        </div>
+        <div className="p-4 space-y-3">
+          {complaints.map(complaint => (
+            <div key={complaint.id} className="border-l-4 border-green-500 pl-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-medium text-gray-900">
+                  {formatTime(complaint.createdAt)}
+                </span>
+                {complaint.metadata?.severity && (
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${complaint.metadata.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                    complaint.metadata.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                    {complaint.metadata.severity}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-900 whitespace-pre-wrap">{complaint.content}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderVitalSignsTable = (vitals: PatientRecord[]) => {
+    if (vitals.length === 0) return null;
+
+    return (
+      <>
+        <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+          <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+            <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Tanda Vital
+            </h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Waktu</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Suhu (°C)</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Nadi (bpm)</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">TD (mmHg)</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">SpO2 (%)</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">RR (x/mnt)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {vitals.map(vital => {
+                  const metadata = vital.metadata || {};
+                  return (
+                    <tr key={vital.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-xs text-gray-900 font-medium">
+                        {formatTime(vital.createdAt)}
+                      </td>
+
+                      {/* Suhu */}
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Thermometer className="h-3 w-3 text-blue-500" />
+                          <span className="text-xs text-gray-900 font-semibold">
+                            {vital.temperature || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Nadi */}
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Heart className="h-3 w-3 text-red-500" />
+                          <span className="text-xs text-gray-900 font-semibold">
+                            {vital.heartRate || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* TD Sistolik */}
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Activity className="h-3 w-3 text-purple-500" />
+                          <span className="text-xs text-gray-900 font-semibold">
+                            {vital.bloodPressure || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* SpO2 */}
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Droplets className="h-3 w-3 text-emerald-500" />
+                          <span className="text-xs text-gray-900 font-semibold">
+                            {metadata.oxygenSaturation || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Respiratory Rate */}
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Wind className="h-3 w-3 text-pink-500" />
+                          <span className="text-xs text-gray-900 font-semibold">
+                            {metadata.respiratoryRate || '-'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {vitals.some(v => v.metadata?.searB) && (
+          <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+            <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+              <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Prediksi Risiko Kardiovaskular (SEAR B WHO)
+              </h4>
+            </div>
+            <div className="p-4">
+              {vitals.filter(v => v.metadata?.searB).map(vital => {
+                const searB = vital.metadata.searB;
+                const getColorClass = () => {
+                  if (searB.level === 'Sangat Rendah') return 'bg-green-100 text-green-800 border-green-300';
+                  if (searB.level === 'Rendah') return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+                  if (searB.level === 'Sedang') return 'bg-orange-100 text-orange-800 border-orange-300';
+                  if (searB.level === 'Tinggi') return 'bg-red-100 text-red-800 border-red-300';
+                  return 'bg-red-900 text-white border-red-900';
+                };
+
+                return (
+                  <div key={vital.id} className="mb-3 last:mb-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600">
+                        {formatTime(vital.createdAt)}
+                      </span>
+                    </div>
+                    <div className={`rounded-lg border-2 p-3 ${getColorClass()}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium mb-1">Risiko 10 Tahun</p>
+                          <p className="text-2xl font-bold">{searB.range}</p>
+                          <p className="text-sm font-semibold mt-1">{searB.level}</p>
+                        </div>
+                        <TrendingUp className="h-8 w-8 opacity-50" />
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-current border-opacity-20">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="opacity-75">Umur:</span>
+                            <span className="font-semibold ml-1">{searB.age} tahun</span>
+                          </div>
+                          <div>
+                            <span className="opacity-75">Kolesterol:</span>
+                            <span className="font-semibold ml-1">{searB.cholesterolMmol} mmol/L</span>
+                          </div>
+                          <div>
+                            <span className="opacity-75">Merokok:</span>
+                            <span className="font-semibold ml-1">{searB.isSmoker ? 'Ya' : 'Tidak'}</span>
+                          </div>
+                          <div>
+                            <span className="opacity-75">Diabetes:</span>
+                            <span className="font-semibold ml-1">{searB.hasDiabetes ? 'Ya' : 'Tidak'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderLabResultsTable = (labs: LabResult[]) => {
+    if (labs.length === 0) return null;
+
+    const labsByType: { [key: string]: LabResult[] } = {};
+    labs.forEach(lab => {
+      if (!labsByType[lab.testType]) {
+        labsByType[lab.testType] = [];
+      }
+      labsByType[lab.testType].push(lab);
+    });
+
+    const testTypes = Object.keys(labsByType);
+
+    return (
+      <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+          <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+            <FlaskConical className="h-4 w-4" />
+            Hasil Laboratorium ({labs.length} tes)
+          </h4>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 sticky left-0 bg-gray-50 z-10">Waktu</th>
+                {testTypes.map(testType => (
+                  <th key={testType} className="px-3 py-2 text-center text-xs font-medium text-gray-700 min-w-[120px]">
+                    {testType}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {Array.from(new Set(labs.map(l => formatTime(l.testDate)))).map(time => {
+                const labsAtTime = labs.filter(l => formatTime(l.testDate) === time);
+
+                return (
+                  <tr key={time} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-xs text-gray-900 font-medium sticky left-0 bg-white">
+                      {time}
+                    </td>
+                    {testTypes.map(testType => {
+                      const lab = labsAtTime.find(l => l.testType === testType);
+
+                      if (!lab) {
+                        return (
+                          <td key={testType} className="px-3 py-2 text-center text-xs text-gray-400">
+                            -
+                          </td>
+                        );
+                      }
+
+                      let cellClass = 'px-3 py-2 text-center';
+                      if (lab.status === 'CRITICAL') {
+                        cellClass += ' bg-red-50';
+                      } else if (lab.status === 'HIGH') {
+                        cellClass += ' bg-orange-50';
+                      } else if (lab.status === 'LOW') {
+                        cellClass += ' bg-yellow-50';
+                      } else if (lab.status === 'NORMAL') {
+                        cellClass += ' bg-green-50';
+                      }
+
+                      return (
+                        <td key={testType} className={cellClass}>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-xs font-bold text-gray-900">
+                              {lab.value}
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              Normal: {lab.normalRange}
+                            </span>
+                            <span className={`text-[10px] font-semibold ${lab.status === 'CRITICAL' ? 'text-red-700' :
+                              lab.status === 'HIGH' ? 'text-orange-700' :
+                                lab.status === 'LOW' ? 'text-yellow-700' :
+                                  'text-green-700'
+                              }`}>
+                              {getStatusBadge(lab.status)}
+                            </span>
+                            {lab.notes && (
+                              <span className="text-[10px] text-gray-600 italic" title={lab.notes}>
+                                {lab.notes.substring(0, 15)}{lab.notes.length > 15 ? '...' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDailyGroup = (dateKey: string, data: {
+    complaints: PatientRecord[];
+    vitals: PatientRecord[];
+    labs: LabResult[];
+  }) => {
+    const isExpanded = expandedDates[dateKey];
+    const dateObj = new Date(dateKey);
+    const totalItems = data.complaints.length + data.vitals.length + data.labs.length;
+
+    if (totalItems === 0) return null;
+
+    return (
+      <div key={dateKey} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <button
+          onClick={() => toggleDateExpansion(dateKey)}
+          className="w-full px-6 py-4 bg-gradient-to-r from-blue-50 to-green-50 border-b border-gray-200 flex items-center justify-between hover:from-blue-100 hover:to-green-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="text-left">
+              <h3 className="text-lg font-bold text-gray-900">
+                {dateObj.toLocaleDateString('id-ID', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                })}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {data.complaints.length} keluhan • {data.vitals.length} vital signs • {data.labs.length} hasil lab
+              </p>
+            </div>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="h-5 w-5 text-gray-600" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-600" />
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="p-6">
+            {renderComplaintsSection(data.complaints)}
+            {renderVitalSignsTable(data.vitals)}
+            {renderLabResultsTable(data.labs)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
 
   if (!selectedPatient) {
     return (
       <div className="bg-white rounded-lg shadow-sm">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center space-x-3">
-          <History className="h-6 w-6 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Riwayat Laboratorium</h3>
+          <History className="h-6 w-6 text-green-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Riwayat Pemeriksaan</h3>
         </div>
-        
+
         <div className="p-6">
           <div className="text-center py-8">
-            <FlaskConical className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <FlaskConical className="h-16 w-12 mx-auto text-green-600 mb-4" />
             <h4 className="text-lg font-medium text-gray-900 mb-2">Pilih Pasien</h4>
-            <p className="text-gray-600 mb-6">Pilih pasien dari daftar untuk melihat riwayat laboratorium</p>
-            
+            <p className="text-gray-600 mb-6">Pilih pasien dari daftar untuk melihat riwayat pemeriksaan</p>
+
             <div className="max-w-md mx-auto">
               <div className="grid gap-3">
                 {patients.slice(0, 5).map((patient) => (
@@ -169,7 +689,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                   </button>
                 ))}
               </div>
-              
+
               {patients.length > 5 && (
                 <p className="text-sm text-gray-500 mt-4">
                   Dan {patients.length - 5} pasien lainnya...
@@ -184,156 +704,221 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Patient Info Header */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <User className="h-6 w-6 text-blue-600" />
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <User className="h-6 w-6 text-green-600" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">{selectedPatient.name}</h2>
               <p className="text-gray-600">RM: {selectedPatient.mrNumber} | {selectedPatient.insuranceType}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Terakhir diperbarui: {lastFetch.toLocaleTimeString('id-ID')}
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => onPatientSelect(null)}
-            className="text-gray-500 hover:text-gray-700 px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 transition-colors"
-          >
-            Ganti Pasien
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded border border-blue-300 hover:bg-blue-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <Activity className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span className="text-sm">{loading ? 'Memuat...' : 'Refresh'}</span>
+            </button>
+            <button
+              onClick={() => onPatientSelect(null)}
+              className="text-gray-500 hover:text-gray-700 px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+            >
+              Ganti Pasien
+            </button>
+          </div>
         </div>
 
-        {/* Category Filter */}
-        {Object.keys(labCategories).length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-              <Filter className="h-4 w-4" />
-              <span className="font-medium">Filter Kategori:</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {Object.keys(labCategories).map((category) => (
-                <button
-                  key={category}
-                  onClick={() => {
-                    setSelectedCategory(category);
-                    setSelectedTestType('');
-                  }}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    selectedCategory === category || (category === 'Semua' && !selectedCategory)
-                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Test Type Filter */}
-        {uniqueTestTypes.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <span className="font-medium">Filter Jenis Test:</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedTestType('')}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  selectedTestType === '' 
-                    ? 'bg-green-100 text-green-700 border border-green-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-700">Rentang Waktu:</span>
+          {[
+            { key: '7d', label: '7 Hari' },
+            { key: '30d', label: '30 Hari' },
+            { key: '3m', label: '3 Bulan' },
+            { key: '6m', label: '6 Bulan' },
+            { key: 'all', label: 'Semua' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTimeRange(key as any)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${timeRange === key
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'bg-white text-gray-700 hover:bg-green-100 border border-gray-200'
                 }`}
-              >
-                Semua Test
-              </button>
-              {uniqueTestTypes.map((testType) => (
-                <button
-                  key={testType}
-                  onClick={() => setSelectedTestType(testType)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    selectedTestType === testType 
-                      ? 'bg-green-100 text-green-700 border border-green-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {testType}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Lab Results */}
+      {vitalSignsData.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              <h4 className="text-sm font-semibold text-gray-900">
+                Tren Tanda Vital
+              </h4>
+            </div>
+            <span className="text-xs text-gray-500">{vitalSignsData.length} titik data</span>
+          </div>
+
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={vitalSignsData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="index"
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+                tickFormatter={(value) => vitalSignsData[value]?.date || ''}
+              />
+              <YAxis tick={{ fontSize: 11 }} stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  fontSize: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  color: '#111827',
+                }}
+                labelStyle={{
+                  color: '#111827',
+                  fontWeight: 400,
+                }}
+                labelFormatter={(label) => {
+                  const data = vitalSignsData[label];
+                  return data ? data.fullDateTime : label;
+                }}
+                formatter={(value: any, name: string) => {
+                  if (value === null) return ['-', name];
+                  return [value, name];
+                }}
+              />
+
+              <Legend wrapperStyle={{ fontSize: '12px' }} iconType="line" />
+              <Line type="monotone" dataKey="suhu" stroke="#3b82f6" strokeWidth={2} name="Suhu (°C)" dot={{ fill: '#3b82f6', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="nadi" stroke="#ef4444" strokeWidth={2} name="Nadi (bpm)" dot={{ fill: '#ef4444', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="tekananDarah" stroke="#8b5cf6" strokeWidth={2} name="TD Sistolik" dot={{ fill: '#8b5cf6', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="spo2" stroke="#10b981" strokeWidth={2} name="SpO2 (%)" dot={{ fill: '#10b981', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="rr" stroke="#f59e0b" strokeWidth={2} name="Respiratory Rate (x/mnt)" dot={{ fill: '#f59e0b', r: 4 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {labChartData.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              <h4 className="text-sm font-semibold text-gray-900">
+                Tren Hasil Lab
+              </h4>
+            </div>
+            <span className="text-xs text-gray-500">{labChartData.length} titik data</span>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              onClick={toggleAllChartFilters}
+              className="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-gray-600 text-white hover:bg-gray-700"
+            >
+              {Object.values(chartFilter).every(v => v) ? 'Sembunyikan Semua' : 'Tampilkan Semua'}
+            </button>
+            {uniqueTestTypes.map((testType, index) => (
+              <button
+                key={testType}
+                onClick={() => toggleChartFilter(testType)}
+                className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: chartFilter[testType] ? getLineColor(index) : '#e5e7eb',
+                  color: chartFilter[testType] ? '#ffffff' : '#6b7280'
+                }}
+              >
+                {testType}
+              </button>
+            ))}
+          </div>
+
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={labChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#6b7280" />
+              <YAxis tick={{ fontSize: 11 }} stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  fontSize: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  color: '#111827',
+                }}
+                labelStyle={{
+                  color: '#111827',
+                  fontWeight: 400,
+                }}
+                labelFormatter={(label) => {
+                  const data = vitalSignsData[label];
+                  return data ? data.fullDateTime : label;
+                }}
+                formatter={(value: any, name: string) => {
+                  if (value === null) return ['-', name];
+                  return [value, name];
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: '12px' }} iconType="line" />
+              {uniqueTestTypes.map((testType, index) => (
+                chartFilter[testType] && (
+                  <Line
+                    key={testType}
+                    type="monotone"
+                    dataKey={testType}
+                    stroke={getLineColor(index)}
+                    strokeWidth={2}
+                    name={testType}
+                    dot={{ fill: getLineColor(index), r: 4 }}
+                    connectNulls
+                  />
+                )
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-            <History className="h-5 w-5 text-blue-600" />
-            <span>Riwayat Hasil Laboratorium</span>
+            <History className="h-5 w-5 text-green-600" />
+            <span>Riwayat Pemeriksaan Lengkap</span>
           </h3>
           <span className="text-sm text-gray-500">
-            {filteredResults.length} hasil ditemukan
+            {Object.keys(dataByDate).length} hari pemeriksaan
           </span>
         </div>
 
         <div className="p-6">
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
             </div>
-          ) : sortedResults.length > 0 ? (
+          ) : Object.keys(dataByDate).length > 0 ? (
             <div className="space-y-4">
-              {sortedResults.map((result, index) => (
-                <div key={result.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h4 className="font-semibold text-gray-900">{result.testType}</h4>
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(result.status)}`}>
-                          {getStatusBadge(result.status)}
-                        </span>
-                        {getTrendIcon(index, sortedResults.filter(r => r.testType === result.testType))}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Hasil: </span>
-                          <span className="font-medium text-gray-900">{result.value}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Normal: </span>
-                          <span className="text-gray-700">{result.normalRange}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-700">{formatDate(result.testDate)}</span>
-                          <span className="text-gray-500 text-xs">{formatTime(result.testDate)}</span>
-                        </div>
-                      </div>
-                      {result.notes && (
-                        <div className="mt-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                          <strong>Catatan:</strong> {result.notes}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {Object.keys(dataByDate)
+                .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                .map(dateKey => renderDailyGroup(dateKey, dataByDate[dateKey]))}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
               <FlaskConical className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium mb-2">Belum ada hasil laboratorium</p>
-              <p>
-                {selectedTestType 
-                  ? `Tidak ada hasil untuk test ${selectedTestType}` 
-                  : selectedCategory && selectedCategory !== 'Semua'
-                  ? `Tidak ada hasil untuk kategori ${selectedCategory}`
-                  : 'Pasien ini belum memiliki riwayat laboratorium'
-                }
-              </p>
+              <p className="text-lg font-medium mb-2">Belum ada riwayat pemeriksaan</p>
+              <p>Pasien ini belum memiliki riwayat pemeriksaan</p>
             </div>
           )}
         </div>

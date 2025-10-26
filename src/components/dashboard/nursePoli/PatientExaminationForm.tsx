@@ -204,14 +204,24 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         })
       });
 
-      // 2. Save vital signs
+      // 2. Save vital signs WITH SEAR B
       const vitalSigns = {
         bloodPressure: `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic}`,
         heartRate: parseInt(formData.heartRate),
         temperature: parseFloat(formData.temperature),
         respiratoryRate: formData.respiratoryRate ? parseInt(formData.respiratoryRate) : null,
         oxygenSaturation: formData.oxygenSaturation ? parseInt(formData.oxygenSaturation) : null,
-        recordedAt: new Date().toISOString()
+        recordedAt: new Date().toISOString(),
+        searB: searBResult ? {
+          range: searBResult.range,
+          level: searBResult.level,
+          percentage: searBResult.percentage,
+          cholesterol: formData.labTests.cholesterol ? parseFloat(formData.labTests.cholesterol) : null,
+          cholesterolMmol: formData.labTests.cholesterol ? convertCholesterolToMmol(parseFloat(formData.labTests.cholesterol)) : null,
+          age: calculateAge(patient.birthDate),
+          isSmoker: patient.smokingStatus === 'PEROKOK',
+          hasDiabetes: !!patient.diabetesType
+        } : null
       };
 
       await fetch('/api/patient-records', {
@@ -228,7 +238,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
           metadata: vitalSigns
         })
       });
-
+      
       // 3. Save lab results
       const labPromises: Promise<any>[] = [];
       let hasAbnormal = false;
@@ -254,15 +264,31 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                 testType: testDef.name,
                 value: `${value} ${testDef.unit}`,
                 normalRange: testDef.normalRange,
-                status,
+                status: status,
                 notes: formData.labNotes || null,
-                testDate: new Date()
+                testDate: new Date().toISOString()
               })
+            }).then(async (response) => {
+              if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Failed to save lab result:', errorData);
+                throw new Error(`Failed to save lab result: ${JSON.stringify(errorData)}`);
+              }
+              return response.json();
             })
           );
         }
       });
 
+      if (labPromises.length > 0) {
+        try {
+          await Promise.all(labPromises);
+          console.log(`${labPromises.length} lab results saved successfully`);
+        } catch (error) {
+          console.error('Error saving lab results:', error);
+          alert('Beberapa hasil lab gagal disimpan. Silakan periksa console untuk detail.');
+        }
+      }
       await Promise.all(labPromises);
 
       // 4. HANYA jika ada hasil lab abnormal → kirim alert WARNING ke dokter
@@ -822,7 +848,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   <span>4. Prediksi Risiko Kardiovaskular (SEAR B WHO)</span>
                 </h4>
               </div>
-             
+
               <div className="p-3 space-y-3">
                 {/* Data Ringkas */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
