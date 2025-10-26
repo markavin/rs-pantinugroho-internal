@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck, Clock } from 'lucide-react';
 import HandledPatientForm from './HandledPatientForm';
+import DetailHandledPatientModal from './DetailHandledPatientModal';
 import SplashScreen from '@/components/SplashScreen';
 
 interface Patient {
@@ -95,9 +96,15 @@ const DoctorDashboard = () => {
   const [selectedHandledPatient, setSelectedHandledPatient] = useState<HandledPatient | null>(null);
   const [showPatientDetail, setShowPatientDetail] = useState(false);
   const [showHandledPatientForm, setShowHandledPatientForm] = useState(false);
-  const [handledPatientFormMode, setHandledPatientFormMode] = useState<'add' | 'edit' | 'view'>('add');
+  const [handledPatientFormMode, setHandledPatientFormMode] = useState<'add' | 'edit'>('add');
+  const [patientHandledHistory, setPatientHandledHistory] = useState<HandledPatient[]>([]);
+  const [loadingPatientHistory, setLoadingPatientHistory] = useState(false);
+  
+  // State untuk modal detail handled patient
+  const [showDetailHandledModal, setShowDetailHandledModal] = useState(false);
+  const [selectedPatientForDetail, setSelectedPatientForDetail] = useState<Patient | null>(null);
 
-
+  
   const fetchPatients = async () => {
     try {
       const response = await fetch('/api/patients');
@@ -286,6 +293,20 @@ const DoctorDashboard = () => {
   });
 
 
+  const fetchPatientHandledHistory = async (patientId: string) => {
+    setLoadingPatientHistory(true);
+    try {
+      const response = await fetch(`/api/handled-patients?patientId=${patientId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPatientHandledHistory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching patient handled history:', error);
+    } finally {
+      setLoadingPatientHistory(false);
+    }
+  };
 
   const refreshData = async () => {
     setShowRefreshSplash(true);
@@ -297,9 +318,12 @@ const DoctorDashboard = () => {
     setIsRefreshing(false);
   };
 
+
+
   const handleViewPatient = (patient: Patient) => {
     setSelectedPatient(patient);
     setShowPatientDetail(true);
+    fetchPatientHandledHistory(patient.id);
   };
 
   const handleAddHandledPatient = () => {
@@ -314,10 +338,11 @@ const DoctorDashboard = () => {
     setShowHandledPatientForm(true);
   };
 
-  const handleViewHandledPatient = (handledPatient: HandledPatient) => {
-    setSelectedHandledPatient(handledPatient);
-    setHandledPatientFormMode('view');
-    setShowHandledPatientForm(true);
+  // Handler baru untuk lihat riwayat detail
+  const handleViewHandledPatientHistory = (handledPatient: HandledPatient) => {
+    setSelectedPatientForDetail(handledPatient.patient);
+    fetchPatientHandledHistory(handledPatient.patientId);
+    setShowDetailHandledModal(true);
   };
 
   const handleHandledPatientFormSubmit = async (formData) => {
@@ -340,7 +365,7 @@ const DoctorDashboard = () => {
 
         if (response.ok) {
           const result = await response.json();
-          savedPatientId = formData.patientId; // ← Simpan patient ID
+          savedPatientId = formData.patientId;
 
           await fetchHandledPatients();
 
@@ -379,7 +404,7 @@ const DoctorDashboard = () => {
         });
 
         if (response.ok) {
-          savedPatientId = selectedHandledPatient.patientId; // ← Simpan patient ID
+          savedPatientId = selectedHandledPatient.patientId;
 
           await Promise.all([fetchHandledPatients(), fetchPatients()]);
 
@@ -435,12 +460,10 @@ const DoctorDashboard = () => {
       }
 
       if (savedPatientId && formData.treatmentPlan?.trim()) {
-        // Langsung kirim tanpa cek pattern
         const treatmentPreview = formData.treatmentPlan.length > 100
           ? formData.treatmentPlan.substring(0, 100) + '...'
           : formData.treatmentPlan;
 
-        // Ambil data pasien
         const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
         let patientName = 'Pasien';
         let patientMRNumber = '';
@@ -519,17 +542,6 @@ const DoctorDashboard = () => {
     { key: 'pharmacy', label: 'Farmasi', icon: Pill },
     { key: 'nursing', label: 'Keperawatan', icon: HeartPulse }
   ];
-
-  // if (loading) {
-  //   return (
-  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-  //       <div className="text-center">
-  //         <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-  //         <p className="text-gray-600">Memuat data...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -724,7 +736,6 @@ const DoctorDashboard = () => {
               </div>
             </div>
 
-            // CARI bagian "Peringatan & Notifikasi" dan GANTI dengan:
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Peringatan & Notifikasi</h3>
@@ -962,21 +973,25 @@ const DoctorDashboard = () => {
 
         {showPatientDetail && selectedPatient && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
                 <h3 className="text-xl font-semibold text-gray-900 flex items-center">
                   <Stethoscope className="h-6 w-6 mr-2 text-green-600" />
                   Detail Pasien
                 </h3>
                 <button
-                  onClick={() => setShowPatientDetail(false)}
+                  onClick={() => {
+                    setShowPatientDetail(false);
+                    setPatientHandledHistory([]);
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
 
-              <div className="p-6">
+              <div className="p-6 space-y-6">
+                {/* Info Pasien */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1122,11 +1137,130 @@ const DoctorDashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Riwayat Penanganan Pasien - FORMAT TABEL */}
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="bg-white rounded-lg border border-green-400 overflow-hidden">
+                    <div className="bg-green-50 px-4 py-3 border-b border-purple-200">
+                      <h4 className="text-base font-semibold text-gray-900 flex items-center">
+                        <ClipboardList className="h-5 w-5 mr-2 text-green-600" />
+                        Riwayat Penanganan Pasien ({patientHandledHistory.length} kali ditangani)
+                      </h4>
+                    </div>
+      
+                    {loadingPatientHistory ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                        <p className="text-gray-600">Memuat riwayat...</p>
+                      </div>
+                    ) : patientHandledHistory.length > 0 ? (
+                      <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Status</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Prioritas</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Ditangani Oleh</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Diagnosis</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Rencana Pengobatan</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Catatan</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Kunjungan Berikutnya</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {patientHandledHistory.map((handled, idx) => (
+                              <tr key={idx} className="hover:bg-purple-50">
+                                <td className="px-3 py-3 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                  {new Date(handled.handledDate).toLocaleDateString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })} • {new Date(handled.handledDate).toLocaleTimeString('id-ID', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${getHandledStatusColor(handled.status)}`}>
+                                    {getHandledStatusLabel(handled.status)}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(handled.priority)}`}>
+                                    {handled.priority}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3 text-xs text-gray-900">
+                                  <div>
+                                    <p className="font-semibold">{handled.handler?.name || 'Unknown'}</p>
+                                    <p className="text-gray-600">{handled.handler?.role || 'Unknown'}</p>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-xs text-gray-900">
+                                  {handled.diagnosis ? (
+                                    <div className="max-w-xs">
+                                      <p className="line-clamp-2">{handled.diagnosis}</p>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-3 text-xs text-gray-900">
+                                  {handled.treatmentPlan ? (
+                                    <div className="max-w-xs">
+                                      <p className="line-clamp-3">{handled.treatmentPlan}</p>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-3 text-xs text-gray-900">
+                                  {handled.notes ? (
+                                    <div className="max-w-xs">
+                                      <p className="line-clamp-2">{handled.notes}</p>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-3 text-xs text-gray-900 text-center whitespace-nowrap">
+                                  {handled.nextVisitDate ? (
+                                    <div className="flex flex-col items-center">
+                                      <Calendar className="h-3 w-3 text-purple-600 mb-1" />
+                                      <span>
+                                        {new Date(handled.nextVisitDate).toLocaleDateString('id-ID', {
+                                          day: '2-digit',
+                                          month: 'short',
+                                          year: 'numeric'
+                                        })}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-gray-50">
+                        <ClipboardList className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                        <p className="text-gray-600">Belum ada riwayat penanganan</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="p-6 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => setShowPatientDetail(false)}
+                  onClick={() => {
+                    setShowPatientDetail(false);
+                    setPatientHandledHistory([]);
+                  }}
                   className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
                 >
                   Tutup
@@ -1269,11 +1403,11 @@ const DoctorDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button
-                          onClick={() => handleViewHandledPatient(handledPatient)}
-                          className=" text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
+                          onClick={() => handleViewHandledPatientHistory(handledPatient)}
+                          className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center space-x-1"
                         >
-                          <Eye className="h-4 w-4" />
-                          <span>Detail</span>
+                          <ClipboardList className="h-4 w-4" />
+                          <span>Riwayat</span>
                         </button>
                         <button
                           onClick={() => handleEditHandledPatient(handledPatient)}
@@ -1284,7 +1418,7 @@ const DoctorDashboard = () => {
                         </button>
                         <button
                           onClick={() => handleDeleteHandledPatient(handledPatient.id)}
-                          className=" text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
+                          className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                         >
                           <Trash2 className="h-4 w-4" />
                           <span>Hapus</span>
@@ -1330,11 +1464,11 @@ const DoctorDashboard = () => {
 
                   <div className="grid grid-cols-3 gap-2">
                     <button
-                      onClick={() => handleViewHandledPatient(handledPatient)}
-                      className="bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
+                      onClick={() => handleViewHandledPatientHistory(handledPatient)}
+                      className="bg-purple-100 text-purple-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-purple-200 transition-colors flex items-center justify-center space-x-1"
                     >
-                      <Eye className="h-4 w-4" />
-                      <span>Detail</span>
+                      <ClipboardList className="h-4 w-4" />
+                      <span>Riwayat</span>
                     </button>
                     <button
                       onClick={() => handleEditHandledPatient(handledPatient)}
@@ -1385,6 +1519,19 @@ const DoctorDashboard = () => {
         availablePatients={patients}
         handledPatients={handledPatients}
         loading={false}
+      />
+
+      <DetailHandledPatientModal
+        isOpen={showDetailHandledModal}
+        onClose={() => {
+          setShowDetailHandledModal(false);
+          setPatientHandledHistory([]);
+        }}
+        patientId={selectedPatientForDetail?.id || null}
+        patientName={selectedPatientForDetail?.name}
+        patientMRNumber={selectedPatientForDetail?.mrNumber}
+        handledHistory={patientHandledHistory}
+        loading={loadingPatientHistory}
       />
 
       {showRefreshSplash && (

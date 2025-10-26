@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, Save, User, Calendar, Activity, AlertCircle, FileText, Edit, Eye, Trash2, Clock, Flag, CheckCircle2, Info, Heart, Thermometer, Users2, Stethoscope } from 'lucide-react';
+import { Search, Plus, X, Save, User, Calendar, Activity, AlertCircle, FileText, Edit, Eye, Trash2, Clock, Flag, CheckCircle2, Info, Heart, Thermometer, Users2, Stethoscope, History, TrendingUp, Droplet, Droplets, Wind, Pill, ClipboardList } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -93,6 +93,52 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [selectedPatientData, setSelectedPatientData] = useState<Patient | null>(null);
 
+  const [patientHistory, setPatientHistory] = useState<{
+    complaints: any[];
+    vitals: any[];
+    labs: any[];
+    visitations: any[];
+    handledHistory: any[]; // TAMBAH INI
+  }>({
+    complaints: [],
+    vitals: [],
+    labs: [],
+    visitations: [],
+    handledHistory: [] // TAMBAH INI
+  });
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchPatientHistory = async (patientId: string) => {
+    setLoadingHistory(true);
+    try {
+      const [recordsResponse, labsResponse, visitationsResponse, handledResponse] = await Promise.all([
+        fetch(`/api/patient-records?patientId=${patientId}`),
+        fetch(`/api/lab-results?patientId=${patientId}`),
+        fetch(`/api/visitations?patientId=${patientId}`),
+        fetch(`/api/handled-patients?patientId=${patientId}`) // TAMBAH INI
+      ]);
+
+      const complaints = [];
+      const vitals = [];
+
+      if (recordsResponse.ok) {
+        const records = await recordsResponse.json();
+        complaints.push(...records.filter((r: any) => r.recordType === 'COMPLAINTS'));
+        vitals.push(...records.filter((r: any) => r.recordType === 'VITAL_SIGNS'));
+      }
+
+      const labs = labsResponse.ok ? await labsResponse.json() : [];
+      const visitations = visitationsResponse.ok ? await visitationsResponse.json() : [];
+      const handledHistory = handledResponse.ok ? await handledResponse.json() : []; // TAMBAH INI
+
+      setPatientHistory({ complaints, vitals, labs, visitations, handledHistory });
+    } catch (error) {
+      console.error('Error fetching patient history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const calculateAge = (birthDate: string) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -110,7 +156,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
     const today = new Date();
     const lowerDuration = duration.toLowerCase();
 
-    // Parse different duration formats
     let days = 0;
 
     if (lowerDuration.includes('hari')) {
@@ -155,7 +200,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
     return 'NORMAL';
   };
 
-
   const getCommonInstructions = () => [
     'Diet rendah gula dan karbohidrat sederhana',
     'Olahraga rutin 30 menit/hari',
@@ -176,18 +220,62 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
     }
   };
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT': return 'bg-red-100 text-red-800';
+      case 'HIGH': return 'bg-orange-100 text-orange-800';
+      case 'NORMAL': return 'bg-green-100 text-green-800';
+      case 'LOW': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getHandledStatusColor = (status: string) => {
+    switch (status) {
+      case 'ANTRIAN': return 'bg-yellow-100 text-yellow-800';
+      case 'SEDANG_DITANGANI': return 'bg-blue-100 text-blue-800';
+      case 'KONSULTASI': return 'bg-indigo-100 text-indigo-800';
+      case 'OBSERVASI': return 'bg-orange-100 text-orange-800';
+      case 'EMERGENCY': return 'bg-red-100 text-red-800';
+      case 'STABIL': return 'bg-green-100 text-green-800';
+      case 'RUJUK_KELUAR': return 'bg-purple-100 text-purple-800';
+      case 'SELESAI': return 'bg-gray-100 text-gray-800';
+      case 'MENINGGAL': return 'bg-black text-white';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getHandledStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ANTRIAN': return 'Antrian';
+      case 'SEDANG_DITANGANI': return 'Sedang Ditangani';
+      case 'KONSULTASI': return 'Konsultasi';
+      case 'OBSERVASI': return 'Observasi';
+      case 'EMERGENCY': return 'Emergency';
+      case 'STABIL': return 'Stabil';
+      case 'RUJUK_KELUAR': return 'Rujuk Keluar';
+      case 'SELESAI': return 'Selesai';
+      case 'MENINGGAL': return 'Meninggal';
+      default: return status || 'Sedang Ditangani';
+    }
+  };
+
   useEffect(() => {
     if (formData.patientId && availablePatients.length > 0) {
       const patient = availablePatients.find(p => p.id === formData.patientId);
       setSelectedPatientData(patient || null);
 
-      // Auto-suggest priority based on patient data
+      if (patient) {
+        fetchPatientHistory(patient.id);
+      }
+
       if (patient && mode === 'add') {
         const suggestedPriority = suggestPriority(patient);
         setFormData(prev => ({ ...prev, priority: suggestedPriority }));
       }
     } else {
       setSelectedPatientData(null);
+      setPatientHistory({ complaints: [], vitals: [], labs: [], visitations: [], handledHistory: [] });
     }
   }, [formData.patientId, availablePatients, mode]);
 
@@ -237,10 +325,10 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
       if (selectedHandledPatient.patient) {
         setSelectedPatientData(selectedHandledPatient.patient);
+        fetchPatientHistory(selectedHandledPatient.patient.id);
       }
     }
   }, [isOpen, mode, selectedHandledPatient]);
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,19 +383,15 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
   if (!isOpen) return null;
 
+  // HAPUS filter yang membatasi pasien - semua pasien AKTIF, RAWAT_JALAN, RAWAT_INAP bisa dihandle
   const getAvailablePatients = () => {
     return availablePatients.filter(patient => {
       const isActiveStatus =
         patient.status === 'AKTIF' ||
         patient.status === 'RAWAT_JALAN' ||
-        patient.status === 'RAWAT_INAP' ||
-        patient.status === 'RUJUK_KELUAR';
-      const notAlreadyHandled = !handledPatients.some(hp =>
-        hp.patientId === patient.id &&
-        !['SELESAI', 'RUJUK_KELUAR', 'MENINGGAL'].includes(hp.status)
-      );
+        patient.status === 'RAWAT_INAP';
 
-      return isActiveStatus && notAlreadyHandled;
+      return isActiveStatus;
     });
   };
 
@@ -451,6 +535,555 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
             </div>
           )}
 
+          {/* TAMBAH: Riwayat Penanganan Pasien */}
+          {selectedPatientData && patientHistory.handledHistory.length > 0 && (
+            <div className="bg-white rounded-lg border border-green-400 overflow-hidden">
+              <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                <h4 className="font-semibold text-gray-900 mb-2 mt-2 flex items-center">
+                  <ClipboardList className="h-5 w-5 mr-2 text-green-600" />
+                  Riwayat Penanganan Pasien (5 terakhir)
+                </h4>
+              </div>
+
+              {loadingHistory ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin h-6 w-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Status</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Prioritas</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Ditangani Oleh</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Diagnosis</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Rencana Pengobatan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {patientHistory.handledHistory
+                        .sort((a: any, b: any) => new Date(b.handledDate).getTime() - new Date(a.handledDate).getTime())
+                        .slice(0, 5)
+                        .map((handled: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-purple-50">
+                            <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                              {new Date(handled.handledDate).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })} • {new Date(handled.handledDate).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getHandledStatusColor(handled.status)}`}>
+                                {getHandledStatusLabel(handled.status)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(handled.priority)}`}>
+                                {handled.priority}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-gray-900">
+                              <div>
+                                <p className="font-semibold">{handled.handler?.name || 'Unknown'}</p>
+                                <p className="text-gray-600 text-[10px]">{handled.handler?.role || 'Unknown'}</p>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-gray-900">
+                              {handled.diagnosis ? (
+                                <p className="line-clamp-2">{handled.diagnosis}</p>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-gray-900">
+                              {handled.treatmentPlan ? (
+                                <p className="line-clamp-2">{handled.treatmentPlan}</p>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Patient History Section - Format Tabel */}
+          {selectedPatientData && (patientHistory.complaints.length > 0 || patientHistory.vitals.length > 0 || patientHistory.labs.length > 0) && (
+            <div className="bg-white p-4 rounded-xl border border-green-400">
+              <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                <History className="h-5 w-5 mr-2 text-green-600" />
+                Riwayat Pemeriksaan Terakhir
+              </h4>
+
+              {loadingHistory ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Keluhan Terakhir - Table Format */}
+                  {patientHistory.complaints.length > 0 && (
+                    <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                      <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                        <h5 className="text-sm font-semibold text-gray-900 flex items-center">
+                          <FileText className="h-4 w-4 mr-2 text-green-600" />
+                          Keluhan Pasien ({Math.min(3, patientHistory.complaints.length)} terakhir)
+                        </h5>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Tingkat</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Keluhan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {patientHistory.complaints.slice(0, 3).map((complaint, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                  {new Date(complaint.createdAt).toLocaleDateString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })} • {new Date(complaint.createdAt).toLocaleTimeString('id-ID', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {complaint.metadata?.severity && (
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${complaint.metadata.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                                      complaint.metadata.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-green-100 text-green-800'
+                                      }`}>
+                                      {complaint.metadata.severity}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-900">{complaint.content}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {(patientHistory.vitals.length > 0 || patientHistory.visitations.filter((v: any) =>
+                    v.temperature || v.bloodPressure || v.heartRate || v.respiratoryRate || v.oxygenSaturation
+                  ).length > 0) && (
+                      <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                          <h5 className="text-sm font-semibold text-gray-900 flex items-center">
+                            <Activity className="h-4 w-4 mr-2 text-green-600" />
+                            Tanda Vital (3 terakhir dari semua pemeriksaan)
+                          </h5>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Sumber</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Suhu (°C)</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Nadi (bpm)</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">TD (mmHg)</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">SpO2 (%)</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">RR (x/mnt)</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">GDS (mg/dL)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {(() => {
+                                // Gabungkan vitals dari records dan visitations
+                                const allVitals = [
+                                  ...patientHistory.vitals.map((v: any) => ({
+                                    ...v,
+                                    source: 'Pemeriksaan',
+                                    date: new Date(v.createdAt)
+                                  })),
+                                  ...patientHistory.visitations
+                                    .filter((v: any) => v.temperature || v.bloodPressure || v.heartRate || v.respiratoryRate || v.oxygenSaturation)
+                                    .map((v: any) => ({
+                                      ...v,
+                                      source: 'Visitasi',
+                                      date: new Date(v.createdAt)
+                                    }))
+                                ];
+
+                                // Sort by date descending and take last 3
+                                const sortedVitals = allVitals
+                                  .sort((a, b) => b.date.getTime() - a.date.getTime())
+                                  .slice(0, 3);
+
+                                return sortedVitals.map((vital, idx) => {
+                                  const metadata = vital.metadata || {};
+                                  return (
+                                    <tr key={idx} className="hover:bg-gray-50">
+                                      <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                        {vital.date.toLocaleDateString('id-ID', {
+                                          day: '2-digit',
+                                          month: 'short',
+                                          year: 'numeric'
+                                        })} • {vital.date.toLocaleTimeString('id-ID', {
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${vital.source === 'Visitasi'
+                                          ? 'bg-purple-100 text-purple-800'
+                                          : 'bg-blue-100 text-blue-800'
+                                          }`}>
+                                          {vital.source}
+                                          {vital.shift && ` - ${vital.shift}`}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Thermometer className="h-3 w-3 text-blue-500" />
+                                          <span className="text-xs text-gray-900 font-semibold">
+                                            {vital.temperature || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Heart className="h-3 w-3 text-red-500" />
+                                          <span className="text-xs text-gray-900 font-semibold">
+                                            {vital.heartRate || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Activity className="h-3 w-3 text-purple-500" />
+                                          <span className="text-xs text-gray-900 font-semibold">
+                                            {vital.bloodPressure || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Droplets className="h-3 w-3 text-emerald-500" />
+                                          <span className="text-xs text-gray-900 font-semibold">
+                                            {vital.oxygenSaturation || metadata.oxygenSaturation || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Wind className="h-3 w-3 text-pink-500" />
+                                          <span className="text-xs text-gray-900 font-semibold">
+                                            {vital.respiratoryRate || metadata.respiratoryRate || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <span className="text-xs text-gray-900 font-semibold">
+                                          {vital.bloodSugar || '-'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Lab Results Terakhir - Table Format */}
+                  {patientHistory.labs.length > 0 && (
+                    <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                      <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                        <h5 className="text-sm font-semibold text-gray-900 flex items-center">
+                          <Activity className="h-4 w-4 mr-2 text-green-600" />
+                          Hasil Laboratorium ({Math.min(3, patientHistory.labs.length)} sesi terakhir)
+                        </h5>
+                      </div>
+                      <div className="overflow-x-auto">
+                        {(() => {
+                          // Define proper types
+                          interface GroupedSession {
+                            displayDate: string;
+                            displayTime: string;
+                            labs: any[];
+                            timestamp: number;
+                          }
+
+                          // Group labs by exact datetime
+                          const groupedByDateTime: Record<string, GroupedSession> = patientHistory.labs.reduce((acc: Record<string, GroupedSession>, lab: any) => {
+                            const dateTime = new Date(lab.testDate);
+                            const roundedMinutes = Math.floor(dateTime.getMinutes() / 5) * 5;
+                            const dateKey = `${dateTime.getFullYear()}-${String(dateTime.getMonth() + 1).padStart(2, '0')}-${String(dateTime.getDate()).padStart(2, '0')}_${String(dateTime.getHours()).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
+
+                            if (!acc[dateKey]) {
+                              acc[dateKey] = {
+                                displayDate: dateTime.toLocaleDateString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                }),
+                                displayTime: dateTime.toLocaleTimeString('id-ID', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }),
+                                labs: [],
+                                timestamp: dateTime.getTime()
+                              };
+                            }
+                            acc[dateKey].labs.push(lab);
+                            return acc;
+                          }, {});
+
+                          const allTestTypes = Array.from(new Set(
+                            patientHistory.labs.map((lab: any) => lab.testType)
+                          ));
+
+                          const sortedSessions = Object.entries(groupedByDateTime)
+                            .sort(([, a], [, b]) => b.timestamp - a.timestamp)
+                            .slice(0, 3);
+
+                          return (
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                                  {allTestTypes.map((testType: string) => (
+                                    <th key={testType} className="px-3 py-2 text-center text-xs font-medium text-gray-700">
+                                      {testType}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {sortedSessions.map(([dateKey, data], idx) => (
+                                  <tr key={idx} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                      {data.displayDate} • {data.displayTime}
+                                    </td>
+                                    {allTestTypes.map((testType: string) => {
+                                      const lab = data.labs.find((l: any) => l.testType === testType);
+
+                                      if (!lab) {
+                                        return (
+                                          <td key={testType} className="px-3 py-2 text-center text-xs text-gray-400">
+                                            -
+                                          </td>
+                                        );
+                                      }
+
+                                      let cellClass = 'px-3 py-2 text-center';
+                                      if (lab.status === 'CRITICAL') {
+                                        cellClass += ' bg-red-50';
+                                      } else if (lab.status === 'HIGH') {
+                                        cellClass += ' bg-orange-50';
+                                      } else if (lab.status === 'LOW') {
+                                        cellClass += ' bg-yellow-50';
+                                      } else if (lab.status === 'NORMAL') {
+                                        cellClass += ' bg-green-50';
+                                      }
+
+                                      return (
+                                        <td key={testType} className={cellClass}>
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className="text-xs font-bold text-gray-900">
+                                              {lab.value}
+                                            </span>
+                                            <span className="text-[10px] text-gray-500">
+                                              Normal: {lab.normalRange}
+                                            </span>
+                                            <span className={`text-[10px] font-semibold ${lab.status === 'CRITICAL' ? 'text-red-700' :
+                                              lab.status === 'HIGH' ? 'text-orange-700' :
+                                                lab.status === 'LOW' ? 'text-yellow-700' :
+                                                  'text-green-700'
+                                              }`}>
+                                              {lab.status === 'CRITICAL' ? 'KRITIS' :
+                                                lab.status === 'HIGH' ? 'TINGGI' :
+                                                  lab.status === 'LOW' ? 'RENDAH' :
+                                                    'NORMAL'}
+                                            </span>
+                                            {lab.notes && (
+                                              <span className="text-[10px] text-gray-600 italic" title={lab.notes}>
+                                                {lab.notes.substring(0, 15)}{lab.notes.length > 15 ? '...' : ''}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SEAR B Results - Table Format */}
+                  {patientHistory.vitals.filter((v) => v.metadata?.searB).length > 0 && (
+                    <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                      <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                        <h5 className="text-sm font-semibold text-gray-900 flex items-center">
+                          <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
+                          Prediksi Risiko Kardiovaskular (SEAR B WHO) - {Math.min(3, patientHistory.vitals.filter((v) => v.metadata?.searB).length)} terakhir
+                        </h5>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Risiko 10 Tahun</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Level</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Umur</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Kolesterol</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Merokok</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Diabetes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {patientHistory.vitals
+                              .filter((v) => v.metadata?.searB)
+                              .slice(0, 3)
+                              .map((vital, idx) => {
+                                const searB = vital.metadata.searB;
+                                const bgColorClass =
+                                  searB.level === 'Sangat Rendah' ? 'bg-green-50' :
+                                    searB.level === 'Rendah' ? 'bg-yellow-50' :
+                                      searB.level === 'Sedang' ? 'bg-orange-50' :
+                                        searB.level === 'Tinggi' ? 'bg-red-50' : 'bg-red-100';
+
+                                return (
+                                  <tr key={idx} className={`hover:brightness-95 ${bgColorClass}`}>
+                                    <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                      {new Date(vital.createdAt).toLocaleDateString('id-ID', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        year: 'numeric'
+                                      })} • {new Date(vital.createdAt).toLocaleTimeString('id-ID', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className="text-lg font-bold text-gray-900">{searB.range}</span>
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className={`px-2 py-1 rounded text-xs font-semibold ${searB.level === 'Sangat Rendah' ? 'bg-green-100 text-green-800' :
+                                        searB.level === 'Rendah' ? 'bg-yellow-100 text-yellow-800' :
+                                          searB.level === 'Sedang' ? 'bg-orange-100 text-orange-800' :
+                                            searB.level === 'Tinggi' ? 'bg-red-100 text-red-800' :
+                                              'bg-red-900 text-white'
+                                        }`}>
+                                        {searB.level}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-xs text-gray-900 font-semibold">
+                                      {searB.age} tahun
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-xs text-gray-900 font-semibold">
+                                      {searB.cholesterolMmol} mmol/L
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-xs text-gray-900 font-semibold">
+                                      {searB.isSmoker ? 'Ya' : 'Tidak'}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-xs text-gray-900 font-semibold">
+                                      {searB.hasDiabetes ? 'Ya' : 'Tidak'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+
+                  {patientHistory.visitations.filter((v: any) => v.medicationsGiven && v.medicationsGiven.length > 0).length > 0 && (
+                    <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                      <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                        <h5 className="text-sm font-semibold text-gray-900 flex items-center">
+                          <Pill className="h-4 w-4 mr-2 text-green-600" />
+                          Obat-obatan yang Diberikan (3 visitasi terakhir)
+                        </h5>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Tanggal & Waktu</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Shift</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Obat yang Diberikan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {patientHistory.visitations
+                              .filter((v: any) => v.medicationsGiven && v.medicationsGiven.length > 0)
+                              .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                              .slice(0, 3)
+                              .map((visit: any, idx: number) => (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap">
+                                    {new Date(visit.createdAt).toLocaleDateString('id-ID', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric'
+                                    })} • {new Date(visit.createdAt).toLocaleTimeString('id-ID', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
+                                      visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-purple-100 text-purple-800'
+                                      }`}>
+                                      {visit.shift}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <ul className="space-y-1">
+                                      {visit.medicationsGiven.map((med: string, medIdx: number) => (
+                                        <li key={medIdx} className="flex items-start text-xs text-gray-900">
+                                          <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-2 mt-1"></span>
+                                          <span>{med}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+
+
+          {/* Form fields tetap sama seperti sebelumnya */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -139,13 +139,17 @@ export async function PUT(
 
     try {
       const result = await prisma.$transaction(async (tx) => {
+        // Tentukan status yang akan digunakan (baru atau lama)
+        const finalStatus = status !== undefined ? status : existingHandledPatient.status;
+        const finalNotes = notes !== undefined ? notes : existingHandledPatient.notes;
+
         const updatedHandledPatient = await tx.handledPatient.update({
           where: { id: params.id },
           data: {
             diagnosis: diagnosis !== undefined ? diagnosis : existingHandledPatient.diagnosis,
             treatmentPlan: treatmentPlan !== undefined ? treatmentPlan : existingHandledPatient.treatmentPlan,
-            notes: notes !== undefined ? notes : existingHandledPatient.notes,
-            status: status !== undefined ? (status as any) : existingHandledPatient.status,
+            notes: finalNotes,
+            status: finalStatus as any,
             priority: priority !== undefined ? (priority as any) : existingHandledPatient.priority,
             estimatedDuration: estimatedDuration !== undefined ? estimatedDuration : existingHandledPatient.estimatedDuration,
             specialInstructions: specialInstructions !== undefined ? specialInstructions : existingHandledPatient.specialInstructions,
@@ -165,31 +169,29 @@ export async function PUT(
                 status: true
               }
             },
-            handler: { 
-              select: { 
-                name: true, 
-                role: true 
-              } 
+            handler: {
+              select: {
+                name: true,
+                role: true
+              }
             }
           }
         });
 
-        if (status) {
-          const finalNotes = notes !== undefined ? notes : existingHandledPatient.notes;
-          const newPatientStatus = mapHandledStatusToPatientStatus(status, finalNotes);
-          
-          await tx.patient.update({
-            where: { id: existingHandledPatient.patientId },
-            data: {
-              status: newPatientStatus as any,
-              lastVisit: new Date()
-            }
-          });
-        }
+        // PERBAIKAN: SELALU update patient status berdasarkan handled status
+        const newPatientStatus = mapHandledStatusToPatientStatus(finalStatus, finalNotes);
+
+        await tx.patient.update({
+          where: { id: existingHandledPatient.patientId },
+          data: {
+            status: newPatientStatus as any,
+            lastVisit: new Date()
+          }
+        });
 
         return updatedHandledPatient;
       });
-      
+
       return NextResponse.json(result);
     } catch (error) {
       console.error('Error updating handled patient:', error);

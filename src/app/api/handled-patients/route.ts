@@ -31,7 +31,6 @@ function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string):
     }
 }
 
-// src/app/api/handled-patients/route.ts
 export async function POST(request: Request) {
     try {
         const session = await getServerSession(authOptions);
@@ -42,7 +41,6 @@ export async function POST(request: Request) {
         const userId = (session.user as any).id;
         const userRole = (session.user as any).role;
 
-        // TAMBAHKAN: Validasi role yang boleh create handled patient
         const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN'];
         if (!allowedRoles.includes(userRole)) {
             return NextResponse.json({
@@ -70,7 +68,6 @@ export async function POST(request: Request) {
             );
         }
 
-        // Verify patient exists
         const patient = await prisma.patient.findUnique({
             where: { id: patientId }
         });
@@ -79,11 +76,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
         }
 
-        // PERBAIKAN: Auto-assign handledBy dari session user
         const handledPatient = await prisma.handledPatient.create({
             data: {
                 patientId,
-                handledBy: userId, // ← PENTING: Auto dari session
+                handledBy: userId,
                 handledDate: new Date(),
                 diagnosis: diagnosis || null,
                 treatmentPlan: treatmentPlan || null,
@@ -147,17 +143,23 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
         const handledBy = searchParams.get('handledBy');
+        const patientId = searchParams.get('patientId'); // TAMBAH INI
 
         let whereClause: any = {};
 
-        // PERBAIKAN 4: Dokter melihat semua ANTRIAN + pasien yang dia tangani
-        if (userRole === 'DOKTER_SPESIALIS') {
-            whereClause.OR = [
-                { status: 'ANTRIAN' },
-                { handledBy: userId }
-            ];
-        } else if (userRole !== 'SUPER_ADMIN') {
-            whereClause.handledBy = userId;
+        // TAMBAH: Jika ada patientId, ambil semua riwayat pasien tersebut
+        if (patientId) {
+            whereClause.patientId = patientId;
+        } else {
+            // Logic normal untuk filter berdasarkan role
+            if (userRole === 'DOKTER_SPESIALIS') {
+                whereClause.OR = [
+                    { status: 'ANTRIAN' },
+                    { handledBy: userId }
+                ];
+            } else if (userRole !== 'SUPER_ADMIN') {
+                whereClause.handledBy = userId;
+            }
         }
 
         if (status) {
@@ -196,9 +198,7 @@ export async function GET(request: Request) {
                 }
             },
             orderBy: [
-                { status: 'asc' }, // ANTRIAN first
-                { priority: 'desc' },
-                { handledDate: 'desc' }
+                { handledDate: 'desc' } // Urutkan dari terbaru
             ]
         });
 

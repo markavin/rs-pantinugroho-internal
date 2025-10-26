@@ -8,13 +8,13 @@ const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   const prismaLocal = new PrismaClient();
-  
+
   try {
     console.log('=== POST VISITATION START ===');
-    
+
     const session = await getServerSession(authOptions);
     console.log('Session:', JSON.stringify(session, null, 2));
-    
+
     if (!session?.user?.id) {
       console.log('ERROR: No session');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,10 +22,10 @@ export async function POST(request: Request) {
 
     const userRole = (session.user as any).role;
     const userId = session.user.id;
-    
+
     console.log('User ID:', userId);
     console.log('User role:', userRole);
-    
+
     if (userRole !== 'PERAWAT_RUANGAN' && userRole !== 'SUPER_ADMIN') {
       console.log('ERROR: Invalid role');
       return NextResponse.json({
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     if (!nurse) {
       console.log('ERROR: Nurse user not found in database');
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'User not found in database',
         details: `User ID ${userId} does not exist`
       }, { status: 404 });
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
 
     const visitation = await prismaLocal.$transaction(async (tx) => {
       console.log('Transaction start...');
-      
+
       const newVisitation = await tx.visitation.create({
         data: visitationData,
         include: {
@@ -203,27 +203,27 @@ export async function POST(request: Request) {
 
       // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
-      
+
       if (visitationData.weight) {
         patientUpdateData.weight = visitationData.weight;
         patientUpdateData.lastWeightUpdate = new Date();
       }
-      
+
       if (visitationData.height) {
         patientUpdateData.height = visitationData.height;
         patientUpdateData.lastHeightUpdate = new Date();
       }
-      
+
       if (visitationData.calculatedBMI) {
         patientUpdateData.latestBMI = visitationData.calculatedBMI;
         patientUpdateData.bmi = visitationData.calculatedBMI;
       }
-      
+
       if (visitationData.energyRequirement) {
         patientUpdateData.latestEnergyRequirement = visitationData.energyRequirement;
         patientUpdateData.lastEnergyCalculation = visitationData.energyCalculationDetail;
       }
-      
+
       if (visitationData.dietCompliance !== null) {
         patientUpdateData.dietCompliance = visitationData.dietCompliance;
       }
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
 
     console.log('=== POST VISITATION SUCCESS ===');
     return NextResponse.json(visitation, { status: 201 });
-    
+
   } catch (error: any) {
     console.error('=== POST VISITATION ERROR ===');
     console.error('Error name:', error?.name);
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
     console.error('Error code:', error?.code);
     console.error('Error meta:', error?.meta);
     console.error('Full error:', error);
-    
+
     return NextResponse.json({
       error: 'Internal server error',
       details: error?.message || 'Unknown error',
@@ -307,7 +307,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+    // TAMBAH INI: Ambil patientId dari query parameter
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    // UBAH INI: Tambahkan filter where jika ada patientId
+    const whereClause = patientId ? { patientId } : {};
+
     const visitations = await prisma.visitation.findMany({
+      where: whereClause, // TAMBAH filter ini
       include: {
         patient: {
           select: {
@@ -342,7 +350,6 @@ export async function GET(request: Request) {
     await prisma.$disconnect();
   }
 }
-
 export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -418,7 +425,7 @@ export async function PUT(request: Request) {
         data: {
           shift: shift || existingVisitation.shift,
           complaints: complaints !== undefined ? complaints : existingVisitation.complaints,
-          
+
           // VITAL SIGNS - Field terpisah
           temperature: temperature !== undefined ? (temperature ? parseFloat(temperature) : null) : existingVisitation.temperature,
           bloodPressure: bloodPressure !== undefined ? bloodPressure : existingVisitation.bloodPressure,
@@ -428,7 +435,7 @@ export async function PUT(request: Request) {
           bloodSugar: bloodSugar !== undefined ? (bloodSugar ? parseInt(bloodSugar) : null) : existingVisitation.bloodSugar,
           weight: weight !== undefined ? (weight ? parseFloat(weight) : null) : existingVisitation.weight,
           height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
-          
+
           medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
           labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
           actions: actions !== undefined ? actions : existingVisitation.actions,
@@ -437,7 +444,7 @@ export async function PUT(request: Request) {
           notes: notes !== undefined ? notes : existingVisitation.notes,
           dietCompliance: dietCompliance !== undefined ? (dietCompliance ? parseInt(dietCompliance) : null) : existingVisitation.dietCompliance,
           dietIssues: dietIssues !== undefined ? dietIssues : existingVisitation.dietIssues,
-          
+
           // ENERGY CALCULATION
           energyRequirement: energyRequirement !== undefined ? energyRequirement : existingVisitation.energyRequirement,
           calculatedBMI: calculatedBMI !== undefined ? calculatedBMI : existingVisitation.calculatedBMI,
@@ -448,7 +455,7 @@ export async function PUT(request: Request) {
           stressFactor: stressFactor !== undefined ? stressFactor : existingVisitation.stressFactor,
           nutritionStatus: nutritionStatus !== undefined ? nutritionStatus : existingVisitation.nutritionStatus,
           energyCalculationDetail: energyCalculationDetail !== undefined ? energyCalculationDetail : existingVisitation.energyCalculationDetail,
-          
+
           nextVisitNeeded: complications ? true : existingVisitation.nextVisitNeeded,
           priority: complications ? 'HIGH' : existingVisitation.priority
         },
@@ -471,7 +478,7 @@ export async function PUT(request: Request) {
 
       // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
-      
+
       // Update weight if changed
       if (weight !== undefined && weight) {
         const newWeight = parseFloat(weight);
@@ -480,7 +487,7 @@ export async function PUT(request: Request) {
           patientUpdateData.lastWeightUpdate = new Date();
         }
       }
-      
+
       // Update height if changed
       if (height !== undefined && height) {
         const newHeight = parseInt(height);
@@ -489,19 +496,19 @@ export async function PUT(request: Request) {
           patientUpdateData.lastHeightUpdate = new Date();
         }
       }
-      
+
       // Update BMI if changed
       if (calculatedBMI !== undefined && calculatedBMI !== existingVisitation.calculatedBMI) {
         patientUpdateData.latestBMI = calculatedBMI;
         patientUpdateData.bmi = calculatedBMI;
       }
-      
+
       // Update energy requirement if changed
       if (energyRequirement !== undefined && energyRequirement !== existingVisitation.energyRequirement) {
         patientUpdateData.latestEnergyRequirement = energyRequirement;
         patientUpdateData.lastEnergyCalculation = energyCalculationDetail || existingVisitation.energyCalculationDetail;
       }
-      
+
       // Update diet compliance if changed
       if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
         patientUpdateData.dietCompliance = dietCompliance ? parseInt(dietCompliance) : null;
