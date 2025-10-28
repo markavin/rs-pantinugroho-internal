@@ -36,7 +36,6 @@ export async function GET() {
       strength: drug.strength,
       manufacturer: drug.manufacturer,
       stock: drug.stock,
-      price: drug.price || 5000, // Default price if not set
       expiryDate: drug.expiryDate.toISOString(),
       interactions: drug.interactions,
       contraindications: drug.contraindications,
@@ -81,14 +80,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate price if provided
-    if (body.price && (isNaN(body.price) || body.price <= 0)) {
-      return NextResponse.json(
-        { error: 'Price must be a positive number' },
-        { status: 400 }
-      );
-    }
-
+  
     // Validate stock
     if (isNaN(body.stock) || body.stock < 0) {
       return NextResponse.json(
@@ -115,7 +107,6 @@ export async function POST(request: NextRequest) {
         strength: body.strength.trim(),
         manufacturer: body.manufacturer.trim(),
         stock: parseInt(body.stock),
-        price: body.price ? parseInt(body.price) : 5000, // Default price
         expiryDate: expiryDate,
         interactions: Array.isArray(body.interactions) ? body.interactions : [],
         contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
@@ -134,7 +125,6 @@ export async function POST(request: NextRequest) {
       strength: drug.strength,
       manufacturer: drug.manufacturer,
       stock: drug.stock,
-      price: drug.price,
       expiryDate: drug.expiryDate.toISOString(),
       interactions: drug.interactions,
       contraindications: drug.contraindications,
@@ -200,13 +190,7 @@ export async function PUT(
       }
     }
 
-    // Validate price if provided
-    if (body.price && (isNaN(body.price) || body.price <= 0)) {
-      return NextResponse.json(
-        { error: 'Price must be a positive number' },
-        { status: 400 }
-      );
-    }
+  
 
     // Validate stock
     if (isNaN(body.stock) || body.stock < 0) {
@@ -235,7 +219,6 @@ export async function PUT(
         strength: body.strength.trim(),
         manufacturer: body.manufacturer.trim(),
         stock: parseInt(body.stock),
-        price: body.price ? parseInt(body.price) : existingDrug.price || 5000,
         expiryDate: expiryDate,
         interactions: Array.isArray(body.interactions) ? body.interactions : [],
         contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
@@ -254,7 +237,6 @@ export async function PUT(
       strength: updatedDrug.strength,
       manufacturer: updatedDrug.manufacturer,
       stock: updatedDrug.stock,
-      price: updatedDrug.price,
       expiryDate: updatedDrug.expiryDate.toISOString(),
       interactions: updatedDrug.interactions,
       contraindications: updatedDrug.contraindications,

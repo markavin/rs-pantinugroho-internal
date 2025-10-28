@@ -254,17 +254,32 @@ export async function POST(request: Request) {
 
       if (dietIssues && dietIssues.trim()) {
         console.log('Creating diet alert...');
+
+        let alertPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' = 'HIGH';
+
+        if (dietCompliance !== null) {
+          const compliance = parseInt(dietCompliance);
+          if (compliance < 50) {
+            alertPriority = 'URGENT';
+          } else if (compliance >= 80) {
+            alertPriority = 'MEDIUM';
+          }
+        } 
+
+        const alertType: 'CRITICAL' | 'WARNING' | 'INFO' =
+          dietCompliance && parseInt(dietCompliance) < 50 ? 'CRITICAL' : 'WARNING';
+
         await tx.alert.create({
           data: {
-            type: 'WARNING',
+            type: alertType,
             category: 'NUTRITION',
-            message: `Masalah diet pada pasien ${newVisitation.patient.name} (${newVisitation.patient.mrNumber}): ${dietIssues}${dietCompliance ? `. Kepatuhan diet: ${dietCompliance}%` : ''}`,
+            message: `Masalah diet dilaporkan oleh ${nurse.name} pada pasien ${newVisitation.patient.name} (${newVisitation.patient.mrNumber}) - Shift ${shift}: ${dietIssues}${dietCompliance ? `. Kepatuhan: ${dietCompliance}%` : ''}`,
             patientId,
-            priority: 'HIGH',
+            priority: alertPriority,
             targetRole: 'AHLI_GIZI',
             isRead: false
           }
-        });
+        }); 
       }
 
       console.log('Transaction complete');

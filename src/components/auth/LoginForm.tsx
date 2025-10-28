@@ -21,11 +21,11 @@ export default function LoginForm() {
 
     try {
       console.log('Attempting login for:', login);
-      
+
       const result = await signIn('credentials', {
         login,
         password,
-        redirect: false, // Jangan auto redirect
+        redirect: false,
       });
 
       console.log('Sign in result:', result);
@@ -39,24 +39,20 @@ export default function LoginForm() {
 
       if (result?.ok) {
         console.log('Sign in successful');
-        
-        // Tunggu sebentar untuk memastikan session ter-update
+
         await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Get fresh session to get user role
+
         const session = await getSession();
-        console.log('🔍 Session after login:', session);
-        
+        console.log('Session after login:', session);
+
         if (session?.user) {
           const userRole = (session.user as any).role as UserRole;
-          // Gunakan getDashboardPath dari auth.ts untuk mendapatkan route yang benar
           const dashboardRoute = getDashboardPath(userRole);
-          
-          console.log('✅ Redirecting to:', dashboardRoute, 'for role:', userRole);
-          
-          // Redirect ke dashboard sesuai role
+
+          console.log('Redirecting to:', dashboardRoute, 'for role:', userRole);
+
           router.push(dashboardRoute);
-          router.refresh(); // Refresh untuk memastikan state terbaru
+          router.refresh();
         } else {
           console.error('No session found after successful login');
           setError('Terjadi kesalahan sistem. Silakan coba lagi.');
@@ -66,7 +62,7 @@ export default function LoginForm() {
       console.error('Login error:', error);
       setError('Terjadi kesalahan sistem. Silakan coba lagi.');
     }
-    
+
     setIsLoading(false);
   };
 
@@ -89,16 +85,14 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-md w-full mx-4">
-        {/* Hospital Logo and Title */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
             <span className="text-white text-3xl font-bold">KD</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Kawan Diabetes</h1>
           <p className="text-gray-600">RS Panti Nugroho</p>
         </div>
 
-        {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -155,7 +149,17 @@ export default function LoginForm() {
             </button>
           </form>
 
-          {/* Toggle for showing available credentials */}
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => router.push('/reset-password?mode=forgot')}
+              className="text-sm text-green-600 hover:text-green-700 transition-colors font-medium"
+              disabled={isLoading}
+            >
+              Lupa Password?
+            </button>
+          </div>
+
           <div className="mt-6 pt-4 border-t border-gray-200">
             <button
               type="button"
@@ -163,12 +167,12 @@ export default function LoginForm() {
               className="w-full text-sm text-gray-600 hover:text-gray-800 transition-colors"
               disabled={isLoading}
             >
-              {showCredentials ? 'sembunyikan contoh akun' : ' lihat contoh akun '} 
+              {showCredentials ? 'Sembunyikan contoh akun' : 'Lihat contoh akun'}
             </button>
 
             {showCredentials && (
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-gray-500 mb-2">Klik untuk mengisi otomatis:</p>
+                <p className="text-xs text-gray-500 mb-2">Klik untuk mengisi otomatis</p>
                 {availableAccounts.map((account, index) => (
                   <button
                     key={index}
@@ -189,16 +193,15 @@ export default function LoginForm() {
                   </button>
                 ))}
                 <p className="text-xs text-gray-400 mt-2">
-                  * Untuk keperluan testing dan development
+                  Untuk keperluan testing dan development
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
-          © 2025 RS Panti Nugroho. Semua hak dilindungi.
+          2025 RS Panti Nugroho. Semua hak dilindungi.
         </div>
       </div>
     </div>

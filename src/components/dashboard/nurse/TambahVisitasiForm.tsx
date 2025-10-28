@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, User, Activity, Pill, FileText, BookOpen, AlertTriangle, ChevronDown, Clock, Utensils, Calculator, Info } from 'lucide-react';
 import { Patient, Visitation } from '@prisma/client';
-import DietComplianceChecker from './DietComplianceChecker';
+// import DietComplianceChecker from './DietComplianceChecker';
 
 
 interface TambahVisitasiFormProps {
@@ -533,7 +533,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                         {visitationType === 'vital' && (
                             <div className="bg-white border border-gray-300 rounded-lg p-4">
                                 <div className="flex items-center mb-4">
-                                    <Activity className="h-5 w-5 text-blue-600 mr-2" />
+                                    <Activity className="h-5 w-5 text-green-600 mr-2" />
                                     <h4 className="font-medium text-gray-900">Data Vital Signs</h4>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -685,7 +685,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
 
                         <div className="bg-white border rounded-lg p-4">
                             <div className="flex items-center mb-4">
-                                <Calculator className="h-5 w-5 text-gray-600 mr-2" />
+                                <Calculator className="h-5 w-5 text-green-600 mr-2" />
                                 <h4 className="font-semibold text-gray-900">Perhitungan Kebutuhan Energi (PERKENI 2015)</h4>
                             </div>
 
@@ -790,31 +790,51 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
 
                         <div className="bg-white border border-gray-300 rounded-lg p-4">
                             <div className="flex items-center mb-3">
-                                <Utensils className="h-5 w-5 text-orange-600 mr-2" />
-                                <h4 className="font-medium text-gray-900">Kepatuhan Diet & Masalah</h4>
+                                <Utensils className="h-5 w-5 text-green-600 mr-2" />
+                                <h4 className="font-medium text-gray-900">Monitoring Diet Pasien</h4>
                                 <span className="text-gray-500 text-sm ml-2">(Opsional)</span>
                             </div>
 
-                            <DietComplianceChecker
-                                value={dietCompliance}
-                                onChange={(val) => setDietCompliance(val)}
-                            />
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Persentase Kepatuhan Diet (%)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-base text-gray-900 font-semibold"
+                                        placeholder="Contoh: 75 (untuk 75%)"
+                                        value={dietCompliance}
+                                        onChange={(e) => setDietCompliance(e.target.value)}
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Estimasi berdasarkan porsi makanan yang dihabiskan pasien
+                                    </p>
+                                </div>
 
-                            <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Masalah/Kendala Diet
-                                </label>
-                                <textarea
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-base text-gray-700"
-                                    rows={3}
-                                    placeholder="Contoh: Pasien menolak makan sayur, tidak mengikuti jadwal makan..."
-                                    value={dietIssues}
-                                    onChange={(e) => setDietIssues(e.target.value)}
-                                />
-                                <p className="mt-2 text-xs text-orange-600 flex items-start">
-                                    <AlertTriangle className="h-3 w-3 mr-1 mt-0.5 text-orange-500" />
-                                    Jika ada masalah diet, sistem akan membuat alert untuk Ahli Gizi
-                                </p>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Masalah/Kendala Diet yang Ditemukan
+                                    </label>
+                                    <textarea
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 resize-none text-base text-gray-900"
+                                        rows={4}
+                                        placeholder="Contoh: Pasien menolak makan sayur, hanya menghabiskan 50% porsi makan siang, tidak mengikuti jadwal snack..."
+                                        value={dietIssues}
+                                        onChange={(e) => setDietIssues(e.target.value)}
+                                    />
+                                    <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                        <p className="text-xs text-orange-800 flex items-start">
+                                            <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
+                                            <span>
+                                                <strong>Penting:</strong> Jika terdapat masalah diet yang memerlukan perhatian khusus (kepatuhan rendah, penolakan makanan, dll),
+                                                sistem akan otomatis membuat alert untuk Ahli Gizi agar dapat segera melakukan evaluasi dan penyesuaian rencana diet.
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

@@ -41,6 +41,8 @@
     isActive   Boolean  @default(true)
     createdAt  DateTime @default(now())
     updatedAt  DateTime @updatedAt
+    resetPasswordToken   String?   @unique
+    resetPasswordExpires DateTime?
 
     // Relations
     loginLogs          LoginLog[]
@@ -414,7 +416,6 @@
     manufacturer      String
     categoryKehamilan String
     stock             Int
-    price             Int      @default(5000) // Add default price field (in Rupiah)
     expiryDate        DateTime
     interactions      String[]
     contraindications String[]
@@ -432,7 +433,6 @@
   model DrugTransaction {
     id          String   @id @default(cuid())
     patientId   String
-    totalAmount Int
     status      TransactionStatus @default(PENDING)
     notes       String?
     createdAt   DateTime @default(now())
@@ -454,8 +454,6 @@
     transactionId String
     drugId        String
     quantity      Int
-    price         Int
-    subtotal      Int
 
     // Relations
     transaction DrugTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)

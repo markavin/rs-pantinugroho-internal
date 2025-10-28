@@ -13,7 +13,6 @@ export interface DrugData {
     strength: string;
     manufacturer: string;
     stock: number;
-    price?: number;
     expiryDate: string;
     interactions: string[];
     contraindications: string[];
@@ -46,7 +45,6 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
         strength: '',
         manufacturer: '',
         stock: 0,
-        price: 0,
         expiryDate: '',
         interactions: [],
         contraindications: [],
@@ -111,7 +109,6 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                     strength: '',
                     manufacturer: '',
                     stock: 0,
-                    price: 0,
                     expiryDate: '',
                     interactions: [],
                     contraindications: [],
@@ -176,10 +173,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
             newErrors.stock = 'Jumlah stok harus lebih dari atau sama dengan 0';
         }
 
-        if (!formData.price || formData.price <= 0) {
-            newErrors.price = 'Harga obat harus lebih dari 0';
-        }
-
+    
         if (!formData.expiryDate?.trim()) {
             newErrors.expiryDate = 'Tanggal kedaluwarsa wajib diisi';
         } else {
@@ -220,7 +214,6 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                 strength: formData.strength!,
                 manufacturer: formData.manufacturer!,
                 stock: formData.stock || 0,
-                price: formData.price || 0,
                 expiryDate: formData.expiryDate!,
                 interactions: formData.interactions || [],
                 contraindications: formData.contraindications || [],
@@ -358,18 +351,8 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="bg-white rounded-lg p-3 border">
-                                        <label className="block text-sm text-gray-600 mb-1">Harga Satuan</label>
-                                        <p className="text-2xl font-bold text-green-600">
-                                            Rp {formData.price?.toLocaleString('id-ID') || '0'}
-                                        </p>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-3 border">
-                                        <label className="block text-sm text-gray-600 mb-1">Nilai Total Stok</label>
-                                        <p className="text-2xl font-bold text-blue-600">
-                                            Rp {((formData.stock || 0) * (formData.price || 0)).toLocaleString('id-ID')}
-                                        </p>
-                                    </div>
+                                    
+                                    
                                 </div>
                             </div>
 
@@ -579,24 +562,6 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                 {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
                             </div>
 
-                            {/* Price */}
-                            <div className="md:col-span-1">
-                                <label className="block text-base font-medium text-gray-800 mb-2">
-                                    Harga Satuan (Rp) <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="100"
-                                    required
-                                    className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 font-medium ${errors.price ? 'border-red-300' : 'border-gray-300'}`}
-                                    value={formData.price || ''}
-                                    onChange={(e) => handleInputChange('price', parseInt(e.target.value) || 0)}
-                                    placeholder="Contoh: 5000"
-                                />
-                                {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
-                                <p className="mt-1 text-xs text-gray-500">Harga default untuk transaksi obat</p>
-                            </div>
 
                             {/* Tanggal Kedaluwarsa */}
                             <div className="md:col-span-2">

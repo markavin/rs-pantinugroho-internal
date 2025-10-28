@@ -792,7 +792,6 @@ async function main() {
   const drugTransaction1 = await prisma.drugTransaction.create({
     data: {
       patientId: patient1.id,
-      totalAmount: 85000,
       status: 'COMPLETED',
       notes: 'Pembayaran melalui BPJS',
       completedAt: new Date('2024-08-25')
@@ -802,7 +801,6 @@ async function main() {
   const drugTransaction2 = await prisma.drugTransaction.create({
     data: {
       patientId: patient3.id,
-      totalAmount: 150000,
       status: 'COMPLETED',
       notes: 'Pembayaran melalui BPJS, termasuk insulin',
       completedAt: new Date('2024-08-28')
@@ -822,15 +820,13 @@ async function main() {
           transactionId: drugTransaction1.id,
           drugId: metformin500.id,
           quantity: 60, // 30 hari x 2 tablet
-          price: 500,
-          subtotal: 30000
+ 
         },
         {
           transactionId: drugTransaction1.id,
           drugId: glimepiride.id,
           quantity: 30, // 30 hari x 1 tablet
-          price: 1500,
-          subtotal: 45000
+
         }
       ]
     });
@@ -843,15 +839,13 @@ async function main() {
           transactionId: drugTransaction2.id,
           drugId: metformin500.id,
           quantity: 60,
-          price: 500,
-          subtotal: 30000
+       
         },
         {
           transactionId: drugTransaction2.id,
           drugId: insulin.id,
           quantity: 2, // 2 vial
-          price: 60000,
-          subtotal: 120000
+       
         }
       ]
     });

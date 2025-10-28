@@ -18,7 +18,6 @@ interface Transaction {
   patientName: string;
   mrNumber: string;
   items: TransactionItem[];
-  totalAmount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
   completedAt?: string;
@@ -29,7 +28,6 @@ interface TransactionItem {
   drugId: string;
   drugName: string;
   quantity: number;
-  price: number;
   subtotal: number;
 }
 
@@ -620,7 +618,6 @@ const PharmacyDashboard = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kategori</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kat. Kehamilan</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stok</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Harga</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kadaluwarsa</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
@@ -643,9 +640,6 @@ const PharmacyDashboard = () => {
                             }`}>
                             {drug.stock} unit
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {new Date(drug.expiryDate).toLocaleDateString('id-ID')}
@@ -696,9 +690,7 @@ const PharmacyDashboard = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                      <div>
-                        <span className="text-gray-600">Harga: Rp {drug.price?.toLocaleString('id-ID') || 'N/A'}</span>
-                      </div>
+
                       <div>
                         <span className="text-gray-600">Exp: {new Date(drug.expiryDate).toLocaleDateString('id-ID')}</span>
                       </div>
@@ -821,9 +813,7 @@ const PharmacyDashboard = () => {
                             {transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          Rp {transaction.totalAmount.toLocaleString('id-ID')}
-                        </td>
+
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                             transaction.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
@@ -897,11 +887,7 @@ const PharmacyDashboard = () => {
                           Items: {transaction.items.length} obat ({transaction.items.reduce((sum, item) => sum + item.quantity, 0)} unit)
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600 font-semibold">
-                          Total: Rp {transaction.totalAmount.toLocaleString('id-ID')}
-                        </span>
-                      </div>
+
                       <div className="col-span-2">
                         <span className="text-gray-600">
                           Tanggal: {new Date(transaction.createdAt).toLocaleDateString('id-ID')} {new Date(transaction.createdAt).toLocaleTimeString('id-ID', {

@@ -65,11 +65,8 @@ export async function GET(request: NextRequest) {
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal
+        quantity: item.quantity
       })),
-      totalAmount: transaction.totalAmount,
       status: transaction.status,
       createdAt: transaction.createdAt.toISOString(),
       completedAt: transaction.completedAt?.toISOString(),
@@ -105,9 +102,8 @@ export async function POST(request: NextRequest) {
     const {
       patientId,
       items,
-      totalAmount,
       notes,
-      prescriptionSource, // 'DOCTOR_PRESCRIPTION' atau 'MANUAL'
+      prescriptionSource,
       relatedHandledPatientId,
       relatedPrescriptionAlertId
     } = body;
@@ -116,15 +112,6 @@ export async function POST(request: NextRequest) {
     if (!patientId || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'Missing required fields: patientId, items' },
-        { status: 400 }
-      );
-    }
-
-    // Validate totalAmount matches calculated total
-    const calculatedTotal = items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
-    if (Math.abs(totalAmount - calculatedTotal) > 0.01) {
-      return NextResponse.json(
-        { error: 'Total amount does not match sum of item subtotals' },
         { status: 400 }
       );
     }
@@ -140,9 +127,9 @@ export async function POST(request: NextRequest) {
 
     // Validate all drugs exist and have sufficient stock
     for (const item of items) {
-      if (!item.drugId || !item.quantity || !item.price) {
+      if (!item.drugId || !item.quantity) {
         return NextResponse.json(
-          { error: 'All items must have drugId, quantity, and price' },
+          { error: 'All items must have drugId and quantity' },
           { status: 400 }
         );
       }
@@ -165,17 +152,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (item.price <= 0) {
+      if (item.quantity <= 0) {
         return NextResponse.json(
-          { error: `Price for ${drug.name} must be greater than 0` },
-          { status: 400 }
-        );
-      }
-
-      const expectedSubtotal = item.quantity * item.price;
-      if (Math.abs(item.subtotal - expectedSubtotal) > 0.01) {
-        return NextResponse.json(
-          { error: `Subtotal calculation error for ${drug.name}` },
+          { error: `Quantity for ${drug.name} must be greater than 0` },
           { status: 400 }
         );
       }
@@ -189,7 +168,6 @@ export async function POST(request: NextRequest) {
       const drugTransaction = await tx.drugTransaction.create({
         data: {
           patientId,
-          totalAmount,
           status: 'COMPLETED',
           notes: notes?.trim() || null,
           createdAt: now,
@@ -205,8 +183,6 @@ export async function POST(request: NextRequest) {
               transactionId: drugTransaction.id,
               drugId: item.drugId,
               quantity: item.quantity,
-              price: item.price,
-              subtotal: item.subtotal
             }
           })
         )
@@ -236,14 +212,12 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             dosageInstructions: `${item.quantity} unit - sesuai resep`
           })),
-          transactionTotal: totalAmount,
           counselingNotes: notes || 'Tidak ada catatan khusus',
         }
       });
 
-      // 🔧 PERBAIKAN: Kirim alert HANYA jika dari resep dokter DAN pasien rawat inap
+      // Send alert ONLY if from doctor prescription AND patient is inpatient
       if (prescriptionSource === 'DOCTOR_PRESCRIPTION' && patient.status === 'RAWAT_INAP') {
-        // Format daftar obat untuk pesan
         const medicationList = items
           .map((item: any) => `- ${item.drugName}: ${item.quantity} unit`)
           .join('\n');
@@ -257,9 +231,8 @@ Daftar Obat:
 ${medicationList}
 
 Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit
-Nilai: Rp ${totalAmount.toLocaleString('id-ID')}
 
-⚠️ Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
+ Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
             patientId,
             category: 'MEDICATION',
             priority: 'MEDIUM',
@@ -319,11 +292,8 @@ Nilai: Rp ${totalAmount.toLocaleString('id-ID')}
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal
+        quantity: item.quantity
       })),
-      totalAmount: completeTransaction!.totalAmount,
       status: completeTransaction!.status,
       createdAt: completeTransaction!.createdAt.toISOString(),
       completedAt: completeTransaction!.completedAt?.toISOString(),

@@ -5,10 +5,33 @@ import {
   Search, Plus, TrendingUp, Calendar, Users, Eye, Edit3, AlertTriangle, CheckCircle,
   Activity, Scale, Utensils, BarChart3, RefreshCw, Menu, X, Bell,
   Info,
-  Calculator
+  Calculator,
+  ChefHat,
+  Save
 } from 'lucide-react';
 import SplashScreen from '@/components/SplashScreen';
 import DietIssueModal from './DietIssueModal';
+import DetailDietHistoryModal from './DetailDietHistoryModal';
+import MenuPlanningSection from './MenuPlanningSection';
+import ViewMenuModal from './ViewMenuModal';
+
+interface MealItem {
+  id: string;
+  name: string;
+  portion: string;
+  calories: number;
+  carbs: number;
+  protein: number;
+  fat: number;
+}
+
+interface MenuPlan {
+  breakfast: MealItem[];
+  morningSnack: MealItem[];
+  lunch: MealItem[];
+  afternoonSnack: MealItem[];
+  dinner: MealItem[];
+}
 
 interface Patient {
   id: string;
@@ -28,7 +51,6 @@ interface Patient {
   hasDietIssue?: boolean;
   dietAlert?: any;
 
-  // TAMBAHKAN INI
   latestEnergyCalculation?: number;
   latestBMI?: number;
   energyCalculationDetail?: {
@@ -53,6 +75,9 @@ interface Patient {
   lastWeightUpdate?: string;
   currentWeight?: number;
   currentHeight?: number;
+
+  mealDistribution?: MenuPlan | null;
+  latestNutritionRecord?: any;
 }
 
 type TabType = 'dashboard' | 'patients' | 'monitoring';
@@ -70,6 +95,11 @@ const NutritionistDashboard = () => {
   const [error, setError] = useState('');
   const [showDietIssuesModal, setShowDietIssuesModal] = useState(false);
   const [selectedDietIssue, setSelectedDietIssue] = useState(null);
+  const [showDietHistoryModal, setShowDietHistoryModal] = useState(false);
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [selectedMenuPatient, setSelectedMenuPatient] = useState<Patient | null>(null);
+  const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
+  const [dietHistoryVisitations, setDietHistoryVisitations] = useState([]);
 
   const [realTimeStats, setRealTimeStats] = useState({
     totalPatients: 0,
@@ -90,13 +120,13 @@ const NutritionistDashboard = () => {
     dietRevisionNotes: ''
   });
 
-  const [mealComplianceData, setMealComplianceData] = useState({
-    breakfast: { percentage: 0, notes: '' },
-    midMorning: { percentage: 0, notes: '' },
-    lunch: { percentage: 0, notes: '' },
-    afternoon: { percentage: 0, notes: '' },
-    dinner: { percentage: 0, notes: '' }
-  });
+  // const [mealComplianceData, setMealComplianceData] = useState({
+  //   breakfast: { percentage: 0, notes: '' },
+  //   midMorning: { percentage: 0, notes: '' },
+  //   lunch: { percentage: 0, notes: '' },
+  //   afternoon: { percentage: 0, notes: '' },
+  //   dinner: { percentage: 0, notes: '' }
+  // });
 
   const [dietPlanForm, setDietPlanForm] = useState({
     calorieRequirement: '',
@@ -114,16 +144,18 @@ const NutritionistDashboard = () => {
   const fetchPatients = async () => {
     setLoading(true);
     try {
-      const [patientsRes, visitationsRes, alertsRes] = await Promise.all([
+      const [patientsRes, visitationsRes, alertsRes, nutritionRes] = await Promise.all([
         fetch('/api/nutrition-patients?status=RAWAT_INAP'),
         fetch('/api/visitations'),
-        fetch('/api/alerts?category=NUTRITION&unreadOnly=false')
+        fetch('/api/alerts?category=NUTRITION&unreadOnly=false'),
+        fetch('/api/nutrition-records') // ← TAMBAH INI
       ]);
 
-      if (patientsRes.ok && visitationsRes.ok && alertsRes.ok) {
+      if (patientsRes.ok && visitationsRes.ok && alertsRes.ok && nutritionRes.ok) {
         const patientsData = await patientsRes.json();
         const visitationsData = await visitationsRes.json();
         const alertsData = await alertsRes.json();
+        const nutritionData = await nutritionRes.json(); // ← TAMBAH INI
 
         const enrichedPatients = patientsData.map((patient) => {
           const patientVisitations = visitationsData
@@ -132,11 +164,18 @@ const NutritionistDashboard = () => {
 
           const dietAlert = alertsData.find((a) => a.patientId === patient.id && !a.isRead);
 
+          // ← TAMBAH: Ambil nutrition record terbaru untuk patient ini
+          const latestNutrition = nutritionData
+            .filter((n) => n.patientId === patient.id)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
           return {
             ...patient,
             visitationHistory: patientVisitations,
             hasDietIssue: !!dietAlert,
-            dietAlert
+            dietAlert,
+            mealDistribution: latestNutrition?.mealDistribution || null,
+            latestNutritionRecord: latestNutrition || null
           };
         });
 
@@ -290,16 +329,17 @@ const NutritionistDashboard = () => {
 
       if (!response.ok) throw new Error('Failed to create nutrition record');
 
+      alert('Rencana diet berhasil disimpan!');
       await fetchPatients();
-      setSelectedPatient(null);
-      setDietPlanForm({
-        calorieRequirement: '',
-        dietType: '',
-        mealDistribution: { breakfast: 25, morningSnack: 10, lunch: 30, afternoonSnack: 10, dinner: 25 },
-        specialInstructions: ''
-      });
+
+      const updatedPatients = await fetch('/api/nutrition-patients?status=RAWAT_INAP').then(r => r.json());
+      const updatedPatient = updatedPatients.find(p => p.id === patientId);
+      if (updatedPatient) {
+        setSelectedPatient(updatedPatient);
+      }
     } catch (err) {
       setError(err.message);
+      alert('Gagal menyimpan rencana diet: ' + err.message);
     }
   };
 
@@ -491,31 +531,87 @@ const NutritionistDashboard = () => {
                           <span className="text-gray-400 text-xs">Aman</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedPatient(patient);
-                            setShowPatientDetail(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 font-medium"
-                        >
-                          Detail
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedPatient(patient);
-                            const age = calculateAge(patient.birthDate);
-                            const calories =
-                              patient.calorieRequirement ||
-                              calculateCalorieNeed(patient.weight, patient.height, age, patient.gender);
-                            setDietPlanForm({ ...dietPlanForm, calorieRequirement: calories.toString() });
-                            setActiveTab('monitoring');
-                          }}
-                          className="text-green-600 hover:text-green-900 font-medium"
-                        >
-                          Kelola Diet
-                        </button>
+                      <td className="px-6 py-4 text-sm w-48">
+                        <div className="flex flex-col space-y-2">
+
+                          {/* Kelola Diet */}
+                          <button
+                            onClick={() => {
+                              setSelectedPatient(patient);
+                              const age = calculateAge(patient.birthDate);
+                              const calories =
+                                patient.calorieRequirement ||
+                                calculateCalorieNeed(patient.weight, patient.height, age, patient.gender);
+
+                              setDietPlanForm({
+                                ...dietPlanForm,
+                                calorieRequirement: calories.toString(),
+                              });
+
+                              setActiveTab('monitoring');
+                            }}
+                            className="text-green-600 hover:text-green-900 font-medium text-left"
+                          >
+                            Kelola Diet
+                          </button>
+
+                          {/* Riwayat Diet */}
+                          <button
+                            onClick={async () => {
+                              setSelectedPatientForHistory(patient);
+
+                              const response = await fetch(`/api/visitations?patientId=${patient.id}`);
+                              if (response.ok) {
+                                const visitations = await response.json();
+                                setDietHistoryVisitations(visitations);
+                              }
+
+                              setShowDietHistoryModal(true);
+                            }}
+                            className="text-gray-600 hover:text-gray-900 font-medium text-left"
+                          >
+                            Riwayat Diet
+                          </button>
+
+                          {/* Lihat Menu */}
+                          <button
+                            onClick={() => {
+                              const hasMenu =
+                                patient.mealDistribution &&
+                                typeof patient.mealDistribution === 'object' &&
+                                Object.values(patient.mealDistribution).some(
+                                  (meals: any) => Array.isArray(meals) && meals.length > 0
+                                );
+
+                              if (hasMenu) {
+                                setSelectedMenuPatient(patient);
+                                setShowMenuModal(true);
+                              } else {
+                                alert(
+                                  'Belum ada menu makanan untuk pasien ini.\nSilakan buat menu terlebih dahulu di Tab Monitoring.'
+                                );
+                              }
+                            }}
+                            className={`text-blue-600 font-medium text-left transition-colors duration-200 ${patient.mealDistribution &&
+                              typeof patient.mealDistribution === 'object' &&
+                              Object.values(patient.mealDistribution).some(
+                                (meals: any) => Array.isArray(meals) && meals.length > 0
+                              )
+                              ? 'text-blue-700 hover:text-blue-900 cursor-pointer'
+                              : 'text-gray-400 cursor-not-allowed'
+                              }`}
+                          >
+                            {patient.mealDistribution &&
+                              typeof patient.mealDistribution === 'object' &&
+                              Object.values(patient.mealDistribution).some(
+                                (meals: any) => Array.isArray(meals) && meals.length > 0
+                              )
+                              ? 'Lihat Menu'
+                              : 'Menu (Belum ada)'}
+                          </button>
+                        </div>
                       </td>
+
                     </tr>
                   ))}
                   {filteredPatients.length === 0 && (
@@ -577,16 +673,7 @@ const NutritionistDashboard = () => {
                         <span className="font-medium">{calories} kkal</span>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          setSelectedPatient(patient);
-                          setShowPatientDetail(true);
-                        }}
-                        className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded text-sm font-medium hover:bg-blue-200 "
-                      >
-                        Detail
-                      </button>
+                    <div className="flex space-x-3">
                       <button
                         onClick={() => {
                           setSelectedPatient(patient);
@@ -596,6 +683,48 @@ const NutritionistDashboard = () => {
                         className="flex-1 bg-green-100 text-green-700 py-2 px-3 rounded text-sm font-medium hover:bg-green-200"
                       >
                         Kelola Diet
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedPatientForHistory(patient);
+                          setShowDietHistoryModal(true);
+                        }}
+                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded text-sm font-medium hover:bg-gray-200 "
+                      >
+                        Riwayat Diet
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Cek apakah ada data menu dari nutrition record
+                          const hasMenu = patient.mealDistribution &&
+                            typeof patient.mealDistribution === 'object' &&
+                            Object.values(patient.mealDistribution).some((meals: any) =>
+                              Array.isArray(meals) && meals.length > 0
+                            );
+
+                          if (hasMenu) {
+                            setSelectedMenuPatient(patient);
+                            setShowMenuModal(true);
+                          } else {
+                            alert('Belum ada menu makanan untuk pasien ini.\nSilakan buat menu terlebih dahulu di Tab Monitoring.');
+                          }
+                        }}
+                        className={`flex-1 py-2 px-3 rounded text-sm font-medium flex items-center justify-center space-x-1 ${patient.mealDistribution &&
+                          typeof patient.mealDistribution === 'object' &&
+                          Object.values(patient.mealDistribution).some((meals: any) =>
+                            Array.isArray(meals) && meals.length > 0
+                          )
+                          ? 'bg-purple-100 text-blue-700 hover:bg-blue-200 cursor-pointer'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          }`}
+                      >
+                        <span>
+                          {patient.mealDistribution &&
+                            typeof patient.mealDistribution === 'object' &&
+                            Object.values(patient.mealDistribution).some((meals: any) =>
+                              Array.isArray(meals) && meals.length > 0
+                            ) ? 'Lihat Menu' : 'Menu (Belum ada)'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -612,470 +741,765 @@ const NutritionistDashboard = () => {
     <div className="space-y-6">
       {selectedPatient ? (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Informasi Pasien</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-600">Nama</p>
-                <p className="text-sm font-semibold text-gray-900">{selectedPatient.name}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-600">No RM</p>
-                <p className="text-sm font-semibold text-gray-900">{selectedPatient.mrNumber}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-600">Umur</p>
-                <p className="text-sm font-semibold text-gray-900">{calculateAge(selectedPatient.birthDate)} tahun</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-600">Diabetes Type</p>
-                <p className="text-sm font-semibold text-gray-900">{selectedPatient.diabetesType || 'N/A'}</p>
-              </div>
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200">
-                <p className="text-xs text-blue-600 font-medium">Perhitungan Energi Terbaru</p>
-                {selectedPatient.latestEnergyCalculation ? (
-                  <>
-                    <p className="text-2xl font-bold text-blue-900 mt-1">
-                      {selectedPatient.latestEnergyCalculation} <span className="text-sm font-normal">kkal/hari</span>
-                    </p>
-                    {selectedPatient.lastWeightUpdate && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        Dihitung: {new Date(selectedPatient.lastWeightUpdate).toLocaleDateString('id-ID')}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500 mt-1">Belum ada perhitungan</p>
-                )}
-              </div>
+          {/* SECTION 1: INFORMASI PASIEN & RENCANA DIET */}
+          <div id="section-rencana-diet" className="bg-white rounded-xl shadow-lg border-2 border-green-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
+              <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                <Users className="h-6 w-6 mr-3 text-green-600" />
+                Informasi Pasien & Rencana Diet
+              </h2>
             </div>
-            {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs text-gray-600 mb-2">Alergi Makanan</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedPatient.allergies.map((allergy, idx) => (
-                    <span key={idx} className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-medium">
-                      {allergy}
-                    </span>
-                  ))}
+
+            <div className="p-6 space-y-6">
+              {/* Informasi Dasar Pasien */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <p className="text-xs text-gray-600 mb-1">Nama Pasien</p>
+                  <p className="text-base font-bold text-gray-900">{selectedPatient.name}</p>
                 </div>
-              </div>
-            )}
-            <button
-              onClick={() => setSelectedPatient(null)}
-              className="mt-4 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 font-medium"
-            >
-              Pilih Pasien Lain
-            </button>
-          </div>
-
-
-          {selectedPatient.energyCalculationDetail && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Calculator className="h-5 w-5 mr-2 text-indigo-600" />
-                Detail Perhitungan Energi (PERKENI 2015)
-              </h3>
-
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4 mb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">BBI:</span>
-                    <p className="font-semibold text-gray-900">
-                      {selectedPatient.energyCalculationDetail.bbi} kg
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">BMR:</span>
-                    <p className="font-semibold text-gray-900">
-                      {selectedPatient.energyCalculationDetail.bmr} kkal
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Aktivitas:</span>
-                    <p className="font-semibold text-gray-900 capitalize">
-                      {selectedPatient.energyCalculationDetail.activityLevel}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Faktor Stres:</span>
-                    <p className="font-semibold text-gray-900">
-                      {selectedPatient.energyCalculationDetail.stressFactor}
-                    </p>
-                  </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <p className="text-xs text-gray-600 mb-1">No RM</p>
+                  <p className="text-base font-bold text-gray-900">{selectedPatient.mrNumber}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <p className="text-xs text-gray-600 mb-1">Umur</p>
+                  <p className="text-base font-bold text-gray-900">
+                    {calculateAge(selectedPatient.birthDate)} tahun
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <p className="text-xs text-gray-600 mb-1">Diabetes Type</p>
+                  <p className="text-base font-bold text-gray-900">
+                    {selectedPatient.diabetesType || 'N/A'}
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">BMR Dasar:</span>
-                  <span className="font-medium">{selectedPatient.energyCalculationDetail.breakdown.baseEnergy} kkal</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">+ Aktivitas Fisik:</span>
-                  <span className="font-medium">{selectedPatient.energyCalculationDetail.breakdown.withActivity} kkal</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">- Koreksi Usia:</span>
-                  <span className="font-medium">{selectedPatient.energyCalculationDetail.breakdown.withAge} kkal</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">± Koreksi Status Gizi ({selectedPatient.energyCalculationDetail.nutritionStatus}):</span>
-                  <span className="font-medium">{selectedPatient.energyCalculationDetail.breakdown.withNutrition} kkal</span>
-                </div>
-                <div className="flex justify-between py-2 bg-green-50 px-3 rounded-lg mt-2">
-                  <span className="font-semibold text-green-800">Total Kebutuhan Energi:</span>
-                  <span className="font-bold text-green-900">{selectedPatient.energyCalculationDetail.breakdown.final} kkal/hari</span>
-                </div>
-              </div>
-
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-800 flex items-start">
-                  <Info className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
-                  <span>
-                    Data perhitungan ini berasal dari visitasi perawat pada{' '}
-                    {new Date(selectedPatient.energyCalculationDetail.calculatedAt).toLocaleString('id-ID')}.
-                  </span>
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rencana Diet Pasien</h3>
-            {selectedPatient.dietPlan ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Jenis Diet</p>
-                    <p className="text-base font-semibold text-gray-900">{selectedPatient.dietPlan}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Kebutuhan Kalori</p>
-                    <p className="text-base font-semibold text-gray-900">{selectedPatient.calorieRequirement || 1800} kkal/hari</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-yellow-800">Belum ada rencana diet untuk pasien ini</p>
-              </div>
-            )}
-
-            <div className="space-y-4 mt-6">
-              <h4 className="font-semibold text-gray-900">Buat/Edit Rencana Diet</h4>
+              {/* Data Antropometri & Energi */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Kebutuhan Kalori (kkal/hari)</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900 font-medium"
-                    value={dietPlanForm.calorieRequirement}
-                    onChange={(e) => setDietPlanForm({ ...dietPlanForm, calorieRequirement: e.target.value })}
-                    placeholder="1800"
-                  />
-                  {selectedPatient.latestEnergyCalculation && (
-                    <div className="mt-1 flex items-center text-xs text-blue-600">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      <span>Data dari perhitungan perawat (PERKENI 2015)</span>
+                {/* Antropometri */}
+                <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
+                  <h4 className="font-bold text-gray-900 mb-3 flex items-center">
+                    <Scale className="h-5 w-5 mr-2 text-green-600" />
+                    Data Antropometri Terbaru
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-3 rounded shadow-sm">
+                      <label className="text-xs text-green-600">Tinggi Badan</label>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedPatient.currentHeight || selectedPatient.height || '-'} cm
+                      </p>
+                    </div>
+                    <div className="bg-white p-3 rounded shadow-sm">
+                      <label className="text-xs text-green-600">Berat Badan</label>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedPatient.currentWeight || selectedPatient.weight || '-'} kg
+                      </p>
+                      {selectedPatient.lastWeightUpdate && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(selectedPatient.lastWeightUpdate).toLocaleDateString('id-ID')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-white p-3 rounded shadow-sm">
+                      <label className="text-xs text-green-600">BMI</label>
+                      <p className={`text-lg font-bold ${selectedPatient.latestBMI < 18.5 ? 'text-blue-600' :
+                          selectedPatient.latestBMI < 25 ? 'text-green-600' :
+                            selectedPatient.latestBMI < 30 ? 'text-yellow-600' :
+                              'text-red-600'
+                        }`}>
+                        {selectedPatient.latestBMI ? selectedPatient.latestBMI.toFixed(1) : '-'}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {selectedPatient.latestBMI ? getBMICategory(selectedPatient.latestBMI) : 'N/A'}
+                      </p>
+                    </div>
+                    <div className="bg-white p-3 rounded shadow-sm">
+                      <label className="text-xs text-green-600">Status Gizi</label>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {selectedPatient.energyCalculationDetail?.nutritionStatus || 'Normal'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Perhitungan Energi */}
+                <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
+                  <h4 className="font-bold text-gray-900 mb-3 flex items-center">
+                    <Calculator className="h-5 w-5 mr-2 text-green-600" />
+                    Kebutuhan Energi (PERKENI 2015)
+                  </h4>
+                  {selectedPatient.energyCalculationDetail ? (
+                    <div className="space-y-2">
+                      <div className="bg-white p-3 rounded shadow-sm">
+                        <p className="text-xs text-green-600">Total Kebutuhan Energi</p>
+                        <p className="text-3xl font-bold text-gray-900 text-center">
+                          {selectedPatient.latestEnergyCalculation}
+                          <span className="text-sm font-normal ml-1">kkal/hari</span>
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-white p-2 rounded">
+                          <span className="text-green-600">BBI:</span>
+                          <span className="ml-1 font-bold text-gray-600">{selectedPatient.energyCalculationDetail.bbi} kg</span>
+                        </div>
+                        <div className="bg-white p-2 rounded">
+                          <span className="text-green-600">BMR:</span>
+                          <span className="ml-1 font-bold text-gray-600">{selectedPatient.energyCalculationDetail.bmr} kkal</span>
+                        </div>
+                        <div className="bg-white p-2 rounded">
+                          <span className="text-green-600">Aktivitas:</span>
+                          <span className="ml-1 font-bold capitalize text-gray-600">{selectedPatient.energyCalculationDetail.activityLevel}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded">
+                          <span className="text-green-600">F. Stres:</span>
+                          <span className="ml-1 font-bold text-gray-600">{selectedPatient.energyCalculationDetail.stressFactor}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2 flex items-center">
+                        <Info className="h-3 w-3 mr-1" />
+                        Dihitung: {new Date(selectedPatient.energyCalculationDetail.calculatedAt).toLocaleDateString('id-ID')}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-4 rounded text-center">
+                      <p className="text-sm text-gray-500">Belum ada perhitungan energi dari perawat</p>
+                      <p className="text-xs text-gray-400 mt-1">Sistem akan menggunakan estimasi otomatis</p>
                     </div>
                   )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Diet</label>
-                  <select
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900 font-medium"
-                    value={dietPlanForm.dietType}
-                    onChange={(e) => setDietPlanForm({ ...dietPlanForm, dietType: e.target.value })}
-                  >
-                    <option value="">Pilih Jenis Diet</option>
-                    <option value="Diet Diabetes">Diet Diabetes</option>
-                    <option value="Diet Rendah Garam">Diet Rendah Garam</option>
-                    <option value="Diet Tinggi Protein">Diet Tinggi Protein</option>
-                    <option value="Diet Rendah Lemak">Diet Rendah Lemak</option>
-                    <option value="Diet Lunak">Diet Lunak</option>
-                    <option value="Diet Cair">Diet Cair</option>
-                  </select>
-                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Instruksi Khusus</label>
-                <textarea
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
-                  rows={3}
-                  value={dietPlanForm.specialInstructions}
-                  onChange={(e) => setDietPlanForm({ ...dietPlanForm, specialInstructions: e.target.value })}
-                  placeholder="Catatan khusus untuk diet pasien..."
-                />
-              </div>
-
-              <button
-                onClick={() => updatePatientDietPlan(selectedPatient.id, dietPlanForm)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-                disabled={!dietPlanForm.calorieRequirement || !dietPlanForm.dietType}
-              >
-                Simpan Rencana Diet
-              </button>
-            </div>
-          </div>
-
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Monitoring Asupan Harian</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Tanggal</label>
-              <input
-                type="date"
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full md:w-48 bg-white text-gray-900 font-medium"
-                value={selectedMonitoringDate}
-                onChange={(e) => setSelectedMonitoringDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-3">
-              {[
-                { name: 'breakfast', label: 'Pagi (Sarapan)', time: '06:00 - 08:00' },
-                { name: 'midMorning', label: 'Tengah Pagi (Snack)', time: '09:00 - 10:00' },
-                { name: 'lunch', label: 'Siang (Makan Siang)', time: '12:00 - 13:00' },
-                { name: 'afternoon', label: 'Sore (Snack)', time: '15:00 - 16:00' },
-                { name: 'dinner', label: 'Malam (Makan Malam)', time: '18:00 - 19:00' }
-              ].map((meal) => {
-                const data = mealComplianceData[meal.name];
-                const isLow = data.percentage < 50;
-                return (
-                  <div key={meal.name} className={`border rounded-lg p-4 ${isLow ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-medium text-gray-900">{meal.label}</p>
-                        <p className="text-xs text-gray-600">{meal.time}</p>
-                      </div>
-                      {isLow && (
-                        <div className="flex items-center space-x-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>Rendah</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Asupan (%)</label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            className="px-3 py-2 border border-gray-300 rounded w-16 text-sm bg-white text-gray-900 font-semibold"
-                            value={data.percentage}
-                            onChange={(e) =>
-                              setMealComplianceData({
-                                ...mealComplianceData,
-                                [meal.name]: { ...data, percentage: parseInt(e.target.value) || 0 }
-                              })
-                            }
-                          />
-                          <span className="text-sm font-medium text-gray-700">%</span>
-                        </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs text-gray-600 mb-1">Catatan</label>
-                        <input
-                          type="text"
-                          className="px-3 py-2 border border-gray-300 rounded w-full text-sm bg-white text-gray-900"
-                          placeholder="Cth: pasien menolak, mual, dst"
-                          value={data.notes}
-                          onChange={(e) =>
-                            setMealComplianceData({
-                              ...mealComplianceData,
-                              [meal.name]: { ...data, notes: e.target.value }
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${data.percentage >= 80 ? 'bg-green-500' :
-                          data.percentage >= 50 ? 'bg-yellow-500' :
-                            'bg-red-500'
-                          }`}
-                        style={{ width: `${data.percentage}%` }}
-                      ></div>
-                    </div>
+              {/* Alergi */}
+              {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                  <h4 className="font-bold text-red-900 mb-2 flex items-center">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    Peringatan Alergi
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPatient.allergies.map((allergy, idx) => (
+                      <span key={idx} className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium border border-red-300">
+                        {allergy}
+                      </span>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Rata-rata Kepatuhan Hari Ini:</strong> {Math.round(
-                  (mealComplianceData.breakfast.percentage +
-                    mealComplianceData.midMorning.percentage +
-                    mealComplianceData.lunch.percentage +
-                    mealComplianceData.afternoon.percentage +
-                    mealComplianceData.dinner.percentage) / 5
-                )}%
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Evaluasi & Revisi Diet</h3>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Evaluasi</label>
-                  <input
-                    type="date"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900 font-medium"
-                    value={monitoringForm.evaluationDate}
-                    onChange={(e) => setMonitoringForm({ ...monitoringForm, evaluationDate: e.target.value })}
-                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Berat Badan Terbaru (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900 font-medium"
-                    value={monitoringForm.weight}
-                    onChange={(e) => setMonitoringForm({ ...monitoringForm, weight: e.target.value })}
-                    placeholder={selectedPatient.weight || '0'}
-                  />
-                </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status Kepatuhan</label>
-                <select
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900 font-medium"
-                  value={monitoringForm.complianceStatus}
-                  onChange={(e) => setMonitoringForm({ ...monitoringForm, complianceStatus: e.target.value })}
-                >
-                  <option value="stable">Stabil</option>
-                  <option value="improving">Meningkat</option>
-                  <option value="declining">Menurun</option>
-                  <option value="critical">Kritis</option>
-                </select>
-              </div>
+              {/* Form Rencana Diet */}
+              <div className="border-t-2 border-gray-200 pt-6">
+                <h4 className="font-bold text-gray-900 mb-4 text-lg flex items-center">
+                  <Utensils className="h-5 w-5 mr-2 text-green-600" />
+                  Rencana Diet Pasien
+                </h4>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Catatan Evaluasi</label>
-                <textarea
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
-                  rows={3}
-                  value={monitoringForm.evaluationNotes}
-                  onChange={(e) => setMonitoringForm({ ...monitoringForm, evaluationNotes: e.target.value })}
-                  placeholder="Hasil evaluasi, observasi, catatan khusus..."
-                />
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={monitoringForm.reviseDiet}
-                    onChange={(e) => setMonitoringForm({ ...monitoringForm, reviseDiet: e.target.checked })}
-                    className="w-4 h-4 text-green-600 rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Perlu Revisi Rencana Diet</span>
-                </label>
-
-                {monitoringForm.reviseDiet && (
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Alasan & Rekomendasi Revisi</label>
-                    <textarea
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
-                      rows={3}
-                      value={monitoringForm.dietRevisionNotes}
-                      onChange={(e) => setMonitoringForm({ ...monitoringForm, dietRevisionNotes: e.target.value })}
-                      placeholder="Jelaskan alasan revisi dan rekomendasi perubahan..."
-                    />
+                {selectedPatient.dietPlan && (
+                  <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+                    <p className="text-lg font-medium text-green-800 mb-2">Diet Saat Ini:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-sm text-gray-700">Jenis Diet:</span>
+                        <p className="font-bold text-gray-900">{selectedPatient.dietPlan}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-700">Target Kalori:</span>
+                        <p className="font-bold text-green-600">
+                          {selectedPatient.calorieRequirement || selectedPatient.latestEnergyCalculation || 1800} kkal/hari
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">
+                      Kebutuhan Kalori (kkal/hari)
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 font-bold text-lg"
+                      value={dietPlanForm.calorieRequirement}
+                      onChange={(e) => setDietPlanForm({ ...dietPlanForm, calorieRequirement: e.target.value })}
+                      placeholder="1800"
+                    />
+                    {selectedPatient.latestEnergyCalculation && (
+                      <div className="mt-2 flex items-center text-xs text-green-700 bg-green-50 p-2 rounded">
+                        <CheckCircle className="h-4 w-4 mr-1 flex-shrink-0" />
+                        <span>Menggunakan data perhitungan PERKENI 2015 dari perawat</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">
+                      Jenis Diet
+                    </label>
+                    <select
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 font-medium"
+                      value={dietPlanForm.dietType}
+                      onChange={(e) => setDietPlanForm({ ...dietPlanForm, dietType: e.target.value })}
+                    >
+                      <option value="">-- Pilih Jenis Diet --</option>
+                      <option value="Diet Diabetes">Diet Diabetes</option>
+                      <option value="Diet Rendah Garam">Diet Rendah Garam</option>
+                      <option value="Diet Tinggi Protein">Diet Tinggi Protein</option>
+                      <option value="Diet Rendah Lemak">Diet Rendah Lemak</option>
+                      <option value="Diet Lunak">Diet Lunak</option>
+                      <option value="Diet Cair">Diet Cair</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    Instruksi Khusus (Opsional)
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900"
+                    rows={3}
+                    value={dietPlanForm.specialInstructions}
+                    onChange={(e) => setDietPlanForm({ ...dietPlanForm, specialInstructions: e.target.value })}
+                    placeholder="Contoh: Hindari makanan tinggi gula, porsi kecil tapi sering, dll..."
+                  />
+                </div>
+
+                <div className="mt-4 flex justify-end space-x-3">
+                  <button
+                    onClick={() => updatePatientDietPlan(selectedPatient.id, dietPlanForm)}
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!dietPlanForm.calorieRequirement || !dietPlanForm.dietType}
+                  >
+                    <Save className="h-4 w-4 inline mr-2" />
+                    Simpan Rencana Diet
+                  </button>
+                </div>
               </div>
+            </div>
+          </div>
 
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setSelectedPatient(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={async () => {
+          {/* SECTION 2: PERENCANAAN MENU MAKANAN */}
+          <div id="section-menu-makanan" className="bg-white rounded-xl shadow-lg border-2 border-green-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
+              <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                <ChefHat className="h-6 w-6 mr-3 text-green-600" />
+                Perencanaan Menu Makanan
+              </h2>
+            </div>
+
+            <div className="p-6">
+              {dietPlanForm.calorieRequirement ? (
+                <MenuPlanningSection
+                  targetCalories={parseInt(dietPlanForm.calorieRequirement)}
+                  onSave={async (menuPlan) => {
                     try {
-                      const avgCompliance = Math.round(
-                        (mealComplianceData.breakfast.percentage +
-                          mealComplianceData.midMorning.percentage +
-                          mealComplianceData.lunch.percentage +
-                          mealComplianceData.afternoon.percentage +
-                          mealComplianceData.dinner.percentage) / 5
-                      );
-
                       await fetch('/api/nutrition-records', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           patientId: selectedPatient.id,
-                          complianceScore: avgCompliance,
-                          weightChange: monitoringForm.weight ? parseFloat(monitoringForm.weight) - (selectedPatient.weight || 0) : null,
-                          recommendations: [monitoringForm.evaluationNotes, monitoringForm.dietRevisionNotes].filter(Boolean)
+                          targetCalories: parseInt(dietPlanForm.calorieRequirement),
+                          dietPlan: selectedPatient.dietPlan || dietPlanForm.dietType,
+                          mealDistribution: {
+                            breakfast: menuPlan.breakfast,
+                            morningSnack: menuPlan.morningSnack,
+                            lunch: menuPlan.lunch,
+                            afternoonSnack: menuPlan.afternoonSnack,
+                            dinner: menuPlan.dinner
+                          },
+                          recommendations: [`Menu makanan telah diatur untuk diet ${selectedPatient.dietPlan || dietPlanForm.dietType}`]
                         })
                       });
 
-                      if (monitoringForm.reviseDiet) {
-                        await fetch('/api/alerts', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            type: 'WARNING',
-                            message: `Revisi Diet untuk ${selectedPatient.name}: ${monitoringForm.dietRevisionNotes}`,
-                            patientId: selectedPatient.id,
-                            category: 'NUTRITION',
-                            priority: 'HIGH',
-                            targetRole: 'PERAWAT_RUANGAN'
-                          })
-                        });
-                      }
+                      await fetch('/api/alerts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          type: 'INFO',
+                          message: `Menu makanan telah ditetapkan untuk pasien ${selectedPatient.name} (${selectedPatient.mrNumber}). Diet: ${selectedPatient.dietPlan || dietPlanForm.dietType}, Target: ${dietPlanForm.calorieRequirement} kkal/hari. Mohon pastikan pasien menerima makanan sesuai rencana.`,
+                          patientId: selectedPatient.id,
+                          category: 'NUTRITION',
+                          priority: 'MEDIUM',
+                          targetRole: 'PERAWAT_RUANGAN'
+                        })
+                      });
 
+                      alert('Menu makanan berhasil disimpan dan dikirim ke perawat!');
                       await fetchPatients();
-                      setSelectedPatient(null);
-                      setMonitoringForm({
-                        evaluationDate: new Date().toISOString().split('T')[0],
-                        weight: '',
-                        evaluationNotes: '',
-                        complianceStatus: 'stable',
-                        reviseDiet: false,
-                        dietRevisionNotes: ''
-                      });
-                      setMealComplianceData({
-                        breakfast: { percentage: 0, notes: '' },
-                        midMorning: { percentage: 0, notes: '' },
-                        lunch: { percentage: 0, notes: '' },
-                        afternoon: { percentage: 0, notes: '' },
-                        dinner: { percentage: 0, notes: '' }
-                      });
                     } catch (error) {
-                      console.error('Error saving evaluation:', error);
+                      console.error('Error saving menu plan:', error);
+                      alert('Gagal menyimpan menu makanan');
                     }
                   }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-                >
-                  Simpan Evaluasi
-                </button>
+                />
+              ) : (
+                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <ChefHat className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600 font-medium mb-2">Masukkan Kebutuhan Kalori Terlebih Dahulu</p>
+                  <p className="text-sm text-gray-500">Isi form Rencana Diet di atas untuk mulai merencanakan menu makanan</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SECTION 3: MONITORING KEPATUHAN DIET */}
+          <div id="section-monitoring-kepatuhan" className="bg-white rounded-xl shadow-lg border-2 border-green-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
+              <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                <BarChart3 className="h-6 w-6 mr-3 text-green-600" />
+                Monitoring Kepatuhan Diet
+              </h2>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Tren Kepatuhan 7 Hari */}
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 p-5 rounded-lg border-2 border-green-300">
+                <h4 className="font-bold text-gray-900 mb-4 flex items-center text-lg">
+                  <TrendingUp className="h-5 w-5 mr-2 text-green-600" />
+                  Tren Kepatuhan Diet (7 Hari Terakhir)
+                </h4>
+                {selectedPatient.visitationHistory && selectedPatient.visitationHistory.length > 0 ? (
+                  <>
+                    <div className="flex items-end space-x-2 mb-4 h-32">
+                      {selectedPatient.visitationHistory
+                        .filter(v => v.dietCompliance !== null)
+                        .slice(0, 7)
+                        .reverse()
+                        .map((visit, idx) => {
+                          const compliance = visit.dietCompliance || 0;
+                          return (
+                            <div key={idx} className="flex-1 flex flex-col items-center">
+                              <div className="w-full bg-gray-200 rounded-t relative h-full flex items-end">
+                                <div
+                                  className={`w-full rounded-t transition-all ${compliance >= 80 ? 'bg-green-500' :
+                                      compliance >= 50 ? 'bg-yellow-500' :
+                                        'bg-red-500'
+                                    }`}
+                                  style={{ height: `${compliance}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-bold text-gray-900 mt-2">{compliance}%</span>
+                              <span className="text-xs text-gray-600">
+                                {new Date(visit.createdAt).toLocaleDateString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short'
+                                })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-white rounded-lg border border-gray-300">
+                      <div>
+                        <span className="text-sm text-gray-600">Rata-rata 7 Hari:</span>
+                        <span className="ml-2 font-bold text-xl text-gray-900">
+                          {Math.round(
+                            selectedPatient.visitationHistory
+                              .filter(v => v.dietCompliance !== null)
+                              .slice(0, 7)
+                              .reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                            Math.max(selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length, 1)
+                          )}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Status:</span>
+                        <span className={`ml-2 font-bold text-xl ${selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length > 0 &&
+                            (selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                              selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length) >= 80
+                            ? 'text-green-600'
+                            : (selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                              selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length) >= 50
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}>
+                          {selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length > 0 &&
+                            (selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                              selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length) >= 80
+                            ? 'Baik'
+                            : (selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                              selectedPatient.visitationHistory.filter(v => v.dietCompliance !== null).slice(0, 7).length) >= 50
+                              ? 'Cukup'
+                              : 'Kurang'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                    <Activity className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                    <p className="text-gray-600">Belum ada data kepatuhan diet</p>
+                    <p className="text-sm text-gray-500 mt-1">Data akan muncul setelah perawat melakukan monitoring</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Riwayat Detail per Tanggal */}
+              <div className="border-t-2 border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-gray-900 text-lg flex items-center">
+                    <Calendar className="h-5 w-5 mr-2 text-green-600" />
+                    Riwayat Detail Monitoring
+                  </h4>
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700">Filter Tanggal:</label>
+                    <input
+                      type="date"
+                      className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 bg-white text-gray-900 font-medium"
+                      value={selectedMonitoringDate}
+                      onChange={(e) => setSelectedMonitoringDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {selectedPatient.visitationHistory && selectedPatient.visitationHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedPatient.visitationHistory
+                      .filter(v => {
+                        const visitDate = new Date(v.createdAt).toISOString().split('T')[0];
+                        return visitDate === selectedMonitoringDate && (v.dietCompliance !== null || v.dietIssues);
+                      })
+                      .map((visit, idx) => (
+                        <div
+                          key={idx}
+                          className={`border-2 rounded-lg p-4 ${visit.dietCompliance < 50 ? 'border-red-300 bg-red-50' :
+                              visit.dietCompliance < 80 ? 'border-yellow-300 bg-yellow-50' :
+                                'border-green-300 bg-green-50'
+                            }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${visit.shift === 'PAGI' ? 'bg-orange-200 text-orange-900' :
+                                  visit.shift === 'SORE' ? 'bg-yellow-200 text-yellow-900' :
+                                    'bg-purple-200 text-purple-900'
+                                }`}>
+                                {visit.shift}
+                              </span>
+                              <span className="text-sm font-medium text-gray-700">
+                                {new Date(visit.createdAt).toLocaleTimeString('id-ID', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {visit.nurse?.name || 'N/A'}
+                              </span>
+                            </div>
+                            {visit.dietCompliance !== null && (
+                              <span className={`px-4 py-1 rounded-full text-sm font-bold ${visit.dietCompliance >= 80 ? 'bg-green-200 text-green-900' :
+                                  visit.dietCompliance >= 50 ? 'bg-yellow-200 text-yellow-900' :
+                                    'bg-red-200 text-red-900'
+                                }`}>
+                                {visit.dietCompliance}%
+                              </span>
+                            )}
+                          </div>
+
+                          {visit.dietCompliance !== null && (
+                            <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
+                              <div
+                                className={`h-3 rounded-full ${visit.dietCompliance >= 80 ? 'bg-green-600' :
+                                    visit.dietCompliance >= 50 ? 'bg-yellow-600' :
+                                      'bg-red-600'
+                                  }`}
+                                style={{ width: `${visit.dietCompliance}%` }}
+                              ></div>
+                            </div>
+                          )}
+
+                          {visit.dietIssues && (
+                            <div className="mt-3 p-3 bg-white border-2 border-orange-400 rounded-lg">
+                              <p className="text-sm font-bold text-orange-900 mb-1 flex items-center">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Masalah yang Dilaporkan:
+                              </p>
+                              <p className="text-sm text-gray-900 whitespace-pre-wrap">{visit.dietIssues}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    {selectedPatient.visitationHistory.filter(v => {
+                      const visitDate = new Date(v.createdAt).toISOString().split('T')[0];
+                      return visitDate === selectedMonitoringDate && (v.dietCompliance !== null || v.dietIssues);
+                    }).length === 0 && (
+                        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                          <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                          <p className="text-gray-600 font-medium">Tidak ada data monitoring untuk tanggal ini</p>
+                          <p className="text-sm text-gray-500 mt-1">Pilih tanggal lain atau tunggu perawat melakukan monitoring</p>
+                        </div>
+                      )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <Activity className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                    <p className="text-gray-600 font-medium">Belum ada data monitoring diet dari perawat</p>
+                    <p className="text-sm text-gray-500 mt-1">Data akan muncul setelah perawat melakukan visitasi</p>
+                  </div>
+                )}<div className="mt-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                  <p className="text-sm text-blue-900 flex items-start">
+                    <Info className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                    <span>
+                      <strong>Info:</strong> Data kepatuhan diet ini berasal dari monitoring harian perawat ruangan.
+                      Gunakan informasi ini untuk evaluasi dan penyesuaian rencana diet pasien.
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* SECTION 4: EVALUASI & REVISI DIET */}
+          <div id="section-evaluasi-revisi" className="bg-white rounded-xl shadow-lg border-2 border-green-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
+              <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                <Edit3 className="h-6 w-6 mr-3 text-green-600" />
+                Evaluasi & Revisi Diet
+              </h2>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">
+                      Tanggal Evaluasi
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 bg-white text-gray-900 font-medium"
+                      value={monitoringForm.evaluationDate}
+                      onChange={(e) => setMonitoringForm({ ...monitoringForm, evaluationDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">
+                      Berat Badan Baru (kg)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 bg-white text-gray-900 font-medium"
+                      value={monitoringForm.weight}
+                      onChange={(e) => setMonitoringForm({ ...monitoringForm, weight: e.target.value })}
+                      placeholder={`Saat ini: ${selectedPatient.currentWeight || selectedPatient.weight || 0} kg`}
+                    />
+                    {monitoringForm.weight && (selectedPatient.currentWeight || selectedPatient.weight) && (
+                      <p className={`text-sm mt-2 font-bold p-2 rounded ${parseFloat(monitoringForm.weight) < (selectedPatient.currentWeight || selectedPatient.weight || 0)
+                          ? 'text-green-700 bg-green-100'
+                          : parseFloat(monitoringForm.weight) > (selectedPatient.currentWeight || selectedPatient.weight || 0)
+                            ? 'text-red-700 bg-red-100'
+                            : 'text-gray-700 bg-gray-100'
+                        }`}>
+                        {parseFloat(monitoringForm.weight) < (selectedPatient.currentWeight || selectedPatient.weight || 0)
+                          ? `Turun ${((selectedPatient.currentWeight || selectedPatient.weight || 0) - parseFloat(monitoringForm.weight)).toFixed(1)} kg`
+                          : parseFloat(monitoringForm.weight) > (selectedPatient.currentWeight || selectedPatient.weight || 0)
+                            ? `Naik ${(parseFloat(monitoringForm.weight) - (selectedPatient.currentWeight || selectedPatient.weight || 0)).toFixed(1)} kg`
+                            : 'Tidak ada perubahan'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    Status Kepatuhan
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 font-medium"
+                    value={monitoringForm.complianceStatus}
+                    onChange={(e) => setMonitoringForm({ ...monitoringForm, complianceStatus: e.target.value })}
+                  >
+                    <option value="improving">Meningkat (Kepatuhan membaik)</option>
+                    <option value="stable">Stabil (Kepatuhan konsisten)</option>
+                    <option value="declining">Menurun (Kepatuhan berkurang)</option>
+                    <option value="critical">Kritis (Perlu intervensi segera)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    Catatan Evaluasi
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 bg-white text-gray-900"
+                    rows={4}
+                    value={monitoringForm.evaluationNotes}
+                    onChange={(e) => setMonitoringForm({ ...monitoringForm, evaluationNotes: e.target.value })}
+                    placeholder="Hasil evaluasi, observasi, catatan khusus..."
+                  />
+                </div>
+
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={monitoringForm.reviseDiet}
+                      onChange={(e) => setMonitoringForm({ ...monitoringForm, reviseDiet: e.target.checked })}
+                      className="w-5 h-5 text-purple-600 rounded border-2 border-gray-400 focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-base font-bold text-gray-900">
+                      Perlu Revisi Rencana Diet
+                    </span>
+                  </label>
+
+                  {monitoringForm.reviseDiet && (
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-800 mb-2">
+                          Alasan Revisi
+                        </label>
+                        <textarea
+                          className="w-full px-4 py-3 border-2 border-yellow-400 rounded-lg focus:ring-2 focus:ring-yellow-500 bg-white text-gray-900"
+                          rows={3}
+                          value={monitoringForm.dietRevisionNotes}
+                          onChange={(e) => setMonitoringForm({ ...monitoringForm, dietRevisionNotes: e.target.value })}
+                          placeholder="Jelaskan alasan revisi (mis: kepatuhan rendah, perubahan berat badan signifikan, masalah toleransi makanan, komplikasi kesehatan)..."
+                        />
+                      </div>
+
+                      <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                        <p className="text-sm font-bold text-blue-900 mb-3 flex items-center">
+                          <Info className="h-4 w-4 mr-2" />
+                          Panduan Pemilihan Jenis Diet
+                        </p>
+                        <div className="space-y-2 text-xs text-blue-900">
+                          <p><strong className="text-blue-800">Diet Diabetes:</strong> Kontrol gula darah, DM Tipe 1 & 2</p>
+                          <p><strong className="text-blue-800">Diet Rendah Garam:</strong> Hipertensi, gangguan jantung, edema</p>
+                          <p><strong className="text-blue-800">Diet Tinggi Protein:</strong> Penyembuhan luka, post-operasi, malnutrisi</p>
+                          <p><strong className="text-blue-800">Diet Rendah Lemak:</strong> Gangguan hati, pankreas, kolesterol tinggi</p>
+                          <p><strong className="text-blue-800">Diet Lunak:</strong> Fase transisi, gangguan pencernaan ringan</p>
+                          <p><strong className="text-blue-800">Diet Cair:</strong> Post-operasi, kesulitan menelan</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                        <p className="text-sm text-red-900 flex items-start font-medium">
+                          <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                          <span>
+                            <strong>Perhatian:</strong> Revisi diet akan dikirim sebagai alert <strong>PRIORITAS TINGGI</strong> ke Perawat Ruangan melalui sistem notifikasi.
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4 border-t-2 border-gray-200">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const recentVisitations = selectedPatient.visitationHistory
+                          ?.filter(v => v.dietCompliance !== null)
+                          .slice(0, 7) || [];
+
+                        const avgCompliance = recentVisitations.length > 0
+                          ? Math.round(
+                            recentVisitations.reduce((sum, v) => sum + (v.dietCompliance || 0), 0) /
+                            recentVisitations.length
+                          )
+                          : 0;
+
+                        await fetch('/api/nutrition-records', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            patientId: selectedPatient.id,
+                            complianceScore: avgCompliance,
+                            weightChange: monitoringForm.weight ?
+                              parseFloat(monitoringForm.weight) - (selectedPatient.currentWeight || selectedPatient.weight || 0) : null,
+                            recommendations: [monitoringForm.evaluationNotes, monitoringForm.dietRevisionNotes].filter(Boolean)
+                          })
+                        });
+
+                        if (monitoringForm.reviseDiet && monitoringForm.dietRevisionNotes) {
+                          await fetch('/api/alerts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              type: 'WARNING',
+                              message: `REVISI DIET - ${selectedPatient.name} (${selectedPatient.mrNumber}): ${monitoringForm.dietRevisionNotes}. Diet saat ini: ${selectedPatient.dietPlan || 'Belum ada'}. Mohon perhatikan perubahan instruksi diet.`,
+                              patientId: selectedPatient.id,
+                              category: 'NUTRITION',
+                              priority: 'HIGH',
+                              targetRole: 'PERAWAT_RUANGAN'
+                            })
+                          });
+                        }
+
+                        alert('Evaluasi berhasil disimpan!' + (monitoringForm.reviseDiet ? '\nAlert revisi diet telah dikirim ke perawat' : ''));
+                        await fetchPatients();
+
+                        setMonitoringForm({
+                          evaluationDate: new Date().toISOString().split('T')[0],
+                          weight: '',
+                          evaluationNotes: '',
+                          complianceStatus: 'stable',
+                          reviseDiet: false,
+                          dietRevisionNotes: ''
+                        });
+                      } catch (error) {
+                        console.error('Error saving evaluation:', error);
+                        alert('Gagal menyimpan evaluasi');
+                      }
+                    }}
+                    disabled={!monitoringForm.evaluationNotes}
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircle className="h-5 w-5 inline mr-2" />
+                    Simpan Evaluasi
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tombol Kembali ke Daftar Pasien */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => {
+                setSelectedPatient(null);
+                setDietPlanForm({
+                  calorieRequirement: '',
+                  dietType: '',
+                  mealDistribution: {
+                    breakfast: 25,
+                    morningSnack: 10,
+                    lunch: 30,
+                    afternoonSnack: 10,
+                    dinner: 25
+                  },
+                  specialInstructions: ''
+                });
+                setMonitoringForm({
+                  evaluationDate: new Date().toISOString().split('T')[0],
+                  weight: '',
+                  evaluationNotes: '',
+                  complianceStatus: 'stable',
+                  reviseDiet: false,
+                  dietRevisionNotes: ''
+                });
+              }}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium flex items-center space-x-2"
+            >
+              <Users className="h-5 w-5" />
+              <span>Kembali ke Daftar Pasien</span>
+            </button>
+          </div>
         </>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <Activity className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-          <p className="text-gray-600">Pilih pasien dari tab Daftar Pasien untuk memulai monitoring</p>
+        <div className="bg-white rounded-xl shadow-sm border-2 border-gray-300 p-12 text-center">
+          <Activity className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Pilih Pasien untuk Monitoring</h3>
+          <p className="text-gray-600 mb-6">
+            Silakan pilih pasien dari <strong>Tab Daftar Pasien</strong> untuk memulai monitoring diet & asupan
+          </p>
+          <button
+            onClick={() => setActiveTab('patients')}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold inline-flex items-center"
+          >
+            <Users className="h-5 w-5 mr-2" />
+            Lihat Daftar Pasien
+          </button>
         </div>
       )}
     </div>
@@ -1187,8 +1611,8 @@ const NutritionistDashboard = () => {
                   <div className="mt-1">
                     {selectedPatient.riskLevel ? (
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedPatient.riskLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
-                          selectedPatient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
-                            'bg-green-100 text-green-800'
+                        selectedPatient.riskLevel === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
+                          'bg-green-100 text-green-800'
                         }`}>
                         {selectedPatient.riskLevel === 'HIGH' ? 'Tinggi' :
                           selectedPatient.riskLevel === 'MEDIUM' ? 'Sedang' : 'Rendah'}
@@ -1509,7 +1933,17 @@ const NutritionistDashboard = () => {
         {activeTab === 'patients' && renderPatients()}
         {activeTab === 'monitoring' && renderMonitoring()}
 
-        <PatientDetailModal />
+        <DetailDietHistoryModal
+          isOpen={showDietHistoryModal}
+          onClose={() => {
+            setShowDietHistoryModal(false);
+            setSelectedPatientForHistory(null);
+            setDietHistoryVisitations([]);
+          }}
+          patient={selectedPatientForHistory}
+          visitations={dietHistoryVisitations}
+          loading={loading}
+        />
       </div>
 
       {showRefreshSplash && (
@@ -1531,6 +1965,22 @@ const NutritionistDashboard = () => {
         }}
         alert={selectedDietIssue}
         onResolve={handleResolveDietIssue}
+      />
+
+      <ViewMenuModal
+        isOpen={showMenuModal}
+        onClose={() => {
+          setShowMenuModal(false);
+          setSelectedMenuPatient(null);
+        }}
+        patientName={selectedMenuPatient?.name || ''}
+        menuPlan={selectedMenuPatient?.mealDistribution || null}
+        targetCalories={
+          selectedMenuPatient?.latestEnergyCalculation ||
+          selectedMenuPatient?.calorieRequirement ||
+          selectedMenuPatient?.latestNutritionRecord?.targetCalories ||
+          1800
+        }
       />
     </div>
   );

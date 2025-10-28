@@ -53,13 +53,6 @@ export async function PUT(
       );
     }
 
-    // Validate price if provided
-    if (body.price !== undefined && (isNaN(body.price) || body.price <= 0)) {
-      return NextResponse.json(
-        { error: 'Price must be a positive number' },
-        { status: 400 }
-      );
-    }
 
     // Validate expiry date
     const expiryDate = new Date(body.expiryDate);
@@ -79,7 +72,6 @@ export async function PUT(
         strength: body.strength.trim(),
         manufacturer: body.manufacturer.trim(),
         stock: body.stock !== undefined ? parseInt(body.stock) : existingDrug.stock,
-        price: body.price !== undefined ? parseInt(body.price) : (existingDrug.price || 5000),
         expiryDate: expiryDate,
         interactions: Array.isArray(body.interactions) ? body.interactions : [],
         contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
@@ -97,7 +89,6 @@ export async function PUT(
       strength: updatedDrug.strength,
       manufacturer: updatedDrug.manufacturer,
       stock: updatedDrug.stock,
-      price: updatedDrug.price,
       expiryDate: updatedDrug.expiryDate.toISOString(),
       interactions: updatedDrug.interactions,
       contraindications: updatedDrug.contraindications,

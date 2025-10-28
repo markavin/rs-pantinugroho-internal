@@ -1,7 +1,7 @@
 // src/components/dashboard/pharmacy/TransaksiObatForm.tsx
 
 import React, { useState, useEffect } from 'react';
-import { XCircle, Plus, Trash2, ShoppingCart, User, Package, ChevronDown, FileText, Calendar, CreditCard, Pill, AlertCircle, Info } from 'lucide-react';
+import { XCircle, Plus, Trash2, ShoppingCart, User, Package, ChevronDown, FileText, Calendar, Pill, AlertCircle, Info } from 'lucide-react';
 
 interface DrugData {
   id: string;
@@ -13,7 +13,6 @@ interface DrugData {
   manufacturer: string;
   stock: number;
   expiryDate: string;
-  price?: number;
 }
 
 interface Patient {
@@ -28,8 +27,6 @@ interface DrugTransactionItem {
   drugId: string;
   drugName: string;
   quantity: number;
-  price: number;
-  subtotal: number;
 }
 
 interface DrugTransaction {
@@ -38,7 +35,6 @@ interface DrugTransaction {
   patientName: string;
   mrNumber: string;
   items: DrugTransactionItem[];
-  totalAmount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
   completedAt?: string;
@@ -88,7 +84,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   const [selectedPrescription, setSelectedPrescription] = useState<PrescriptionAlert | null>(null);
   const [showPrescriptionInfo, setShowPrescriptionInfo] = useState(false);
 
-
   useEffect(() => {
     if (isOpen) {
       if (editingTransaction) {
@@ -109,8 +104,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       drugId: '',
       drugName: '',
       quantity: 1,
-      price: 0,
-      subtotal: 0
     }]);
   };
 
@@ -122,13 +115,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       const drug = drugs.find(d => d.id === value);
       if (drug) {
         newItems[index].drugName = drug.name;
-        newItems[index].price = drug.price || 5000;
-        newItems[index].subtotal = newItems[index].quantity * newItems[index].price;
       }
-    }
-
-    if (field === 'quantity' || field === 'price') {
-      newItems[index].subtotal = newItems[index].quantity * newItems[index].price;
     }
 
     setItems(newItems);
@@ -137,7 +124,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     delete newErrors[`drug_${index}`];
     delete newErrors[`quantity_${index}`];
     delete newErrors[`stock_${index}`];
-    delete newErrors[`price_${index}`];
     setErrors(newErrors);
   };
 
@@ -149,7 +135,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
     delete newErrors[`drug_${index}`];
     delete newErrors[`quantity_${index}`];
     delete newErrors[`stock_${index}`];
-    delete newErrors[`price_${index}`];
     setErrors(newErrors);
   };
 
@@ -167,11 +152,9 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         const unprocessedAlerts = alerts.filter((a: any) => !a.isRead);
         setPrescriptionAlerts(unprocessedAlerts);
 
-        // Auto-select first prescription if exists
         if (unprocessedAlerts.length > 0) {
           setSelectedPrescription(unprocessedAlerts[0]);
           setShowPrescriptionInfo(true);
-          // Parse dan auto-fill medications dari resep
           parseAndFillPrescription(unprocessedAlerts[0].message);
         }
       }
@@ -181,21 +164,16 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   };
 
   const parseAndFillPrescription = (prescriptionMessage: string) => {
-    // Extract resep dari message alert
     const resepMatch = prescriptionMessage.match(/Resep:\s*([\s\S]+?)(?:\n\n|$)/);
     if (!resepMatch) return;
 
     const resepText = resepMatch[1];
-    setNotes(resepText); // Set ke notes field
+    setNotes(resepText);
 
-   
     const medications = resepText.split(',').map(med => med.trim());
-
-    // TODO: Implement smart matching dengan drug database
     console.log('Parsed medications:', medications);
   }
 
-  const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const validateForm = (): boolean => {
@@ -215,9 +193,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
       }
       if (item.quantity <= 0) {
         newErrors[`quantity_${index}`] = 'Jumlah harus lebih dari 0';
-      }
-      if (item.price <= 0) {
-        newErrors[`price_${index}`] = 'Harga harus lebih dari 0';
       }
 
       const drug = drugs.find(d => d.id === item.drugId);
@@ -270,11 +245,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
         items: items.map(item => ({
           drugId: item.drugId,
           drugName: item.drugName,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.subtotal
+          quantity: item.quantity
         })),
-        totalAmount,
         status: 'COMPLETED' as const,
         notes: notes.trim() || undefined,
         prescriptionSource,
@@ -409,7 +381,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                   )}
                 </div>
 
-
                 {selectedPatientData && !isDetailMode && (
                   <div className="bg-white rounded-lg p-3 border shadow-sm">
                     <h5 className="font-medium text-gray-900 mb-2">Detail Pasien</h5>
@@ -487,7 +458,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {/* Dropdown pilih resep jika ada multiple */}
                       {prescriptionAlerts.length > 1 && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -520,7 +490,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                         </div>
                       )}
 
-                      {/* Display selected prescription */}
                       {selectedPrescription && (
                         <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                           <div className="flex items-center justify-between mb-2">
@@ -624,8 +593,8 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                     </div>
 
                     {isDetailMode ? (
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Nama Obat</label>
                           <p className="text-base font-semibold text-gray-900">{item.drugName}</p>
                         </div>
@@ -633,18 +602,10 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                           <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
                           <p className="text-base font-semibold text-gray-900">{item.quantity} unit</p>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Harga</label>
-                          <p className="text-base font-semibold text-gray-900">Rp {item.price.toLocaleString('id-ID')}</p>
-                        </div>
-                        <div className="md:col-span-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal</label>
-                          <p className="text-lg font-bold text-green-600">Rp {item.subtotal.toLocaleString('id-ID')}</p>
-                        </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                        <div className="lg:col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Nama Obat</label>
                           <select
                             className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`drug_${index}`] ? 'border-red-300' : 'border-gray-300'
@@ -667,37 +628,18 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                           <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
                           <input
                             type="number"
-                            min="1"
+                            min="0"
                             className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`quantity_${index}`] || errors[`stock_${index}`] ? 'border-red-300' : 'border-gray-300'
                               }`}
-                            value={item.quantity || ''}
-                            onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                            value={item.quantity === 0 ? '' : item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateItem(index, 'quantity', val === '' ? 0 : parseInt(val));
+                            }}
                             disabled={isSubmitting}
                           />
                           {errors[`quantity_${index}`] && <p className="mt-1 text-xs text-red-600">{errors[`quantity_${index}`]}</p>}
                           {errors[`stock_${index}`] && <p className="mt-1 text-xs text-red-600">{errors[`stock_${index}`]}</p>}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Rp)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="100"
-                            className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-gray-900 ${errors[`price_${index}`] ? 'border-red-300' : 'border-gray-300'
-                              }`}
-                            value={item.price || ''}
-                            onChange={(e) => updateItem(index, 'price', parseInt(e.target.value) || 0)}
-                            disabled={isSubmitting}
-                          />
-                          {errors[`price_${index}`] && <p className="mt-1 text-xs text-red-600">{errors[`price_${index}`]}</p>}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal</label>
-                          <div className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base font-bold text-gray-900">
-                            Rp {item.subtotal.toLocaleString('id-ID')}
-                          </div>
                         </div>
                       </div>
                     )}
@@ -812,16 +754,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
                     {getStatusBadge(editingTransaction.status)}
                   </div>
                 )}
-              </div>
-              <div className="border-t border-green-200 mt-4 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-gray-900">
-                    Total Pembayaran
-                  </span>
-                  <span className="text-2xl font-bold text-green-600">
-                    Rp {totalAmount.toLocaleString('id-ID')}
-                  </span>
-                </div>
               </div>
             </div>
           </div>

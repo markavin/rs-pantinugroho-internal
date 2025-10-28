@@ -6,6 +6,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useToast } from '../../app/providers';
 import { getRoleTheme, ROLE_NAMES, type UserRole } from '@/lib/auth';
 import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface Alert {
   id: string;
@@ -34,9 +35,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { addToast } = useToast();
-
+  const router = useRouter();
   const userRole = session?.user?.role as UserRole;
   const roleTheme = getRoleTheme(userRole || 'SUPER_ADMIN');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePasswordEmail, setChangePasswordEmail] = useState('');
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordMessage, setChangePasswordMessage] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -144,6 +149,37 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     const hour = currentTime.getHours();
     if (hour >= 7 && hour < 14) return { shift: 'Shift Pagi', time: '07:00-19:00', color: 'text-orange-600 bg-orange-100' };
     return { shift: 'Shift Malam', time: '19:00-07:00', color: 'text-purple-600 bg-purple-100' };
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordLoading(true);
+    setChangePasswordMessage('');
+
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: changePasswordEmail }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        addToast({
+          message: 'Email verifikasi telah dikirim. Cek inbox Anda.',
+          type: 'success'
+        });
+        setShowChangePassword(false);
+        setChangePasswordEmail('');
+      } else {
+        setChangePasswordMessage(data.error || 'Gagal mengirim email');
+      }
+    } catch (error) {
+      setChangePasswordMessage('Terjadi kesalahan. Silakan coba lagi.');
+    } finally {
+      setChangePasswordLoading(false);
+    }
   };
 
   const shiftInfo = getShiftInfo();
@@ -315,7 +351,17 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     </span>
                   </div>
                 </div>
-
+                <button
+                  onClick={() => {
+                    const userEmail = session?.user?.email || '';
+                    router.push(`/reset-password?mode=change&email=${encodeURIComponent(userEmail)}`);
+                  }}
+                  className="hidden md:flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Ganti Password"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  <span className="hidden lg:inline">Ganti Password</span>
+                </button>
                 <button
                   onClick={handleLogout}
                   className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors group"
@@ -501,6 +547,63 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </div>
       </footer>
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Ganti Password</h3>
+              <button
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setChangePasswordEmail('');
+                  setChangePasswordMessage('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Verifikasi Email
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Masukkan email Anda untuk menerima link verifikasi ganti password
+                </p>
+                <input
+                  type="email"
+                  value={changePasswordEmail}
+                  onChange={(e) => setChangePasswordEmail(e.target.value)}
+                  placeholder="Email terdaftar"
+                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg focus:ring-2 focus:ring-green-500"
+                  required
+                  disabled={changePasswordLoading}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Email: {session?.user?.email}
+                </p>
+              </div>
+
+              {changePasswordMessage && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-700 text-sm">{changePasswordMessage}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={changePasswordLoading}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+              >
+                {changePasswordLoading ? 'Mengirim...' : 'Kirim Link Verifikasi'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

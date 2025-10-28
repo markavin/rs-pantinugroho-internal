@@ -55,6 +55,29 @@ const DietIssueModal: React.FC<DietIssueModalProps> = ({
             <label className="text-sm font-medium text-orange-700 mb-2 block">Detail Masalah</label>
             <p className="text-base text-gray-900 whitespace-pre-wrap">{alert.message}</p>
           </div>
+          
+          {alert.metadata?.dietCompliance && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <label className="text-sm font-medium text-blue-700 mb-2 block">Data Kepatuhan</label>
+              <div className="flex items-center space-x-4">
+                <div>
+                  <span className="text-xs text-blue-600">Kepatuhan Terakhir:</span>
+                  <p className="text-lg font-bold text-blue-900">{alert.metadata.dietCompliance}%</p>
+                </div>
+                <div className="flex-1">
+                  <div className="w-full bg-blue-200 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full ${alert.metadata.dietCompliance >= 80 ? 'bg-green-500' :
+                          alert.metadata.dietCompliance >= 50 ? 'bg-yellow-500' :
+                            'bg-red-500'
+                        }`}
+                      style={{ width: `${alert.metadata.dietCompliance}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
@@ -74,7 +97,7 @@ const DietIssueModal: React.FC<DietIssueModalProps> = ({
             onClick={handleResolve}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            
+
             <CheckCircle className="h-4 w-4" />
             <span>Tandai Sudah Ditangani</span>
           </button>

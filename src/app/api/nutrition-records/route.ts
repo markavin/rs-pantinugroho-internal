@@ -6,6 +6,55 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
+// ============= TAMBAH METHOD GET =============
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    const where: any = {};
+    if (patientId) {
+      where.patientId = patientId;
+    }
+
+    const nutritionRecords = await prisma.nutritionRecord.findMany({
+      where,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true
+          }
+        },
+        nutritionist: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json(nutritionRecords);
+  } catch (error) {
+    console.error('Error fetching nutrition records:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch nutrition records' },
+      { status: 500 }
+    );
+  }
+}
+// ============================================
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -67,7 +116,13 @@ export async function POST(request: Request) {
         carbLimit: carbLimit ? parseInt(carbLimit) : null,
         proteinGoal: proteinGoal ? parseInt(proteinGoal) : null,
         fatLimit: fatLimit ? parseInt(fatLimit) : null,
-        mealDistribution: mealDistribution || null,
+        mealDistribution: mealDistribution ? {
+          breakfast: mealDistribution.breakfast || [],
+          morningSnack: mealDistribution.morningSnack || [],
+          lunch: mealDistribution.lunch || [],
+          afternoonSnack: mealDistribution.afternoonSnack || [],
+          dinner: mealDistribution.dinner || []
+        } : null,
         dietPlan: dietPlan || null,
         complianceScore: complianceScore ? parseInt(complianceScore) : null,
         weightChange: weightChange ? parseFloat(weightChange) : null,
@@ -88,6 +143,16 @@ export async function POST(request: Request) {
         }
       }
     });
+
+    if (dietPlan) {
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: {
+          dietPlan: dietPlan,
+          calorieRequirement: parseInt(targetCalories)
+        }
+      });
+    }
 
     return NextResponse.json(nutritionRecord, { status: 201 });
   } catch (error) {
