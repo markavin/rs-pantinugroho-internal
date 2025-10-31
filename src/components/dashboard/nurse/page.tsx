@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Activity, Users, FileText, TrendingUp, Plus, Search, Menu, X, Clock } from 'lucide-react';
 import Visitasi from './Visitasi';
 import DaftarPasien from './DaftarPasien';
+import SystemHistoryView from '../SystemHistoryView';
+import { ChevronLeft, ChevronRight, History as HistoryIcon } from 'lucide-react';
 
 interface DashboardStats {
     totalInpatients: number;
@@ -13,7 +15,13 @@ interface DashboardStats {
 }
 
 const NurseDashboard = () => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'visitations'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'visitations' | 'system-history'>('dashboard');
+    const [patients, setPatients] = useState<any[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [visitationCurrentPage, setVisitationCurrentPage] = useState(1);
+    const [visitationItemsPerPage, setVisitationItemsPerPage] = useState(10);
+    const [selectedPatient, setSelectedPatient] = useState<any>(null);
     const [currentShift, setCurrentShift] = useState<'PAGI' | 'SORE' | 'MALAM'>('PAGI');
     const [loading, setLoading] = useState(true);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -52,18 +60,20 @@ const NurseDashboard = () => {
                 const patientsData = await patientsRes.json();
                 const visitationsData = await visitationsRes.json();
 
+                setPatients(patientsData);
+
                 const today = new Date().toDateString();
-                const todayVisits = visitationsData.filter((v: any) => 
+                const todayVisits = visitationsData.filter((v: any) =>
                     new Date(v.createdAt).toDateString() === today
                 );
 
                 setStats({
                     totalInpatients: patientsData.filter((p: any) => p.status === 'RAWAT_INAP').length,
                     todayVisitations: todayVisits.length,
-                    vitalSignsRecorded: todayVisits.filter((v: any) => 
+                    vitalSignsRecorded: todayVisits.filter((v: any) =>
                         v.vitalSigns && Object.keys(v.vitalSigns).length > 0
                     ).length,
-                    medicationsGiven: todayVisits.filter((v: any) => 
+                    medicationsGiven: todayVisits.filter((v: any) =>
                         v.medicationsGiven && v.medicationsGiven.length > 0
                     ).length,
                     educationProvided: todayVisits.filter((v: any) => v.education).length,
@@ -77,7 +87,7 @@ const NurseDashboard = () => {
                 }).reverse();
 
                 const trendData = last7Days.map(dateStr => {
-                    const dayVisits = visitationsData.filter((v: any) => 
+                    const dayVisits = visitationsData.filter((v: any) =>
                         new Date(v.createdAt).toDateString() === dateStr
                     );
                     return {
@@ -100,7 +110,8 @@ const NurseDashboard = () => {
     const navigationItems = [
         { key: 'dashboard', label: 'Dashboard', icon: Activity },
         { key: 'patients', label: 'Daftar Pasien', icon: Users },
-        { key: 'visitations', label: 'Visitasi', icon: FileText }
+        { key: 'visitations', label: 'Visitasi', icon: FileText },
+        { key: 'system-history', label: 'Riwayat Sistem', icon: HistoryIcon }
     ];
 
     const handleTabChange = (tab: 'dashboard' | 'patients' | 'visitations') => {
@@ -117,9 +128,8 @@ const NurseDashboard = () => {
                 />
             )}
 
-            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-                isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}>
+            <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}>
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h2 className="text-m font-semibold text-gray-900">Menu Perawat</h2>
                     <button onClick={() => setIsMobileSidebarOpen(false)} className="p-2 rounded-lg hover:bg-gray-100">
@@ -134,11 +144,10 @@ const NurseDashboard = () => {
                             <button
                                 key={item.key}
                                 onClick={() => handleTabChange(item.key as any)}
-                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                                    activeTab === item.key
-                                        ? 'bg-green-100 text-green-700 border border-green-200'
-                                        : 'text-gray-700 hover:bg-gray-100'
-                                }`}
+                                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+                                    ? 'bg-green-100 text-green-700 border border-green-200'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
                             >
                                 <IconComponent className="h-5 w-5" />
                                 <span>{item.label}</span>
@@ -177,18 +186,17 @@ const NurseDashboard = () => {
 
                 <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
                     <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-8 px-6 justify-center">
+                        <nav className="-mb-px flex space-x-55 px-6 justify-center">
                             {navigationItems.map(tab => {
                                 const IconComponent = tab.icon;
                                 return (
                                     <button
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key as any)}
-                                        className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                                            activeTab === tab.key
-                                                ? 'border-green-500 text-green-600'
-                                                : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                                        }`}
+                                        className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
+                                            ? 'border-green-500 text-green-600'
+                                            : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                                            }`}
                                     >
                                         <IconComponent className="h-5 w-5" />
                                         <span>{tab.label}</span>
@@ -318,6 +326,14 @@ const NurseDashboard = () => {
 
                 {activeTab === 'patients' && <DaftarPasien />}
                 {activeTab === 'visitations' && <Visitasi currentShift={currentShift} />}
+
+                {activeTab === 'system-history' && (
+                    <SystemHistoryView
+                        patients={patients}
+                        selectedPatient={selectedPatient}
+                        onPatientSelect={(patient: any) => setSelectedPatient(patient)}
+                    />
+                )}
             </div>
         </div>
     );

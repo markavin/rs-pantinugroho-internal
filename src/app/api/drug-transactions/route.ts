@@ -13,14 +13,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userRole = (session.user as any).role;
-    const allowedRoles = ['FARMASI', 'SUPER_ADMIN', 'MANAJER'];
-
-    if (!allowedRoles.includes(userRole)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
+
+    console.log('GET drug-transactions - patientId:', patientId); // DEBUG
 
     const whereClause: any = {};
     if (patientId) {
@@ -56,6 +52,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    console.log('Found transactions:', transactions.length); // DEBUG
+
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       patientId: transaction.patientId,
@@ -65,12 +63,15 @@ export async function GET(request: NextRequest) {
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
+        strength: item.drug.strength,
+        dosageForm: item.drug.dosageForm,
         quantity: item.quantity
       })),
       status: transaction.status,
       createdAt: transaction.createdAt.toISOString(),
       completedAt: transaction.completedAt?.toISOString(),
-      notes: transaction.notes
+      notes: transaction.notes,
+      prescriptionSource: (transaction as any).prescriptionSource || 'MANUAL'
     }));
 
     return NextResponse.json(transformedTransactions);
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST tetap sama seperti sebelumnya
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -108,7 +110,6 @@ export async function POST(request: NextRequest) {
       relatedPrescriptionAlertId
     } = body;
 
-    // Validate required fields
     if (!patientId || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'Missing required fields: patientId, items' },
@@ -116,7 +117,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate patient exists
     const patient = await prisma.patient.findUnique({
       where: { id: patientId }
     });
@@ -125,7 +125,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Validate all drugs exist and have sufficient stock
     for (const item of items) {
       if (!item.drugId || !item.quantity) {
         return NextResponse.json(
@@ -160,11 +159,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create transaction with items and REDUCE STOCK IMMEDIATELY
     const result = await prisma.$transaction(async (tx) => {
       const now = new Date();
 
-      // Create the drug transaction with COMPLETED status
       const drugTransaction = await tx.drugTransaction.create({
         data: {
           patientId,
@@ -175,7 +172,6 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Create transaction items
       const transactionItems = await Promise.all(
         items.map((item: any) =>
           tx.drugTransactionItem.create({
@@ -188,7 +184,6 @@ export async function POST(request: NextRequest) {
         )
       );
 
-      // REDUCE STOCK for all items
       for (const item of items) {
         await tx.drugData.update({
           where: { id: item.drugId },
@@ -200,7 +195,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Create PharmacyRecord
       await tx.pharmacyRecord.create({
         data: {
           patientId,
@@ -216,7 +210,6 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Send alert ONLY if from doctor prescription AND patient is inpatient
       if (prescriptionSource === 'DOCTOR_PRESCRIPTION' && patient.status === 'RAWAT_INAP') {
         const medicationList = items
           .map((item: any) => `- ${item.drugName}: ${item.quantity} unit`)
@@ -225,14 +218,7 @@ export async function POST(request: NextRequest) {
         await tx.alert.create({
           data: {
             type: 'INFO',
-            message: `📦 Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.
-
-Daftar Obat:
-${medicationList}
-
-Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit
-
- Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
+            message: `Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.\n\nDaftar Obat:\n${medicationList}\n\nTotal: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit\n\nHarap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
             patientId,
             category: 'MEDICATION',
             priority: 'MEDIUM',
@@ -242,7 +228,6 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
         });
       }
 
-      // Mark prescription alert as read if exists
       if (relatedPrescriptionAlertId) {
         await tx.alert.update({
           where: { id: relatedPrescriptionAlertId },
@@ -256,7 +241,6 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
       };
     });
 
-    // Fetch the complete transaction with relations for response
     const completeTransaction = await prisma.drugTransaction.findUnique({
       where: { id: result.id },
       include: {
@@ -282,7 +266,6 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
       }
     });
 
-    // Transform response
     const response = {
       id: completeTransaction!.id,
       patientId: completeTransaction!.patientId,

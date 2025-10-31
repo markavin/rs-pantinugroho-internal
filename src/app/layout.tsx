@@ -13,7 +13,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'RS Pantinugroho - Diabetes Care Management',
+  title: 'KAWAN DIABETES - RS Pantinugroho',
   description: 'Sistem manajemen perawatan diabetes terintegrasi untuk RS Pantinugroho',
   keywords: 'diabetes, hospital, healthcare, patient management, RS Pantinugroho',
   authors: [{ name: 'RS Pantinugroho IT Team' }],

@@ -885,7 +885,7 @@ async function main() {
     ]
   });
 
-  console.log('✅ Seeding finished!');
+  console.log('  Seeding finished!');
   console.log(`Created users: Admin, Doctor, Nurse (Ruangan & Poli), Nutritionist, Pharmacist, Administration, Manager`);
   console.log(`Created patients: ${patient1.name}, ${patient2.name}, ${patient3.name}, ${patient4.name}, ${patient5.name}`);
   console.log(`Created ${await prisma.handledPatient.count()} handled patients`);

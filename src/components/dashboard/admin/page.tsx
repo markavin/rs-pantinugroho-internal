@@ -1,5 +1,7 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database, Edit, Trash2, Eye, Menu, X } from 'lucide-react';
+import { Search, Plus, Users, Activity, TrendingUp, AlertCircle, Shield, UserCheck, Settings, BarChart3, PieChart, Calendar, FileText, Database, Edit, Trash2, Eye, Menu, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import StaffForm from './StaffForm';
 import { useStaffManagement } from './useStaffManagement';
 import SplashScreen from '@/components/SplashScreen';
@@ -18,6 +20,8 @@ const AdminDashboard = () => {
     weeklyActivity: [],
     distribution: []
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Fetch real-time statistics
   useEffect(() => {
@@ -98,6 +102,51 @@ const AdminDashboard = () => {
     person.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     person.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedStaff = filteredStaff.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
 
   const handleAddStaff = () => {
     setEditingStaff(null);
@@ -538,7 +587,7 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredStaff.map((person) => (
+                        {paginatedStaff.map((person) => (
                           <tr key={person.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                               {person.employeeId}
@@ -599,11 +648,61 @@ const AdminDashboard = () => {
                         )}
                       </tbody>
                     </table>
+
+                    {filteredStaff.length > 0 && (
+                      <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-700">Tampilkan</span>
+                          <select
+                            value={itemsPerPage}
+                            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                            className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 text-gray-700"
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <span className="text-sm text-gray-700">dari {filteredStaff.length} Staff</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <ChevronLeft className="h-5 w-5 text-gray-600" />
+                          </button>
+                          <div className="flex gap-1">
+                            {getPageNumbers().map((page, index) => (
+                              <button
+                                key={index}
+                                onClick={() => typeof page === 'number' && handlePageChange(page)}
+                                disabled={page === '...'}
+                                className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage ? 'bg-green-600 text-white' :
+                                  page === '...' ? 'cursor-default text-gray-400' :
+                                    'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                              >
+                                {page}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <ChevronRight className="h-5 w-5 text-gray-600" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Mobile Card Layout */}
                   <div className="lg:hidden space-y-4 p-4">
-                    {filteredStaff.map((person) => (
+                    {paginatedStaff.map((person) => (
                       <div
                         key={person.id}
                         className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
@@ -658,6 +757,44 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     ))}
+
+
+                    {filteredStaff.length > 0 && (
+                      <div className="lg:hidden px-4 pb-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-700">Tampilkan</span>
+                            <select
+                              value={itemsPerPage}
+                              onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                              className="px-2 py-1 border border-gray-400 rounded-lg text-xs text-gray-700"
+                            >
+                              <option value={10}>10</option>
+                              <option value={25}>25</option>
+                              <option value={50}>50</option>
+                              <option value={100}>100</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePageChange(currentPage - 1)}
+                              disabled={currentPage === 1}
+                              className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              <ChevronLeft className="h-4 w-4 text-gray-600" />
+                            </button>
+                            <span className="text-xs text-gray-700 px-2">{currentPage}/{totalPages}</span>
+                            <button
+                              onClick={() => handlePageChange(currentPage + 1)}
+                              disabled={currentPage === totalPages}
+                              className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              <ChevronRight className="h-4 w-4 text-gray-600" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {filteredStaff.length === 0 && (
                       <div className="text-center py-8 text-gray-500">

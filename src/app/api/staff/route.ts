@@ -58,11 +58,8 @@ export async function GET() {
     })));
 
     // Filter out non-staff roles
-    const staff = allUsers.filter(user => 
-      user.role !== 'PATIENT' && 
-      user.isActive === true
-    );
-
+    const staff = allUsers.filter(user => user.isActive === true);
+    
     console.log('👨‍💼 Filtered staff:', staff.length);
 
     return NextResponse.json(staff);

@@ -22,11 +22,10 @@ export async function GET() {
 
     const drugs = await prisma.drugData.findMany({
       orderBy: {
-        name: 'asc'
+        createdAt: 'desc'
       }
     });
 
-    // Transform to include price field for compatibility
     const transformedDrugs = drugs.map(drug => ({
       id: drug.id,
       name: drug.name,
@@ -40,7 +39,8 @@ export async function GET() {
       interactions: drug.interactions,
       contraindications: drug.contraindications,
       sideEffects: drug.sideEffects,
-      indications: drug.indications
+      indications: drug.indications,
+      createdAt: drug.createdAt?.toISOString() || new Date().toISOString()
     }));
 
     return NextResponse.json(transformedDrugs);
@@ -69,7 +69,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     
-    // Validate required fields
     const requiredFields = ['name', 'category', 'dosageForm', 'strength', 'manufacturer', 'stock', 'expiryDate'];
     for (const field of requiredFields) {
       if (!body[field]) {
@@ -80,8 +79,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-  
-    // Validate stock
     if (isNaN(body.stock) || body.stock < 0) {
       return NextResponse.json(
         { error: 'Stock must be a non-negative number' },
@@ -89,7 +86,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate expiry date
     const expiryDate = new Date(body.expiryDate);
     if (isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
       return NextResponse.json(
@@ -115,7 +111,6 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Transform response
     const response = {
       id: drug.id,
       name: drug.name,
@@ -129,7 +124,8 @@ export async function POST(request: NextRequest) {
       interactions: drug.interactions,
       contraindications: drug.contraindications,
       sideEffects: drug.sideEffects,
-      indications: drug.indications
+      indications: drug.indications,
+      createdAt: drug.createdAt?.toISOString() || new Date().toISOString()
     };
 
     return NextResponse.json(response, { status: 201 });
@@ -150,7 +146,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// src/app/api/drugs/[id]/route.ts - This should be in a separate file
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -170,7 +165,6 @@ export async function PUT(
 
     const body = await request.json();
 
-    // Check if drug exists
     const existingDrug = await prisma.drugData.findUnique({
       where: { id: params.id }
     });
@@ -179,7 +173,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
     }
 
-    // Validate required fields
     const requiredFields = ['name', 'category', 'dosageForm', 'strength', 'manufacturer', 'stock', 'expiryDate'];
     for (const field of requiredFields) {
       if (!body[field]) {
@@ -190,9 +183,6 @@ export async function PUT(
       }
     }
 
-  
-
-    // Validate stock
     if (isNaN(body.stock) || body.stock < 0) {
       return NextResponse.json(
         { error: 'Stock must be a non-negative number' },
@@ -200,7 +190,6 @@ export async function PUT(
       );
     }
 
-    // Validate expiry date
     const expiryDate = new Date(body.expiryDate);
     if (isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
       return NextResponse.json(
@@ -227,7 +216,6 @@ export async function PUT(
       }
     });
 
-    // Transform response
     const response = {
       id: updatedDrug.id,
       name: updatedDrug.name,
@@ -241,7 +229,8 @@ export async function PUT(
       interactions: updatedDrug.interactions,
       contraindications: updatedDrug.contraindications,
       sideEffects: updatedDrug.sideEffects,
-      indications: updatedDrug.indications
+      indications: updatedDrug.indications,
+      createdAt: updatedDrug.createdAt?.toISOString() || new Date().toISOString()
     };
 
     return NextResponse.json(response);
@@ -283,7 +272,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // Check if drug exists
     const existingDrug = await prisma.drugData.findUnique({
       where: { id: params.id },
       include: {
@@ -295,7 +283,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
     }
 
-    // Check if drug has transaction history
     if (existingDrug.transactionItems.length > 0) {
       return NextResponse.json({
         error: 'Cannot delete drug with existing transaction history. Consider deactivating instead.'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Eye, Filter, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Eye, Filter, Edit, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
 import TambahVisitasiForm from './TambahVisitasiForm';
 import DetailVisitasiModal from './DetailVisitasiModal';
 import { Patient, Visitation } from '@prisma/client';
@@ -31,6 +31,8 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [selectedPatientForDetail, setSelectedPatientForDetail] = useState<string | null>(null);
     const [editingVisitation, setEditingVisitation] = useState<Visitation | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         fetchData();
@@ -112,6 +114,51 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
         return matchesSearch && matchesType && matchesDate;
     });
 
+    const totalPages = Math.ceil(filteredVisitations.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedVisitations = filteredVisitations.slice(startIndex, endIndex);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (value: number) => {
+        setItemsPerPage(value);
+        setCurrentPage(1);
+    };
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxVisible = 5;
+        if (totalPages <= maxVisible) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                pages.push('...');
+                pages.push(currentPage - 1);
+                pages.push(currentPage);
+                pages.push(currentPage + 1);
+                pages.push('...');
+                pages.push(totalPages);
+            }
+        }
+        return pages;
+    };
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, itemsPerPage]);
+
     // Get visitations for selected patient
     const selectedPatientVisitations = selectedPatientForDetail
         ? visitations.filter(v => v.patientId === selectedPatientForDetail)
@@ -128,7 +175,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                 <input
                                     type="text"
                                     placeholder="Cari Pasien..."
-                                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full sm:w-64"
+                                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full sm:w-64 text-gray-900"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -152,7 +199,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                         <select
                             value={filterDate}
                             onChange={(e) => setFilterDate(e.target.value as 'today' | 'all')}
-                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 text-gray-900"
                         >
                             <option value="today">Hari Ini</option>
                             <option value="all">Semua</option>
@@ -160,7 +207,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value as any)}
-                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 text-gray-900"
                         >
                             <option value="all">Semua Jenis</option>
                             <option value="vital">Vital Signs</option>
@@ -190,7 +237,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredVisitations.map((visit) => {
+                                    {paginatedVisitations.map((visit) => {
                                         const hasVitalSigns = visit.temperature || visit.bloodPressure ||
                                             visit.heartRate || visit.bloodSugar;
 
@@ -234,8 +281,8 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
-                                                            visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-purple-100 text-purple-800'
+                                                        visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                                            'bg-purple-100 text-purple-800'
                                                         }`}>
                                                         {visit.shift}
                                                     </span>
@@ -273,11 +320,60 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                     })}
                                 </tbody>
                             </table>
+                            {filteredVisitations.length > 0 && (
+                                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-700">Tampilkan</span>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                            className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 text-gray-700"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                        <span className="text-sm text-gray-700">dari {filteredVisitations.length} pasien</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <ChevronLeft className="h-5 w-5 text-gray-600" />
+                                        </button>
+                                        <div className="flex gap-1">
+                                            {getPageNumbers().map((page, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => typeof page === 'number' && handlePageChange(page)}
+                                                    disabled={page === '...'}
+                                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage ? 'bg-green-600 text-white' :
+                                                        page === '...' ? 'cursor-default text-gray-400' :
+                                                            'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                        }`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <ChevronRight className="h-5 w-5 text-gray-600" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Mobile Card View */}
                         <div className="lg:hidden space-y-4 p-4">
-                            {filteredVisitations.map((visit) => {
+                            {paginatedVisitations.map((visit) => {
                                 const hasVitalSigns = visit.temperature || visit.bloodPressure ||
                                     visit.heartRate || visit.bloodSugar;
 
@@ -297,8 +393,8 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                                 </p>
                                             </div>
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
-                                                    visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-purple-100 text-purple-800'
+                                                visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-purple-100 text-purple-800'
                                                 }`}>
                                                 {visit.shift}
                                             </span>
@@ -344,6 +440,43 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                     </div>
                                 );
                             })}
+
+                            {filteredVisitations.length > 0 && (
+                                <div className="lg:hidden px-4 pb-4 border-t border-gray-200">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-700">Tampilkan</span>
+                                            <select
+                                                value={itemsPerPage}
+                                                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                                className="px-2 py-1 border border-gray-400 rounded-lg text-xs text-gray-700"
+                                            >
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                                            >
+                                                <ChevronLeft className="h-4 w-4 text-gray-600" />
+                                            </button>
+                                            <span className="text-xs text-gray-700 px-2">{currentPage}/{totalPages}</span>
+                                            <button
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                                            >
+                                                <ChevronRight className="h-4 w-4 text-gray-600" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {filteredVisitations.length === 0 && (

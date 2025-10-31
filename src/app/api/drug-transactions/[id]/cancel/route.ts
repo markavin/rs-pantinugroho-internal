@@ -5,7 +5,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -128,10 +127,7 @@ export async function PUT(
         drugId: item.drugId,
         drugName: item.drug.name,
         quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal
       })),
-      totalAmount: updatedTransaction!.totalAmount,
       status: updatedTransaction!.status,
       createdAt: updatedTransaction!.createdAt.toISOString(),
       completedAt: updatedTransaction!.completedAt?.toISOString(),

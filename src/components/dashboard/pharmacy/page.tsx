@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu, ShoppingCart, Package, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react';
+import { Search, Plus, Pill, Users, FileText, Activity, Edit, Trash2, Eye, Menu, ShoppingCart, Package, AlertTriangle, CheckCircle, XCircle, X, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import DataObatForm, { DrugData } from './DataObatForm';
 import TransaksiObatForm from './TransaksiObatForm';
 import SplashScreen from '@/components/SplashScreen';
+import SystemHistoryView from '../SystemHistoryView';
 // import PrescriptionSourceModal from './PrescriptionSourceModal';
 
 interface Patient {
@@ -10,6 +11,10 @@ interface Patient {
   name: string;
   mrNumber: string;
   phone?: string;
+  birthDate: string;
+  gender: 'MALE' | 'FEMALE';
+  insuranceType: string;
+  createdAt: string;
 }
 
 interface Transaction {
@@ -31,8 +36,9 @@ interface TransactionItem {
   subtotal: number;
 }
 
+
 const PharmacyDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'drugs' | 'transactions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'drugs' | 'transactions' | 'system-history'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDrugForm, setShowDrugForm] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -49,6 +55,11 @@ const PharmacyDashboard = () => {
   const [showRefreshSplash, setShowRefreshSplash] = useState(false);
   const [prescriptionSource, setPrescriptionSource] = useState<'DOCTOR_PRESCRIPTION' | 'MANUAL' | undefined>(undefined);
   const [relatedHandledPatientId, setRelatedHandledPatientId] = useState<string | undefined>(undefined);
+  const [drugCurrentPage, setDrugCurrentPage] = useState(1);
+  const [drugItemsPerPage, setDrugItemsPerPage] = useState(10);
+  const [transactionCurrentPage, setTransactionCurrentPage] = useState(1);
+  const [transactionItemsPerPage, setTransactionItemsPerPage] = useState(10);
+  const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -294,7 +305,6 @@ const PharmacyDashboard = () => {
       }
     }
   };
-
   const filteredDrugs = drugData.filter(drug => {
     const searchLower = searchTerm.toLowerCase();
     return drug.name.toLowerCase().includes(searchLower) ||
@@ -302,12 +312,125 @@ const PharmacyDashboard = () => {
       drug.manufacturer.toLowerCase().includes(searchLower);
   });
 
+  const drugTotalPages = Math.ceil(filteredDrugs.length / drugItemsPerPage);
+  const drugStartIndex = (drugCurrentPage - 1) * drugItemsPerPage;
+  const drugEndIndex = drugStartIndex + drugItemsPerPage;
+  const paginatedDrugs = filteredDrugs.slice(drugStartIndex, drugEndIndex);
+
+  const handleDrugPageChange = (page: number) => {
+    setDrugCurrentPage(page);
+  };
+
+  const handleDrugItemsPerPageChange = (value: number) => {
+    setDrugItemsPerPage(value);
+    setDrugCurrentPage(1);
+  };
+
+  const getDrugPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (drugTotalPages <= maxVisible) {
+      for (let i = 1; i <= drugTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (drugCurrentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(drugTotalPages);
+      } else if (drugCurrentPage >= drugTotalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = drugTotalPages - 3; i <= drugTotalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(drugCurrentPage - 1);
+        pages.push(drugCurrentPage);
+        pages.push(drugCurrentPage + 1);
+        pages.push('...');
+        pages.push(drugTotalPages);
+      }
+    }
+
+    return pages;
+  };
+
+
+
   const filteredTransactions = transactions.filter(transaction => {
     const searchLower = searchTerm.toLowerCase();
     return transaction.patientName.toLowerCase().includes(searchLower) ||
       transaction.mrNumber.toLowerCase().includes(searchLower) ||
       transaction.id.toLowerCase().includes(searchLower);
   });
+
+  const transactionTotalPages = Math.ceil(filteredTransactions.length / transactionItemsPerPage);
+  const transactionStartIndex = (transactionCurrentPage - 1) * transactionItemsPerPage;
+  const transactionEndIndex = transactionStartIndex + transactionItemsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(transactionStartIndex, transactionEndIndex);
+
+  const handleTransactionPageChange = (page: number) => {
+    setTransactionCurrentPage(page);
+  };
+
+  const handleTransactionItemsPerPageChange = (value: number) => {
+    setTransactionItemsPerPage(value);
+    setTransactionCurrentPage(1);
+  };
+
+  const getTransactionPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (transactionTotalPages <= maxVisible) {
+      for (let i = 1; i <= transactionTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (transactionCurrentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(transactionTotalPages);
+      } else if (transactionCurrentPage >= transactionTotalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = transactionTotalPages - 3; i <= transactionTotalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(transactionCurrentPage - 1);
+        pages.push(transactionCurrentPage);
+        pages.push(transactionCurrentPage + 1);
+        pages.push('...');
+        pages.push(transactionTotalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  useEffect(() => {
+    setDrugCurrentPage(1);
+  }, [searchTerm, drugItemsPerPage]);
+
+  useEffect(() => {
+    setTransactionCurrentPage(1);
+  }, [searchTerm, transactionItemsPerPage]);
+
+  const filteredPatients = patients.filter(patient =>
+    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const totalDrugs = drugData.length;
   const lowStockDrugs = drugData.filter(drug => drug.stock < 50).length;
@@ -318,7 +441,8 @@ const PharmacyDashboard = () => {
   const navigationItems = [
     { key: 'overview', label: 'Overview', icon: Activity },
     { key: 'drugs', label: 'Kelola Data Obat', icon: Pill },
-    { key: 'transactions', label: 'Kelola Transaksi Obat', icon: ShoppingCart }
+    { key: 'transactions', label: 'Kelola Transaksi Obat', icon: ShoppingCart },
+    { key: 'system-history', label: 'Riwayat Sistem', icon: History }
   ];
 
   const handleTabChange = (tab: 'overview' | 'drugs' | 'transactions') => {
@@ -468,7 +592,7 @@ const PharmacyDashboard = () => {
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-55 px-6 justify-center">
+              <nav className="-mb-px flex space-x-45 px-6 justify-center">
                 {navigationItems.map(tab => {
                   const IconComponent = tab.icon;
                   return (
@@ -592,7 +716,7 @@ const PharmacyDashboard = () => {
                       <input
                         type="text"
                         placeholder="Cari Obat..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-900"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
@@ -623,7 +747,7 @@ const PharmacyDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredDrugs.map((drug) => (
+                    {paginatedDrugs.map((drug) => (
                       <tr key={drug.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
@@ -671,10 +795,67 @@ const PharmacyDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+                {filteredDrugs.length > 0 && (
+                  <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700">Tampilkan</span>
+                      <select
+                        value={drugItemsPerPage}
+                        onChange={(e) => handleDrugItemsPerPageChange(Number(e.target.value))}
+                        className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={1000}>1000</option>
+                      </select>
+                      <span className="text-sm text-gray-700">
+                        dari {filteredDrugs.length} obat
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDrugPageChange(drugCurrentPage - 1)}
+                        disabled={drugCurrentPage === 1}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft className="h-5 w-5 text-gray-600" />
+                      </button>
+
+                      <div className="flex gap-1">
+                        {getDrugPageNumbers().map((page, index) => (
+                          <button
+                            key={index}
+                            onClick={() => typeof page === 'number' && handleDrugPageChange(page)}
+                            disabled={page === '...'}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium ${page === drugCurrentPage
+                              ? 'bg-green-600 text-white'
+                              : page === '...'
+                                ? 'cursor-default text-gray-400'
+                                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => handleDrugPageChange(drugCurrentPage + 1)}
+                        disabled={drugCurrentPage === drugTotalPages}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight className="h-5 w-5 text-gray-600" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="lg:hidden space-y-4 p-4">
-                {filteredDrugs.map((drug) => (
+                {paginatedDrugs.map((drug) => (
                   <div key={drug.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -724,6 +905,49 @@ const PharmacyDashboard = () => {
                     </div>
                   </div>
                 ))}
+
+                {filteredDrugs.length > 0 && (
+                  <div className="pt-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-700">Tampilkan</span>
+                        <select
+                          value={drugItemsPerPage}
+                          onChange={(e) => handleDrugItemsPerPageChange(Number(e.target.value))}
+                          className="px-2 py-1 border border-gray-400 rounded-lg text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={1000}>1000</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDrugPageChange(drugCurrentPage - 1)}
+                          disabled={drugCurrentPage === 1}
+                          className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft className="h-4 w-4 text-gray-600" />
+                        </button>
+
+                        <span className="text-xs text-gray-700 px-2">
+                          {drugCurrentPage}/{drugTotalPages}
+                        </span>
+
+                        <button
+                          onClick={() => handleDrugPageChange(drugCurrentPage + 1)}
+                          disabled={drugCurrentPage === drugTotalPages}
+                          className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="h-4 w-4 text-gray-600" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {filteredDrugs.length === 0 && (
@@ -762,7 +986,7 @@ const PharmacyDashboard = () => {
                       <input
                         type="text"
                         placeholder="Cari Transaksi..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-700"
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-900"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
@@ -794,7 +1018,7 @@ const PharmacyDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredTransactions.map((transaction) => (
+                    {paginatedTransactions.map((transaction) => (
                       <tr key={transaction.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                           #{transaction.id.slice(-8)}
@@ -862,10 +1086,67 @@ const PharmacyDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+                {filteredTransactions.length > 0 && (
+                  <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700">Tampilkan</span>
+                      <select
+                        value={transactionItemsPerPage}
+                        onChange={(e) => handleTransactionItemsPerPageChange(Number(e.target.value))}
+                        className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={1000}>1000</option>
+                      </select>
+                      <span className="text-sm text-gray-700">
+                        dari {filteredTransactions.length} transaksi
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleTransactionPageChange(transactionCurrentPage - 1)}
+                        disabled={transactionCurrentPage === 1}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft className="h-5 w-5 text-gray-600" />
+                      </button>
+
+                      <div className="flex gap-1">
+                        {getTransactionPageNumbers().map((page, index) => (
+                          <button
+                            key={index}
+                            onClick={() => typeof page === 'number' && handleTransactionPageChange(page)}
+                            disabled={page === '...'}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium ${page === transactionCurrentPage
+                              ? 'bg-green-600 text-white'
+                              : page === '...'
+                                ? 'cursor-default text-gray-400'
+                                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => handleTransactionPageChange(transactionCurrentPage + 1)}
+                        disabled={transactionCurrentPage === transactionTotalPages}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight className="h-5 w-5 text-gray-600" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="lg:hidden space-y-4 p-4">
-                {filteredTransactions.map((transaction) => (
+                {paginatedTransactions.map((transaction) => (
                   <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -928,6 +1209,49 @@ const PharmacyDashboard = () => {
                   </div>
                 ))}
 
+                {filteredTransactions.length > 0 && (
+                  <div className="pt-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-700">Tampilkan</span>
+                        <select
+                          value={transactionItemsPerPage}
+                          onChange={(e) => handleTransactionItemsPerPageChange(Number(e.target.value))}
+                          className="px-2 py-1 border border-gray-400 rounded-lg text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={1000}>1000</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleTransactionPageChange(transactionCurrentPage - 1)}
+                          disabled={transactionCurrentPage === 1}
+                          className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft className="h-4 w-4 text-gray-600" />
+                        </button>
+
+                        <span className="text-xs text-gray-700 px-2">
+                          {transactionCurrentPage}/{transactionTotalPages}
+                        </span>
+
+                        <button
+                          onClick={() => handleTransactionPageChange(transactionCurrentPage + 1)}
+                          disabled={transactionCurrentPage === transactionTotalPages}
+                          className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="h-4 w-4 text-gray-600" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {filteredTransactions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -961,7 +1285,16 @@ const PharmacyDashboard = () => {
               )}
             </div>
           )}
+
+          {activeTab === 'system-history' && (
+            <SystemHistoryView
+              patients={filteredPatients as any}
+              selectedPatient={selectedPatientForHistory as any}
+              onPatientSelect={(patient: any) => setSelectedPatientForHistory(patient as any)}
+            />
+          )}
         </div>
+
       </div>
 
       <DataObatForm
@@ -994,14 +1327,16 @@ const PharmacyDashboard = () => {
         relatedHandledPatientId={relatedHandledPatientId}
       />
 
-      {showRefreshSplash && (
-        <SplashScreen
-          onFinish={handleRefreshSplashFinish}
-          message="Memuat ulang data..."
-          duration={1500}
-        />
-      )}
-    </div>
+      {
+        showRefreshSplash && (
+          <SplashScreen
+            onFinish={handleRefreshSplashFinish}
+            message="Memuat ulang data..."
+            duration={1500}
+          />
+        )
+      }
+    </div >
   );
 };
 

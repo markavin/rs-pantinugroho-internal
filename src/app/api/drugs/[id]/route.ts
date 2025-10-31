@@ -25,7 +25,6 @@ export async function PUT(
 
     const body = await request.json();
 
-    // Check if drug exists
     const existingDrug = await prisma.drugData.findUnique({
       where: { id: params.id }
     });
@@ -34,8 +33,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
     }
 
-    // Validate required fields
-    const requiredFields = ['name', 'category', 'dosageForm', 'strength', 'manufacturer', 'expiryDate'];
+    const requiredFields = ['name', 'category', 'categoryKehamilan', 'dosageForm', 'strength', 'manufacturer', 'expiryDate'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
@@ -45,7 +43,6 @@ export async function PUT(
       }
     }
 
-    // Validate stock - allow undefined but validate if provided
     if (body.stock !== undefined && (isNaN(body.stock) || body.stock < 0)) {
       return NextResponse.json(
         { error: 'Stock must be a non-negative number' },
@@ -53,8 +50,6 @@ export async function PUT(
       );
     }
 
-
-    // Validate expiry date
     const expiryDate = new Date(body.expiryDate);
     if (isNaN(expiryDate.getTime())) {
       return NextResponse.json(
@@ -68,23 +63,24 @@ export async function PUT(
       data: {
         name: body.name.trim(),
         category: body.category,
+        categoryKehamilan: body.categoryKehamilan,
         dosageForm: body.dosageForm,
         strength: body.strength.trim(),
         manufacturer: body.manufacturer.trim(),
         stock: body.stock !== undefined ? parseInt(body.stock) : existingDrug.stock,
         expiryDate: expiryDate,
-        interactions: Array.isArray(body.interactions) ? body.interactions : [],
-        contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
-        sideEffects: Array.isArray(body.sideEffects) ? body.sideEffects : [],
-        indications: Array.isArray(body.indications) ? body.indications : []
+        interactions: Array.isArray(body.interactions) ? body.interactions : existingDrug.interactions || [],
+        contraindications: Array.isArray(body.contraindications) ? body.contraindications : existingDrug.contraindications || [],
+        sideEffects: Array.isArray(body.sideEffects) ? body.sideEffects : existingDrug.sideEffects || [],
+        indications: Array.isArray(body.indications) ? body.indications : existingDrug.indications || []
       }
     });
 
-    // Transform response
     const response = {
       id: updatedDrug.id,
       name: updatedDrug.name,
       category: updatedDrug.category,
+      categoryKehamilan: updatedDrug.categoryKehamilan,
       dosageForm: updatedDrug.dosageForm,
       strength: updatedDrug.strength,
       manufacturer: updatedDrug.manufacturer,
@@ -93,7 +89,8 @@ export async function PUT(
       interactions: updatedDrug.interactions,
       contraindications: updatedDrug.contraindications,
       sideEffects: updatedDrug.sideEffects,
-      indications: updatedDrug.indications
+      indications: updatedDrug.indications,
+      createdAt: updatedDrug.createdAt?.toISOString() || new Date().toISOString()
     };
 
     return NextResponse.json(response);
@@ -135,7 +132,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // Check if drug exists
     const existingDrug = await prisma.drugData.findUnique({
       where: { id: params.id },
       include: {
@@ -147,7 +143,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
     }
 
-    // Check if drug has transaction history
     if (existingDrug.transactionItems.length > 0) {
       return NextResponse.json({
         error: 'Cannot delete drug with existing transaction history. Consider deactivating instead.'

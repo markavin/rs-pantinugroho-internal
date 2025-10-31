@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, X, User, Phone, Calendar, Activity, AlertCircle, FileText } from 'lucide-react';
+import { Search, Eye, X, User, Phone, Calendar, Activity, AlertCircle, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface Patient {
     id: string;
@@ -20,6 +20,8 @@ const DaftarPasien = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         fetchPatients();
@@ -50,6 +52,51 @@ const DaftarPasien = () => {
         );
     });
 
+    const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (value: number) => {
+        setItemsPerPage(value);
+        setCurrentPage(1);
+    };
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxVisible = 5;
+        if (totalPages <= maxVisible) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                pages.push('...');
+                pages.push(currentPage - 1);
+                pages.push(currentPage);
+                pages.push(currentPage + 1);
+                pages.push('...');
+                pages.push(totalPages);
+            }
+        }
+        return pages;
+    };
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, itemsPerPage]);
+
     const getRiskBadge = (riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH') => {
         switch (riskLevel) {
             case 'HIGH':
@@ -76,13 +123,13 @@ const DaftarPasien = () => {
         <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien Aktif</h3>
                         <div className="relative flex-1 max-w-md">
                             <input
                                 type="text"
                                 placeholder="Cari Pasien..."
-                                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full"
+                                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full text-gray-900"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -110,7 +157,7 @@ const DaftarPasien = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredPatients.map((patient) => (
+                                    {paginatedPatients.map((patient) => (
                                         <tr key={patient.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                 {patient.mrNumber}
@@ -148,10 +195,60 @@ const DaftarPasien = () => {
                                     ))}
                                 </tbody>
                             </table>
+
+                            {filteredPatients.length > 0 && (
+                                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-700">Tampilkan</span>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                            className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 text-gray-700"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                        <span className="text-sm text-gray-700">dari {filteredPatients.length} pasien</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <ChevronLeft className="h-5 w-5 text-gray-600" />
+                                        </button>
+                                        <div className="flex gap-1">
+                                            {getPageNumbers().map((page, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => typeof page === 'number' && handlePageChange(page)}
+                                                    disabled={page === '...'}
+                                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage ? 'bg-green-600 text-white' :
+                                                        page === '...' ? 'cursor-default text-gray-400' :
+                                                            'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                        }`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <ChevronRight className="h-5 w-5 text-gray-600" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="lg:hidden space-y-4 p-4">
-                            {filteredPatients.map((patient) => (
+                            {paginatedPatients.map((patient) => (
                                 <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                                     <div className="flex items-start justify-between mb-3">
                                         <div>
@@ -176,6 +273,43 @@ const DaftarPasien = () => {
                                     </button>
                                 </div>
                             ))}
+
+                            {filteredPatients.length > 0 && (
+                                <div className="lg:hidden px-4 pb-4 border-t border-gray-200">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-700">Tampilkan</span>
+                                            <select
+                                                value={itemsPerPage}
+                                                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                                className="px-2 py-1 border border-gray-400 rounded-lg text-xs text-gray-700"
+                                            >
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                                            >
+                                                <ChevronLeft className="h-4 w-4 text-gray-600" />
+                                            </button>
+                                            <span className="text-xs text-gray-700 px-2">{currentPage}/{totalPages}</span>
+                                            <button
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                                            >
+                                                <ChevronRight className="h-4 w-4 text-gray-600" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </>
                 )}
@@ -195,8 +329,8 @@ const DaftarPasien = () => {
                                         <p className="text-sm text-gray-600">Informasi lengkap pasien rawat inap</p>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => setSelectedPatient(null)} 
+                                <button
+                                    onClick={() => setSelectedPatient(null)}
                                     className="text-gray-400 hover:text-gray-600 p-1"
                                 >
                                     <X className="h-6 w-6" />
@@ -299,7 +433,7 @@ const DaftarPasien = () => {
                                             {selectedPatient.allergies.length > 0 ? (
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedPatient.allergies.map((allergy, idx) => (
-                                                        <span 
+                                                        <span
                                                             key={idx}
                                                             className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-sm font-medium border border-red-200"
                                                         >
@@ -318,7 +452,7 @@ const DaftarPasien = () => {
                                             {selectedPatient.comorbidities.length > 0 ? (
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedPatient.comorbidities.map((comorbid, idx) => (
-                                                        <span 
+                                                        <span
                                                             key={idx}
                                                             className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm font-medium border border-orange-200"
                                                         >

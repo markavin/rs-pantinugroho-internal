@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ OTP verified for: ${user.email}`);
+    console.log(`  OTP verified for: ${user.email}`);
 
     // OTP valid, tapi jangan clear dulu - masih perlu untuk reset password
     return NextResponse.json({

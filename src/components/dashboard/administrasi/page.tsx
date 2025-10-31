@@ -1,9 +1,10 @@
 // src/components/dashboard/admin/page.tsx
 import React, { useState, useEffect } from 'react';
-import { Search, User, Calendar, Activity, FileText, Users, Menu, X, Plus, Edit, Trash2, Eye, AlertCircle, Filter } from 'lucide-react';
+import { Search, User, Calendar, Activity, FileText, Users, Menu, X, Plus, Edit, Trash2, Eye, AlertCircle, Filter, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import PatientRegistrationForm from './PatientRegistrationForm';
 import PatientComplaintForm from './PatientComplaintForm';
 import SplashScreen from '@/components/SplashScreen';
+import SystemHistoryView from '../SystemHistoryView';
 
 interface Patient {
   id: string;
@@ -57,7 +58,7 @@ const AdministrasiDashboard = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [complaints, setComplaints] = useState<PatientComplaint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'registration'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'registration' | 'system-history'>('dashboard');
   const [patientStatusFilter, setPatientStatusFilter] = useState<
     'ALL' | 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL'
   >('ALL');
@@ -75,6 +76,9 @@ const AdministrasiDashboard = () => {
   const [showPatientForm, setShowPatientForm] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit' | 'view'>('add');
   const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     fetchDashboardData();
@@ -161,6 +165,14 @@ const AdministrasiDashboard = () => {
   };
 
   const filteredPatients = getFilteredPatients();
+  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, patientStatusFilter, itemsPerPage]);
 
   const refreshData = async () => {
     setShowRefreshSplash(true);
@@ -352,7 +364,52 @@ const AdministrasiDashboard = () => {
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Data Pasien', icon: Users },
+    { key: 'system-history', label: 'Riwayat Sistem', icon: History }
   ];
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -677,7 +734,7 @@ const AdministrasiDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredPatients.map((patient) => (
+                    {paginatedPatients.map((patient) => (
                       <tr key={patient.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {patient.mrNumber}
@@ -741,7 +798,7 @@ const AdministrasiDashboard = () => {
               </div>
 
               <div className="lg:hidden space-y-4 p-4">
-                {filteredPatients.map((patient) => (
+                {paginatedPatients.map((patient) => (
                   <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -807,16 +864,82 @@ const AdministrasiDashboard = () => {
                   </div>
                 ))}
 
-                {filteredPatients.length === 0 && (
+                {paginatedPatients.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>{searchTerm ? 'Tidak ada pasien yang ditemukan' : 'Belum ada data pasien'}</p>
                   </div>
                 )}
               </div>
+
+              {filteredPatients.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">Tampilkan</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                      className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                    <span className="text-sm text-gray-700">
+                      dari {filteredPatients.length} pasien
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+
+                    <div className="flex gap-1">
+                      {getPageNumbers().map((page, index) => (
+                        <button
+                          key={index}
+                          onClick={() => typeof page === 'number' && handlePageChange(page)}
+                          disabled={page === '...'}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                            page === currentPage
+                              ? 'bg-green-600 text-white'
+                              : page === '...'
+                              ? 'cursor-default text-gray-400'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
+          {activeTab === 'system-history' && (
+            <SystemHistoryView
+              patients={filteredPatients}
+              selectedPatient={selectedPatientForHistory}
+              onPatientSelect={setSelectedPatientForHistory}
+            />
+          )}
         </div>
       </div>
 

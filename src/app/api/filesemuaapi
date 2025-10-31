@@ -1,0 +1,2204 @@
+// src/app/api/drug-transactions/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN', 'MANAJER'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    const whereClause: any = {};
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
+
+    const transactions = await prisma.drugTransaction.findMany({
+      where: whereClause,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true,
+            phone: true
+          }
+        },
+        items: {
+          include: {
+            drug: {
+              select: {
+                name: true,
+                strength: true,
+                dosageForm: true,
+                category: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const transformedTransactions = transactions.map(transaction => ({
+      id: transaction.id,
+      patientId: transaction.patientId,
+      patientName: transaction.patient.name,
+      mrNumber: transaction.patient.mrNumber,
+      items: transaction.items.map(item => ({
+        id: item.id,
+        drugId: item.drugId,
+        drugName: item.drug.name,
+        quantity: item.quantity
+      })),
+      status: transaction.status,
+      createdAt: transaction.createdAt.toISOString(),
+      completedAt: transaction.completedAt?.toISOString(),
+      notes: transaction.notes
+    }));
+
+    return NextResponse.json(transformedTransactions);
+  } catch (error) {
+    console.error('Error fetching drug transactions:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch drug transactions' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      patientId,
+      items,
+      notes,
+      prescriptionSource,
+      relatedHandledPatientId,
+      relatedPrescriptionAlertId
+    } = body;
+
+    // Validate required fields
+    if (!patientId || !items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, items' },
+        { status: 400 }
+      );
+    }
+
+    // Validate patient exists
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    // Validate all drugs exist and have sufficient stock
+    for (const item of items) {
+      if (!item.drugId || !item.quantity) {
+        return NextResponse.json(
+          { error: 'All items must have drugId and quantity' },
+          { status: 400 }
+        );
+      }
+
+      const drug = await prisma.drugData.findUnique({
+        where: { id: item.drugId }
+      });
+
+      if (!drug) {
+        return NextResponse.json(
+          { error: `Drug with ID ${item.drugId} not found` },
+          { status: 404 }
+        );
+      }
+
+      if (drug.stock < item.quantity) {
+        return NextResponse.json(
+          { error: `Insufficient stock for ${drug.name}. Available: ${drug.stock}, Required: ${item.quantity}` },
+          { status: 400 }
+        );
+      }
+
+      if (item.quantity <= 0) {
+        return NextResponse.json(
+          { error: `Quantity for ${drug.name} must be greater than 0` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Create transaction with items and REDUCE STOCK IMMEDIATELY
+    const result = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+
+      // Create the drug transaction with COMPLETED status
+      const drugTransaction = await tx.drugTransaction.create({
+        data: {
+          patientId,
+          status: 'COMPLETED',
+          notes: notes?.trim() || null,
+          createdAt: now,
+          completedAt: now,
+        }
+      });
+
+      // Create transaction items
+      const transactionItems = await Promise.all(
+        items.map((item: any) =>
+          tx.drugTransactionItem.create({
+            data: {
+              transactionId: drugTransaction.id,
+              drugId: item.drugId,
+              quantity: item.quantity,
+            }
+          })
+        )
+      );
+
+      // REDUCE STOCK for all items
+      for (const item of items) {
+        await tx.drugData.update({
+          where: { id: item.drugId },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
+      }
+
+      // Create PharmacyRecord
+      await tx.pharmacyRecord.create({
+        data: {
+          patientId,
+          pharmacistId: userId,
+          recordType: 'DISPENSING',
+          medications: items.map((item: any) => ({
+            drugId: item.drugId,
+            drugName: item.drugName,
+            quantity: item.quantity,
+            dosageInstructions: `${item.quantity} unit - sesuai resep`
+          })),
+          counselingNotes: notes || 'Tidak ada catatan khusus',
+        }
+      });
+
+      // Send alert ONLY if from doctor prescription AND patient is inpatient
+      if (prescriptionSource === 'DOCTOR_PRESCRIPTION' && patient.status === 'RAWAT_INAP') {
+        const medicationList = items
+          .map((item: any) => `- ${item.drugName}: ${item.quantity} unit`)
+          .join('\n');
+
+        await tx.alert.create({
+          data: {
+            type: 'INFO',
+            message: `📦 Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.
+
+Daftar Obat:
+${medicationList}
+
+Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit
+
+ Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
+            patientId,
+            category: 'MEDICATION',
+            priority: 'MEDIUM',
+            targetRole: 'PERAWAT_RUANGAN',
+            isRead: false
+          }
+        });
+      }
+
+      // Mark prescription alert as read if exists
+      if (relatedPrescriptionAlertId) {
+        await tx.alert.update({
+          where: { id: relatedPrescriptionAlertId },
+          data: { isRead: true }
+        });
+      }
+
+      return {
+        ...drugTransaction,
+        items: transactionItems
+      };
+    });
+
+    // Fetch the complete transaction with relations for response
+    const completeTransaction = await prisma.drugTransaction.findUnique({
+      where: { id: result.id },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true,
+            phone: true
+          }
+        },
+        items: {
+          include: {
+            drug: {
+              select: {
+                name: true,
+                strength: true,
+                dosageForm: true,
+                category: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Transform response
+    const response = {
+      id: completeTransaction!.id,
+      patientId: completeTransaction!.patientId,
+      patientName: completeTransaction!.patient.name,
+      mrNumber: completeTransaction!.patient.mrNumber,
+      items: completeTransaction!.items.map(item => ({
+        id: item.id,
+        drugId: item.drugId,
+        drugName: item.drug.name,
+        quantity: item.quantity
+      })),
+      status: completeTransaction!.status,
+      createdAt: completeTransaction!.createdAt.toISOString(),
+      completedAt: completeTransaction!.completedAt?.toISOString(),
+      notes: completeTransaction!.notes
+    };
+
+    return NextResponse.json(response, { status: 201 });
+  } catch (error) {
+    console.error('Error creating drug transaction:', error);
+    return NextResponse.json(
+      { error: 'Failed to create drug transaction' },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+
+// src/app/api/handled-patients/route.ts 
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string): string {
+    switch (handledStatus) {
+        case 'ANTRIAN':
+        case 'SEDANG_DITANGANI':
+            return 'AKTIF';
+        case 'KONSULTASI':
+            return 'RAWAT_JALAN';
+        case 'OBSERVASI':
+        case 'EMERGENCY':
+        case 'STABIL':
+            return 'RAWAT_INAP';
+        case 'RUJUK_KELUAR':
+            return 'RUJUK_KELUAR';
+        case 'SELESAI':
+            if (notes && notes.toLowerCase().includes('pulang paksa')) {
+                return 'PULANG_PAKSA';
+            }
+            return 'PULANG';
+        case 'MENINGGAL':
+            return 'MENINGGAL';
+        default:
+            return 'AKTIF';
+    }
+}
+
+export async function POST(request: Request) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const userId = (session.user as any).id;
+        const userRole = (session.user as any).role;
+
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN'];
+        if (!allowedRoles.includes(userRole)) {
+            return NextResponse.json({
+                error: 'Insufficient permissions. Only nurses and doctors can handle patients.'
+            }, { status: 403 });
+        }
+
+        const body = await request.json();
+        const {
+            patientId,
+            diagnosis,
+            treatmentPlan,
+            notes,
+            status,
+            priority,
+            nextVisitDate,
+            estimatedDuration,
+            specialInstructions
+        } = body;
+
+        if (!patientId) {
+            return NextResponse.json(
+                { error: 'Missing required field: patientId' },
+                { status: 400 }
+            );
+        }
+
+        const patient = await prisma.patient.findUnique({
+            where: { id: patientId }
+        });
+
+        if (!patient) {
+            return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+        }
+
+        const handledPatient = await prisma.handledPatient.create({
+            data: {
+                patientId,
+                handledBy: userId,
+                handledDate: new Date(),
+                diagnosis: diagnosis || null,
+                treatmentPlan: treatmentPlan || null,
+                notes: notes || null,
+                status: status || 'ANTRIAN',
+                priority: priority || 'NORMAL',
+                nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
+                estimatedDuration: estimatedDuration || null,
+                specialInstructions: specialInstructions || null
+            },
+            include: {
+                patient: true,
+                handler: {
+                    select: {
+                        name: true,
+                        role: true,
+                        employeeId: true
+                    }
+                }
+            }
+        });
+
+        return NextResponse.json(handledPatient, { status: 201 });
+    } catch (error) {
+        console.error('Error creating handled patient:', error);
+
+        if ((error as any).code === 'P2002') {
+            return NextResponse.json({
+                error: 'Patient is already being handled'
+            }, { status: 400 });
+        }
+
+        if ((error as any).code === 'P2003') {
+            return NextResponse.json({
+                error: 'Invalid reference data provided'
+            }, { status: 400 });
+        }
+
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        }, { status: 500 });
+    }
+}
+
+export async function GET(request: Request) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const userRole = (session.user as any).role;
+        const userId = (session.user as any).id;
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+
+        if (!allowedRoles.includes(userRole)) {
+            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get('status');
+        const handledBy = searchParams.get('handledBy');
+        const patientId = searchParams.get('patientId'); // TAMBAH INI
+
+        let whereClause: any = {};
+
+        // TAMBAH: Jika ada patientId, ambil semua riwayat pasien tersebut
+        if (patientId) {
+            whereClause.patientId = patientId;
+        } else {
+            // Logic normal untuk filter berdasarkan role
+            if (userRole === 'DOKTER_SPESIALIS') {
+                whereClause.OR = [
+                    { status: 'ANTRIAN' },
+                    { handledBy: userId }
+                ];
+            } else if (userRole !== 'SUPER_ADMIN') {
+                whereClause.handledBy = userId;
+            }
+        }
+
+        if (status) {
+            whereClause.status = status;
+        }
+
+        if (handledBy && userRole === 'SUPER_ADMIN') {
+            whereClause.handledBy = handledBy;
+        }
+
+        const handledPatients = await prisma.handledPatient.findMany({
+            where: whereClause,
+            include: {
+                patient: {
+                    select: {
+                        id: true,
+                        mrNumber: true,
+                        name: true,
+                        birthDate: true,
+                        gender: true,
+                        phone: true,
+                        diabetesType: true,
+                        insuranceType: true,
+                        riskLevel: true,
+                        status: true,
+                        bmi: true,
+                        allergies: true
+                    }
+                },
+                handler: {
+                    select: {
+                        name: true,
+                        role: true,
+                        employeeId: true
+                    }
+                }
+            },
+            orderBy: [
+                { handledDate: 'desc' } // Urutkan dari terbaru
+            ]
+        });
+
+        return NextResponse.json(handledPatients);
+    } catch (error) {
+        console.error('Error fetching handled patients:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+
+// src/app/api/lab-results/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+    const testType = searchParams.get('testType');
+    const limit = searchParams.get('limit');
+
+    const whereClause: any = {};
+    
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
+    
+    if (testType) {
+      whereClause.testType = testType;
+    }
+
+    const labResults = await prisma.labResult.findMany({
+      where: whereClause,
+      orderBy: {
+        testDate: 'desc'
+      },
+      take: limit ? parseInt(limit) : undefined
+    });
+
+    return NextResponse.json(labResults);
+  } catch (error) {
+    console.error('Error fetching lab results:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function POST(request: Request) {
+  let prismaClient = new PrismaClient();
+  
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    console.log('📥 Received lab result data:', body);
+
+    const {
+      patientId,
+      testType,
+      value,
+      normalRange,
+      status,
+      notes,
+      testDate
+    } = body;
+
+    // Validasi required fields
+    if (!patientId || !testType || !value || !status) {
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, testType, value, status' },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists
+    const patient = await prismaClient.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    // 🔧 FIX: Remove technician verification, not all users have employee records
+    console.log('  Creating lab result for user:', userId);
+
+    // Create lab result - langsung tanpa verify user lagi
+    const labResult = await prismaClient.labResult.create({
+      data: {
+        patientId: patientId,
+        technicianId: userId,
+        testType: testType,
+        value: value,
+        normalRange: normalRange || '-',
+        status: status,
+        notes: notes || null,
+        testDate: testDate ? new Date(testDate) : new Date(),
+        isVerified: false
+      }
+    });
+
+    console.log('  Lab result created successfully:', labResult.id);
+
+    return NextResponse.json(labResult, { status: 201 });
+  } catch (error: any) {
+    console.error('❌ Detailed error creating lab result:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack
+    });
+
+    if (error.code === 'P2002') {
+      return NextResponse.json({ 
+        error: 'Duplicate entry detected' 
+      }, { status: 400 });
+    }
+
+    if (error.code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Foreign key constraint failed. Patient or user may not exist.' 
+      }, { status: 400 });
+    }
+
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    }, { status: 500 });
+  } finally {
+    await prismaClient.$disconnect();
+  }
+}
+
+
+// src/app/api/medical-reports/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+    
+    if (userRole !== 'DOKTER_SPESIALIS' && userRole !== 'ADMINISTRASI') {
+      return NextResponse.json({ error: 'Only doctors can create medical reports' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      patientId,
+      reportType,
+      diagnosis,
+      treatmentPlan,
+      chiefComplaint,
+      historyOfIllness,
+      physicalExamination,
+      differentialDx,
+      medications,
+      labOrders,
+      followUpPlan,
+      referrals,
+      recommendations,
+      riskFactors,
+      complications,
+      prognosis
+    } = body;
+
+    if (!patientId || !diagnosis) {
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, diagnosis' },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    const medicalReport = await prisma.medicalReport.create({
+      data: {
+        patientId,
+        doctorId: userId,
+        reportType: reportType || 'INITIAL_ASSESSMENT',
+        chiefComplaint: chiefComplaint || null,
+        historyOfIllness: historyOfIllness || null,
+        physicalExamination: physicalExamination || {},
+        diagnosis,
+        differentialDx: differentialDx || [],
+        treatmentPlan: treatmentPlan || null,
+        medications: medications || {},
+        labOrders: labOrders || [],
+        followUpPlan: followUpPlan || null,
+        referrals: referrals || [],
+        recommendations: recommendations || [],
+        riskFactors: riskFactors || [],
+        complications: complications || [],
+        prognosis: prognosis || null
+      },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        },
+        doctor: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(medicalReport, { status: 201 });
+  } catch (error) {
+    console.error('Error creating medical report:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/nutrition-patients/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'AHLI_GIZI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Only nutritionists can access this endpoint' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+
+    // PERBAIKAN 1: Langsung filter berdasarkan status RAWAT_INAP
+    const whereClause: any = {
+      status: status || 'RAWAT_INAP'
+    };
+
+    console.log('Fetching patients with status:', whereClause.status);
+
+    const patients = await prisma.patient.findMany({
+      where: whereClause,
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    console.log(`Found ${patients.length} patients with status RAWAT_INAP`);
+
+    const patientIds = patients.map(p => p.id);
+
+    // PERBAIKAN 2: Ambil handled patients tapi jangan filter terlalu ketat
+    const handledPatients = await prisma.handledPatient.findMany({
+      where: {
+        patientId: { in: patientIds }
+      },
+      orderBy: {
+        handledDate: 'desc'
+      },
+      distinct: ['patientId'],
+      select: {
+        patientId: true,
+        status: true,
+        diagnosis: true,
+        handledDate: true,
+        handledBy: true,
+        handler: {
+          select: { name: true, role: true }
+        }
+      }
+    });
+
+    const latestNutritionRecords = await prisma.nutritionRecord.findMany({
+      where: { patientId: { in: patientIds } },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['patientId']
+    });
+
+    // Ambil data visitasi terbaru untuk perhitungan energi
+    const latestVisitations = await prisma.visitation.findMany({
+      where: { patientId: { in: patientIds } },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['patientId'],
+      select: {
+        patientId: true,
+        energyRequirement: true,
+        calculatedBMI: true,
+        energyCalculationDetail: true,
+        weight: true,
+        height: true,
+        createdAt: true
+      }
+    });
+
+    // PERBAIKAN 3: Tidak filter lagi, langsung map semua pasien RAWAT_INAP
+    const combinedData = patients.map(patient => {
+      const handledInfo = handledPatients.find(hp => hp.patientId === patient.id);
+      const latestNutritionRecord = latestNutritionRecords.find(nr => nr.patientId === patient.id);
+      const latestVisitation = latestVisitations.find(v => v.patientId === patient.id);
+
+      return {
+        ...patient,
+        // Handled info (bisa null kalau belum ada)
+        handledStatus: handledInfo?.status || null,
+        handledDate: handledInfo?.handledDate || null,
+        diagnosis: handledInfo?.diagnosis || null,
+        handlingDoctor: handledInfo?.handler || null,
+        
+        // Nutrition records
+        latestNutritionRecord: latestNutritionRecord || null,
+        dietCompliance: latestNutritionRecord?.complianceScore || null,
+        calorieRequirement: latestNutritionRecord?.targetCalories || null,
+        dietPlan: latestNutritionRecord?.dietPlan || null,
+        
+        // Data dari visitasi perawat
+        latestEnergyCalculation: latestVisitation?.energyRequirement || patient.latestEnergyRequirement || null,
+        latestBMI: latestVisitation?.calculatedBMI || patient.latestBMI || null,
+        energyCalculationDetail: latestVisitation?.energyCalculationDetail || patient.lastEnergyCalculation || null,
+        lastWeightUpdate: latestVisitation?.createdAt || null,
+        currentWeight: latestVisitation?.weight || patient.weight || null,
+        currentHeight: latestVisitation?.height || patient.height || null
+      };
+    });
+
+    console.log(`Returning ${combinedData.length} patients to frontend`);
+
+    return NextResponse.json(combinedData);
+  } catch (error) {
+    console.error('Error fetching nutrition patients:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+
+// src/app/api/nutrition-records/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+// ============= TAMBAH METHOD GET =============
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    const where: any = {};
+    if (patientId) {
+      where.patientId = patientId;
+    }
+
+    const nutritionRecords = await prisma.nutritionRecord.findMany({
+      where,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true
+          }
+        },
+        nutritionist: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json(nutritionRecords);
+  } catch (error) {
+    console.error('Error fetching nutrition records:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch nutrition records' },
+      { status: 500 }
+    );
+  }
+}
+// ============================================
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+
+    if (userRole !== 'AHLI_GIZI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Only nutritionists can create nutrition records' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      patientId,
+      targetCalories,
+      dietPlan,
+      complianceScore,
+      weightChange,
+      recommendations,
+      nutritionGoals,
+      foodRecall,
+      dietaryPattern,
+      foodAllergies,
+      carbLimit,
+      proteinGoal,
+      fatLimit,
+      mealDistribution
+    } = body;
+
+    if (!patientId || !targetCalories) {
+      return NextResponse.json({ error: 'patientId and targetCalories are required' }, { status: 400 });
+    }
+
+    // Verify patient exists and is in appropriate status
+    const patient = await prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        status: {
+          in: ['RAWAT_INAP', 'RAWAT_JALAN']
+        }
+      }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found or not eligible for nutrition monitoring' }, { status: 404 });
+    }
+
+    const nutritionRecord = await prisma.nutritionRecord.create({
+      data: {
+        patientId,
+        nutritionistId: userId,
+        foodRecall: foodRecall || {},
+        dietaryPattern: dietaryPattern || null,
+        foodAllergies: foodAllergies || [],
+        targetCalories: parseInt(targetCalories),
+        carbLimit: carbLimit ? parseInt(carbLimit) : null,
+        proteinGoal: proteinGoal ? parseInt(proteinGoal) : null,
+        fatLimit: fatLimit ? parseInt(fatLimit) : null,
+        mealDistribution: mealDistribution ? {
+          breakfast: mealDistribution.breakfast || [],
+          morningSnack: mealDistribution.morningSnack || [],
+          lunch: mealDistribution.lunch || [],
+          afternoonSnack: mealDistribution.afternoonSnack || [],
+          dinner: mealDistribution.dinner || []
+        } : null,
+        dietPlan: dietPlan || null,
+        complianceScore: complianceScore ? parseInt(complianceScore) : null,
+        weightChange: weightChange ? parseFloat(weightChange) : null,
+        nutritionGoals: nutritionGoals || [],
+        recommendations: recommendations || []
+      },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        },
+        nutritionist: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (dietPlan) {
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: {
+          dietPlan: dietPlan,
+          calorieRequirement: parseInt(targetCalories)
+        }
+      });
+    }
+
+    return NextResponse.json(nutritionRecord, { status: 201 });
+  } catch (error) {
+    console.error('Error creating nutrition record:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/patient-complaints/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'ADMINISTRASI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+    const status = searchParams.get('status');
+
+    let whereClause: any = {};
+    
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
+    
+    if (status) {
+      whereClause.status = status;
+    }
+
+    const complaints = await prisma.patientRecord.findMany({
+      where: {
+        ...whereClause,
+        recordType: 'COMPLAINTS'
+      },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Transform PatientRecord to match PatientComplaint interface
+    const transformedComplaints = complaints.map(record => ({
+      id: record.id,
+      patientId: record.patientId,
+      complaint: record.content,
+      severity: (record.metadata as any)?.severity || 'RINGAN',
+      status: (record.metadata as any)?.status || 'BARU',
+      date: record.createdAt,
+      notes: (record.metadata as any)?.notes,
+      patient: record.patient
+    }));
+
+    return NextResponse.json(transformedComplaints);
+  } catch (error) {
+    console.error('Error fetching patient complaints:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'ADMINISTRASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { patientId, complaint, severity = 'RINGAN', notes } = body;
+
+    if (!patientId || !complaint) {
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, complaint' },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    // Create complaint as PatientRecord with COMPLAINTS type
+    const patientRecord = await prisma.patientRecord.create({
+      data: {
+        patientId,
+        recordType: 'COMPLAINTS',
+        title: `Keluhan - ${severity}`,
+        content: complaint,
+        metadata: {
+          severity,
+          status: 'BARU',
+          notes: notes || null
+        }
+      }
+    });
+
+    return NextResponse.json(patientRecord, { status: 201 });
+  } catch (error) {
+    console.error('Error creating patient complaint:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/patient-records/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+    const recordType = searchParams.get('type');
+    const limit = searchParams.get('limit');
+
+    const whereClause: any = {};
+    
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
+    
+    if (recordType) {
+      whereClause.recordType = recordType;
+    }
+
+    const records = await prisma.patientRecord.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: limit ? parseInt(limit) : undefined,
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        }
+      }
+    });
+
+    console.log(`  Fetched ${records.length} patient records`);
+
+    return NextResponse.json(records);
+  } catch (error) {
+    console.error('Error fetching patient records:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function POST(request: Request) {
+  let prismaClient = new PrismaClient();
+  
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    console.log('📥 Received patient record data:', body);
+
+    const {
+      patientId,
+      recordType,
+      title,
+      content,
+      metadata,
+      bloodSugar,
+      bloodPressure,
+      temperature,
+      heartRate,
+      weight,
+      medicationCompliance,
+      dietCompliance
+    } = body;
+
+    // Validasi required fields
+    if (!patientId || !recordType || !title) {
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, recordType, title' },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists
+    const patient = await prismaClient.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    // 🔧 FIX: Ensure vital signs data is saved to proper columns
+    const recordData: any = {
+      patientId,
+      recordType,
+      title,
+      content: content || '',
+      metadata: metadata || {}
+    };
+
+    // Add clinical data if provided
+    if (bloodSugar !== undefined && bloodSugar !== null) {
+      recordData.bloodSugar = parseFloat(bloodSugar);
+    }
+    
+    if (bloodPressure !== undefined && bloodPressure !== null) {
+      recordData.bloodPressure = String(bloodPressure);
+      console.log('  Saving Blood Pressure:', bloodPressure);
+    }
+    
+    if (temperature !== undefined && temperature !== null) {
+      recordData.temperature = parseFloat(temperature);
+      console.log('  Saving Temperature:', temperature);
+    }
+    
+    if (heartRate !== undefined && heartRate !== null) {
+      recordData.heartRate = parseInt(heartRate);
+      console.log('  Saving Heart Rate:', heartRate);
+    }
+    
+    if (weight !== undefined && weight !== null) {
+      recordData.weight = parseFloat(weight);
+    }
+    
+    if (medicationCompliance !== undefined && medicationCompliance !== null) {
+      recordData.medicationCompliance = parseInt(medicationCompliance);
+    }
+    
+    if (dietCompliance !== undefined && dietCompliance !== null) {
+      recordData.dietCompliance = parseInt(dietCompliance);
+    }
+
+    console.log('💾 Creating patient record with data:', recordData);
+
+    // Create patient record
+    const patientRecord = await prismaClient.patientRecord.create({
+      data: recordData
+    });
+
+    console.log('  Patient record created successfully:', patientRecord.id);
+    console.log('   - Blood Pressure:', patientRecord.bloodPressure);
+    console.log('   - Heart Rate:', patientRecord.heartRate);
+    console.log('   - Temperature:', patientRecord.temperature);
+
+    return NextResponse.json(patientRecord, { status: 201 });
+  } catch (error: any) {
+    console.error('❌ Detailed error creating patient record:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+
+    if (error.code === 'P2002') {
+      return NextResponse.json({ 
+        error: 'Duplicate entry detected' 
+      }, { status: 400 });
+    }
+
+    if (error.code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Foreign key constraint failed. Patient may not exist.' 
+      }, { status: 400 });
+    }
+
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    }, { status: 500 });
+  } finally {
+    await prismaClient.$disconnect();
+  }
+}
+
+export async function PATCH(request: Request) {
+  let prismaClient = new PrismaClient();
+  
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Missing required field: id' },
+        { status: 400 }
+      );
+    }
+
+    const updatedRecord = await prismaClient.patientRecord.update({
+      where: { id },
+      data: updateData
+    });
+
+    return NextResponse.json(updatedRecord);
+  } catch (error) {
+    console.error('Error updating patient record:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prismaClient.$disconnect();
+  }
+}
+
+// src/app/api/patients/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    // Get query parameters untuk filter
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get('activeOnly') === 'true';
+
+    // Filter pasien berdasarkan status AKTIF untuk farmasi
+    const whereClause: any = {};
+
+    if (activeOnly) {
+      whereClause.status = {
+        in: ['AKTIF', 'RAWAT_JALAN', 'RAWAT_INAP']
+      };
+    }
+
+    const patients = await prisma.patient.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        user: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(patients);
+  } catch (error) {
+    console.error('Error fetching patients:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST method tetap sama...
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can register patients.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      name,
+      birthDate,
+      gender,
+      phone,
+      address,
+      height,
+      weight,
+      diabetesType,
+      insuranceType,
+      smokingStatus,
+      allergies,
+      medicalHistory,
+      status,
+      complaint,
+      complaintSeverity
+    } = body;
+
+    if (!name || !birthDate || !gender || !insuranceType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
+        { status: 400 }
+      );
+    }
+
+    const lastPatient = await prisma.patient.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { mrNumber: true }
+    });
+
+    let nextNumber = 1001;
+    if (lastPatient?.mrNumber) {
+      const lastNumber = parseInt(lastPatient.mrNumber.replace('RM', ''));
+      nextNumber = lastNumber + 1;
+    }
+    const mrNumber = `RM${nextNumber.toString().padStart(4, '0')}`;
+
+    let bmi = null;
+    if (height && weight) {
+      const heightInMeters = parseFloat(height) / 100;
+      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
+      bmi = Math.round(bmi * 100) / 100;
+    }
+
+    const patient = await prisma.patient.create({
+      data: {
+        mrNumber,
+        name,
+        birthDate: new Date(birthDate),
+        gender,
+        phone: phone || null,
+        address: address || null,
+        height: height ? parseFloat(height) : null,
+        weight: weight ? parseFloat(weight) : null,
+        bmi: bmi,
+        diabetesType: diabetesType || null,
+        insuranceType,
+        smokingStatus: smokingStatus || 'TIDAK_MEROKOK',
+        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
+        medicalHistory: medicalHistory || null,
+        comorbidities: [],
+        status: status || 'AKTIF',
+        createdBy: (session.user as any).id,
+      }
+    });
+
+    await prisma.alert.create({
+      data: {
+        type: 'INFO',
+        category: 'SYSTEM',
+        message: `Pasien baru ${patient.name} (${patient.mrNumber}) terdaftar. Segera lakukan pemeriksaan awal.
+        Detail:
+        - Diabetes Type: ${patient.diabetesType || 'Belum diketahui'}
+        - Penjamin: ${patient.insuranceType}
+        - Alergi: ${patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(', ') : 'Tidak ada'}`,
+        patientId: patient.id,
+        priority: 'MEDIUM',
+        isRead: false
+      }
+    });
+
+    return NextResponse.json(patient, { status: 201 });
+
+    // if (complaint && complaint.trim()) {
+    //   await prisma.patientComplaint.create({
+    //     data: {
+    //       patientId: patient.id,
+    //       complaint: complaint.trim(),
+    //       severity: complaintSeverity || 'RINGAN',
+    //       status: 'BARU',
+    //       date: new Date()
+    //     }
+    //   });
+    // }
+
+    return NextResponse.json(patient, { status: 201 });
+  } catch (error) {
+    console.error('Error creating patient:', error);
+
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json({ error: 'Patient with this MR Number already exists' }, { status: 400 });
+    }
+
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({ error: 'Invalid reference data provided' }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
+  }
+}
+
+// src/app/api/visitations/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function POST(request: Request) {
+  const prismaLocal = new PrismaClient();
+
+  try {
+    console.log('=== POST VISITATION START ===');
+
+    const session = await getServerSession(authOptions);
+    console.log('Session:', JSON.stringify(session, null, 2));
+
+    if (!session?.user?.id) {
+      console.log('ERROR: No session');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = session.user.id;
+
+    console.log('User ID:', userId);
+    console.log('User role:', userRole);
+
+    if (userRole !== 'PERAWAT_RUANGAN' && userRole !== 'SUPER_ADMIN') {
+      console.log('ERROR: Invalid role');
+      return NextResponse.json({
+        error: 'Only room nurses can create visitation logs'
+      }, { status: 403 });
+    }
+
+    const nurse = await prismaLocal.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, role: true }
+    });
+
+    if (!nurse) {
+      console.log('ERROR: Nurse user not found in database');
+      return NextResponse.json({
+        error: 'User not found in database',
+        details: `User ID ${userId} does not exist`
+      }, { status: 404 });
+    }
+
+    console.log('Nurse found:', nurse);
+
+    const body = await request.json();
+    console.log('=== RECEIVED BODY ===');
+    console.log(JSON.stringify(body, null, 2));
+
+    const {
+      patientId,
+      shift,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      oxygenSaturation,
+      bloodSugar,
+      weight,
+      height,
+      medicationsGiven,
+      education,
+      complications,
+      notes,
+      dietCompliance,
+      dietIssues,
+      energyRequirement,
+      calculatedBMI,
+      calculatedBBI,
+      basalMetabolicRate,
+      activityLevel,
+      stressLevel,
+      stressFactor,
+      nutritionStatus,
+      energyCalculationDetail
+    } = body;
+
+    if (!patientId || !shift) {
+      console.log('ERROR: Missing required fields');
+      return NextResponse.json(
+        { error: 'Missing required fields: patientId, shift' },
+        { status: 400 }
+      );
+    }
+
+    console.log('Finding patient:', patientId);
+    const patient = await prismaLocal.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        id: true,
+        name: true,
+        mrNumber: true,
+        status: true
+      }
+    });
+
+    if (!patient) {
+      console.log('ERROR: Patient not found');
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    console.log('Patient found:', patient.name);
+
+    const visitationData: any = {
+      patientId,
+      nurseId: nurse.id,
+      shift,
+      temperature: temperature ? parseFloat(temperature) : null,
+      bloodPressure: bloodPressure || null,
+      heartRate: heartRate ? parseInt(heartRate) : null,
+      respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : null,
+      oxygenSaturation: oxygenSaturation ? parseInt(oxygenSaturation) : null,
+      bloodSugar: bloodSugar ? parseInt(bloodSugar) : null,
+      weight: weight ? parseFloat(weight) : null,
+      height: height ? parseInt(height) : null,
+      medicationsGiven: medicationsGiven || [],
+      nextVisitNeeded: false,
+      priority: 'NORMAL'
+    };
+
+    if (education !== null && education !== undefined) {
+      visitationData.education = education;
+    }
+
+    if (complications !== null && complications !== undefined) {
+      visitationData.complications = complications;
+      visitationData.nextVisitNeeded = true;
+      visitationData.priority = 'HIGH';
+    }
+
+    if (notes !== null && notes !== undefined) {
+      visitationData.notes = notes;
+    }
+
+    if (dietCompliance !== null && dietCompliance !== undefined) {
+      visitationData.dietCompliance = parseInt(dietCompliance);
+    }
+
+    if (dietIssues !== null && dietIssues !== undefined) {
+      visitationData.dietIssues = dietIssues;
+    }
+
+    // ENERGY CALCULATION DATA
+    if (energyRequirement) {
+      visitationData.energyRequirement = energyRequirement;
+    }
+    if (calculatedBMI) {
+      visitationData.calculatedBMI = calculatedBMI;
+    }
+    if (calculatedBBI) {
+      visitationData.calculatedBBI = calculatedBBI;
+    }
+    if (basalMetabolicRate) {
+      visitationData.basalMetabolicRate = basalMetabolicRate;
+    }
+    if (activityLevel) {
+      visitationData.activityLevel = activityLevel;
+    }
+    if (stressLevel) {
+      visitationData.stressLevel = stressLevel;
+    }
+    if (stressFactor) {
+      visitationData.stressFactor = stressFactor;
+    }
+    if (nutritionStatus) {
+      visitationData.nutritionStatus = nutritionStatus;
+    }
+    if (energyCalculationDetail) {
+      visitationData.energyCalculationDetail = energyCalculationDetail;
+    }
+
+    console.log('=== CREATING VISITATION ===');
+    console.log(JSON.stringify(visitationData, null, 2));
+
+    const visitation = await prismaLocal.$transaction(async (tx) => {
+      console.log('Transaction start...');
+
+      const newVisitation = await tx.visitation.create({
+        data: visitationData,
+        include: {
+          patient: {
+            select: {
+              id: true,
+              name: true,
+              mrNumber: true
+            }
+          },
+          nurse: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      console.log('Visitation created:', newVisitation.id);
+
+      // UPDATE PATIENT DATA
+      const patientUpdateData: any = {};
+
+      if (visitationData.weight) {
+        patientUpdateData.weight = visitationData.weight;
+        patientUpdateData.lastWeightUpdate = new Date();
+      }
+
+      if (visitationData.height) {
+        patientUpdateData.height = visitationData.height;
+        patientUpdateData.lastHeightUpdate = new Date();
+      }
+
+      if (visitationData.calculatedBMI) {
+        patientUpdateData.latestBMI = visitationData.calculatedBMI;
+        patientUpdateData.bmi = visitationData.calculatedBMI;
+      }
+
+      if (visitationData.energyRequirement) {
+        patientUpdateData.latestEnergyRequirement = visitationData.energyRequirement;
+        patientUpdateData.lastEnergyCalculation = visitationData.energyCalculationDetail;
+      }
+
+      if (visitationData.dietCompliance !== null) {
+        patientUpdateData.dietCompliance = visitationData.dietCompliance;
+      }
+
+      // Update patient jika ada data yang perlu diupdate
+      if (Object.keys(patientUpdateData).length > 0) {
+        console.log('Updating patient with:', patientUpdateData);
+        await tx.patient.update({
+          where: { id: patientId },
+          data: patientUpdateData
+        });
+      }
+
+      if (complications && complications.trim()) {
+        console.log('Creating complication alert...');
+        await tx.alert.create({
+          data: {
+            type: 'CRITICAL',
+            category: 'VITAL_SIGNS',
+            message: `Komplikasi terdeteksi pada pasien ${newVisitation.patient.name} (${newVisitation.patient.mrNumber}). Shift ${shift}: ${complications}`,
+            patientId,
+            priority: 'URGENT',
+            targetRole: 'DOKTER_SPESIALIS',
+            isRead: false
+          }
+        });
+      }
+
+      if (dietIssues && dietIssues.trim()) {
+        console.log('Creating diet alert...');
+
+        let alertPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' = 'HIGH';
+
+        if (dietCompliance !== null) {
+          const compliance = parseInt(dietCompliance);
+          if (compliance < 50) {
+            alertPriority = 'URGENT';
+          } else if (compliance >= 80) {
+            alertPriority = 'MEDIUM';
+          }
+        } 
+
+        const alertType: 'CRITICAL' | 'WARNING' | 'INFO' =
+          dietCompliance && parseInt(dietCompliance) < 50 ? 'CRITICAL' : 'WARNING';
+
+        await tx.alert.create({
+          data: {
+            type: alertType,
+            category: 'NUTRITION',
+            message: `Masalah diet dilaporkan oleh ${nurse.name} pada pasien ${newVisitation.patient.name} (${newVisitation.patient.mrNumber}) - Shift ${shift}: ${dietIssues}${dietCompliance ? `. Kepatuhan: ${dietCompliance}%` : ''}`,
+            patientId,
+            priority: alertPriority,
+            targetRole: 'AHLI_GIZI',
+            isRead: false
+          }
+        }); 
+      }
+
+      console.log('Transaction complete');
+      return newVisitation;
+    });
+
+    console.log('=== POST VISITATION SUCCESS ===');
+    return NextResponse.json(visitation, { status: 201 });
+
+  } catch (error: any) {
+    console.error('=== POST VISITATION ERROR ===');
+    console.error('Error name:', error?.name);
+    console.error('Error message:', error?.message);
+    console.error('Error code:', error?.code);
+    console.error('Error meta:', error?.meta);
+    console.error('Full error:', error);
+
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error?.message || 'Unknown error',
+      code: error?.code,
+      meta: error?.meta
+    }, { status: 500 });
+  } finally {
+    await prismaLocal.$disconnect();
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    // TAMBAH INI: Ambil patientId dari query parameter
+    const { searchParams } = new URL(request.url);
+    const patientId = searchParams.get('patientId');
+
+    // UBAH INI: Tambahkan filter where jika ada patientId
+    const whereClause = patientId ? { patientId } : {};
+
+    const visitations = await prisma.visitation.findMany({
+      where: whereClause, // TAMBAH filter ini
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true
+          }
+        },
+        nurse: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json(visitations);
+  } catch (error) {
+    console.error('Error fetching visitations:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to fetch visitations',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+export async function PUT(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'PERAWAT_RUANGAN' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Visitation ID required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const {
+      shift,
+      complaints,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      oxygenSaturation,
+      bloodSugar,
+      weight,
+      height,
+      medicationsGiven,
+      labResults,
+      actions,
+      complications,
+      education,
+      notes,
+      dietCompliance,
+      dietIssues,
+      energyRequirement,
+      calculatedBMI,
+      calculatedBBI,
+      basalMetabolicRate,
+      activityLevel,
+      stressLevel,
+      stressFactor,
+      nutritionStatus,
+      energyCalculationDetail
+    } = body;
+
+    // Check if visitation exists
+    const existingVisitation = await prisma.visitation.findUnique({
+      where: { id },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true
+          }
+        }
+      }
+    });
+
+    if (!existingVisitation) {
+      return NextResponse.json({ error: 'Visitation not found' }, { status: 404 });
+    }
+
+    // Use transaction for update operations
+    const updatedVisitation = await prisma.$transaction(async (tx) => {
+      const updated = await tx.visitation.update({
+        where: { id },
+        data: {
+          shift: shift || existingVisitation.shift,
+          complaints: complaints !== undefined ? complaints : existingVisitation.complaints,
+
+          // VITAL SIGNS - Field terpisah
+          temperature: temperature !== undefined ? (temperature ? parseFloat(temperature) : null) : existingVisitation.temperature,
+          bloodPressure: bloodPressure !== undefined ? bloodPressure : existingVisitation.bloodPressure,
+          heartRate: heartRate !== undefined ? (heartRate ? parseInt(heartRate) : null) : existingVisitation.heartRate,
+          respiratoryRate: respiratoryRate !== undefined ? (respiratoryRate ? parseInt(respiratoryRate) : null) : existingVisitation.respiratoryRate,
+          oxygenSaturation: oxygenSaturation !== undefined ? (oxygenSaturation ? parseInt(oxygenSaturation) : null) : existingVisitation.oxygenSaturation,
+          bloodSugar: bloodSugar !== undefined ? (bloodSugar ? parseInt(bloodSugar) : null) : existingVisitation.bloodSugar,
+          weight: weight !== undefined ? (weight ? parseFloat(weight) : null) : existingVisitation.weight,
+          height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
+
+          medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
+          labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
+          actions: actions !== undefined ? actions : existingVisitation.actions,
+          complications: complications !== undefined ? complications : existingVisitation.complications,
+          education: education !== undefined ? education : existingVisitation.education,
+          notes: notes !== undefined ? notes : existingVisitation.notes,
+          dietCompliance: dietCompliance !== undefined ? (dietCompliance ? parseInt(dietCompliance) : null) : existingVisitation.dietCompliance,
+          dietIssues: dietIssues !== undefined ? dietIssues : existingVisitation.dietIssues,
+
+          // ENERGY CALCULATION
+          energyRequirement: energyRequirement !== undefined ? energyRequirement : existingVisitation.energyRequirement,
+          calculatedBMI: calculatedBMI !== undefined ? calculatedBMI : existingVisitation.calculatedBMI,
+          calculatedBBI: calculatedBBI !== undefined ? calculatedBBI : existingVisitation.calculatedBBI,
+          basalMetabolicRate: basalMetabolicRate !== undefined ? basalMetabolicRate : existingVisitation.basalMetabolicRate,
+          activityLevel: activityLevel !== undefined ? activityLevel : existingVisitation.activityLevel,
+          stressLevel: stressLevel !== undefined ? stressLevel : existingVisitation.stressLevel,
+          stressFactor: stressFactor !== undefined ? stressFactor : existingVisitation.stressFactor,
+          nutritionStatus: nutritionStatus !== undefined ? nutritionStatus : existingVisitation.nutritionStatus,
+          energyCalculationDetail: energyCalculationDetail !== undefined ? energyCalculationDetail : existingVisitation.energyCalculationDetail,
+
+          nextVisitNeeded: complications ? true : existingVisitation.nextVisitNeeded,
+          priority: complications ? 'HIGH' : existingVisitation.priority
+        },
+        include: {
+          patient: {
+            select: {
+              id: true,
+              name: true,
+              mrNumber: true
+            }
+          },
+          nurse: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // UPDATE PATIENT DATA
+      const patientUpdateData: any = {};
+
+      // Update weight if changed
+      if (weight !== undefined && weight) {
+        const newWeight = parseFloat(weight);
+        if (newWeight !== existingVisitation.weight) {
+          patientUpdateData.weight = newWeight;
+          patientUpdateData.lastWeightUpdate = new Date();
+        }
+      }
+
+      // Update height if changed
+      if (height !== undefined && height) {
+        const newHeight = parseInt(height);
+        if (newHeight !== existingVisitation.height) {
+          patientUpdateData.height = newHeight;
+          patientUpdateData.lastHeightUpdate = new Date();
+        }
+      }
+
+      // Update BMI if changed
+      if (calculatedBMI !== undefined && calculatedBMI !== existingVisitation.calculatedBMI) {
+        patientUpdateData.latestBMI = calculatedBMI;
+        patientUpdateData.bmi = calculatedBMI;
+      }
+
+      // Update energy requirement if changed
+      if (energyRequirement !== undefined && energyRequirement !== existingVisitation.energyRequirement) {
+        patientUpdateData.latestEnergyRequirement = energyRequirement;
+        patientUpdateData.lastEnergyCalculation = energyCalculationDetail || existingVisitation.energyCalculationDetail;
+      }
+
+      // Update diet compliance if changed
+      if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
+        patientUpdateData.dietCompliance = dietCompliance ? parseInt(dietCompliance) : null;
+      }
+
+      // Update patient if there's data to update
+      if (Object.keys(patientUpdateData).length > 0) {
+        await tx.patient.update({
+          where: { id: existingVisitation.patientId },
+          data: patientUpdateData
+        });
+      }
+
+      // Create new alert if complications added/changed
+      if (complications && complications !== existingVisitation.complications) {
+        await tx.alert.create({
+          data: {
+            type: 'CRITICAL',
+            category: 'VITAL_SIGNS',
+            message: `Komplikasi diupdate pada pasien ${updated.patient.name} (${updated.patient.mrNumber}). Shift ${updated.shift}: ${complications}`,
+            patientId: existingVisitation.patientId,
+            priority: 'URGENT',
+            targetRole: 'DOKTER_SPESIALIS',
+            isRead: false
+          }
+        });
+      }
+
+      // Create new alert if diet issues added/changed
+      if (dietIssues && dietIssues !== existingVisitation.dietIssues) {
+        await tx.alert.create({
+          data: {
+            type: 'WARNING',
+            category: 'NUTRITION',
+            message: `Masalah diet diupdate pada pasien ${updated.patient.name} (${updated.patient.mrNumber}): ${dietIssues}${dietCompliance ? `. Kepatuhan diet: ${dietCompliance}%` : ''}`,
+            patientId: existingVisitation.patientId,
+            priority: 'HIGH',
+            targetRole: 'AHLI_GIZI',
+            isRead: false
+          }
+        });
+      }
+
+      return updated;
+    });
+
+    return NextResponse.json(updatedVisitation);
+  } catch (error) {
+    console.error('Error updating visitation:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'PERAWAT_RUANGAN' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Visitation ID required' }, { status: 400 });
+    }
+
+    await prisma.visitation.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ message: 'Visitation deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting visitation:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
+  }
+}

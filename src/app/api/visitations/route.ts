@@ -1,14 +1,10 @@
 // src/app/api/visitations/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-const prisma = new PrismaClient();
-
 export async function POST(request: Request) {
-  const prismaLocal = new PrismaClient();
-
   try {
     console.log('=== POST VISITATION START ===');
 
@@ -33,7 +29,7 @@ export async function POST(request: Request) {
       }, { status: 403 });
     }
 
-    const nurse = await prismaLocal.user.findUnique({
+    const nurse = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, role: true }
     });
@@ -89,7 +85,7 @@ export async function POST(request: Request) {
     }
 
     console.log('Finding patient:', patientId);
-    const patient = await prismaLocal.patient.findUnique({
+    const patient = await prisma.patient.findUnique({
       where: { id: patientId },
       select: {
         id: true,
@@ -145,7 +141,6 @@ export async function POST(request: Request) {
       visitationData.dietIssues = dietIssues;
     }
 
-    // ENERGY CALCULATION DATA
     if (energyRequirement) {
       visitationData.energyRequirement = energyRequirement;
     }
@@ -177,7 +172,7 @@ export async function POST(request: Request) {
     console.log('=== CREATING VISITATION ===');
     console.log(JSON.stringify(visitationData, null, 2));
 
-    const visitation = await prismaLocal.$transaction(async (tx) => {
+    const visitation = await prisma.$transaction(async (tx) => {
       console.log('Transaction start...');
 
       const newVisitation = await tx.visitation.create({
@@ -201,7 +196,6 @@ export async function POST(request: Request) {
 
       console.log('Visitation created:', newVisitation.id);
 
-      // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
 
       if (visitationData.weight) {
@@ -228,7 +222,6 @@ export async function POST(request: Request) {
         patientUpdateData.dietCompliance = visitationData.dietCompliance;
       }
 
-      // Update patient jika ada data yang perlu diupdate
       if (Object.keys(patientUpdateData).length > 0) {
         console.log('Updating patient with:', patientUpdateData);
         await tx.patient.update({
@@ -264,7 +257,7 @@ export async function POST(request: Request) {
           } else if (compliance >= 80) {
             alertPriority = 'MEDIUM';
           }
-        } 
+        }
 
         const alertType: 'CRITICAL' | 'WARNING' | 'INFO' =
           dietCompliance && parseInt(dietCompliance) < 50 ? 'CRITICAL' : 'WARNING';
@@ -279,7 +272,7 @@ export async function POST(request: Request) {
             targetRole: 'AHLI_GIZI',
             isRead: false
           }
-        }); 
+        });
       }
 
       console.log('Transaction complete');
@@ -303,8 +296,6 @@ export async function POST(request: Request) {
       code: error?.code,
       meta: error?.meta
     }, { status: 500 });
-  } finally {
-    await prismaLocal.$disconnect();
   }
 }
 
@@ -322,15 +313,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // TAMBAH INI: Ambil patientId dari query parameter
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
 
-    // UBAH INI: Tambahkan filter where jika ada patientId
     const whereClause = patientId ? { patientId } : {};
 
     const visitations = await prisma.visitation.findMany({
-      where: whereClause, // TAMBAH filter ini
+      where: whereClause,
       include: {
         patient: {
           select: {
@@ -361,10 +350,9 @@ export async function GET(request: Request) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
+
 export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -415,7 +403,6 @@ export async function PUT(request: Request) {
       energyCalculationDetail
     } = body;
 
-    // Check if visitation exists
     const existingVisitation = await prisma.visitation.findUnique({
       where: { id },
       include: {
@@ -433,15 +420,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Visitation not found' }, { status: 404 });
     }
 
-    // Use transaction for update operations
     const updatedVisitation = await prisma.$transaction(async (tx) => {
       const updated = await tx.visitation.update({
         where: { id },
         data: {
           shift: shift || existingVisitation.shift,
           complaints: complaints !== undefined ? complaints : existingVisitation.complaints,
-
-          // VITAL SIGNS - Field terpisah
           temperature: temperature !== undefined ? (temperature ? parseFloat(temperature) : null) : existingVisitation.temperature,
           bloodPressure: bloodPressure !== undefined ? bloodPressure : existingVisitation.bloodPressure,
           heartRate: heartRate !== undefined ? (heartRate ? parseInt(heartRate) : null) : existingVisitation.heartRate,
@@ -450,7 +434,6 @@ export async function PUT(request: Request) {
           bloodSugar: bloodSugar !== undefined ? (bloodSugar ? parseInt(bloodSugar) : null) : existingVisitation.bloodSugar,
           weight: weight !== undefined ? (weight ? parseFloat(weight) : null) : existingVisitation.weight,
           height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
-
           medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
           labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
           actions: actions !== undefined ? actions : existingVisitation.actions,
@@ -459,8 +442,6 @@ export async function PUT(request: Request) {
           notes: notes !== undefined ? notes : existingVisitation.notes,
           dietCompliance: dietCompliance !== undefined ? (dietCompliance ? parseInt(dietCompliance) : null) : existingVisitation.dietCompliance,
           dietIssues: dietIssues !== undefined ? dietIssues : existingVisitation.dietIssues,
-
-          // ENERGY CALCULATION
           energyRequirement: energyRequirement !== undefined ? energyRequirement : existingVisitation.energyRequirement,
           calculatedBMI: calculatedBMI !== undefined ? calculatedBMI : existingVisitation.calculatedBMI,
           calculatedBBI: calculatedBBI !== undefined ? calculatedBBI : existingVisitation.calculatedBBI,
@@ -470,7 +451,6 @@ export async function PUT(request: Request) {
           stressFactor: stressFactor !== undefined ? stressFactor : existingVisitation.stressFactor,
           nutritionStatus: nutritionStatus !== undefined ? nutritionStatus : existingVisitation.nutritionStatus,
           energyCalculationDetail: energyCalculationDetail !== undefined ? energyCalculationDetail : existingVisitation.energyCalculationDetail,
-
           nextVisitNeeded: complications ? true : existingVisitation.nextVisitNeeded,
           priority: complications ? 'HIGH' : existingVisitation.priority
         },
@@ -491,10 +471,8 @@ export async function PUT(request: Request) {
         }
       });
 
-      // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
 
-      // Update weight if changed
       if (weight !== undefined && weight) {
         const newWeight = parseFloat(weight);
         if (newWeight !== existingVisitation.weight) {
@@ -503,7 +481,6 @@ export async function PUT(request: Request) {
         }
       }
 
-      // Update height if changed
       if (height !== undefined && height) {
         const newHeight = parseInt(height);
         if (newHeight !== existingVisitation.height) {
@@ -512,24 +489,20 @@ export async function PUT(request: Request) {
         }
       }
 
-      // Update BMI if changed
       if (calculatedBMI !== undefined && calculatedBMI !== existingVisitation.calculatedBMI) {
         patientUpdateData.latestBMI = calculatedBMI;
         patientUpdateData.bmi = calculatedBMI;
       }
 
-      // Update energy requirement if changed
       if (energyRequirement !== undefined && energyRequirement !== existingVisitation.energyRequirement) {
         patientUpdateData.latestEnergyRequirement = energyRequirement;
         patientUpdateData.lastEnergyCalculation = energyCalculationDetail || existingVisitation.energyCalculationDetail;
       }
 
-      // Update diet compliance if changed
       if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
         patientUpdateData.dietCompliance = dietCompliance ? parseInt(dietCompliance) : null;
       }
 
-      // Update patient if there's data to update
       if (Object.keys(patientUpdateData).length > 0) {
         await tx.patient.update({
           where: { id: existingVisitation.patientId },
@@ -537,7 +510,6 @@ export async function PUT(request: Request) {
         });
       }
 
-      // Create new alert if complications added/changed
       if (complications && complications !== existingVisitation.complications) {
         await tx.alert.create({
           data: {
@@ -552,7 +524,6 @@ export async function PUT(request: Request) {
         });
       }
 
-      // Create new alert if diet issues added/changed
       if (dietIssues && dietIssues !== existingVisitation.dietIssues) {
         await tx.alert.create({
           data: {
@@ -574,8 +545,6 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error updating visitation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -606,7 +575,5 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error deleting visitation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

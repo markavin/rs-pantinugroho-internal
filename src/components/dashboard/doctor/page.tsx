@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck, Clock } from 'lucide-react';
+import { Search, Plus, Bell, User, Calendar, Activity, TrendingUp, AlertCircle, FileText, Pill, Users, HeartPulse, Stethoscope, ClipboardList, Edit, Eye, Trash, Trash2, Menu, X, UserCheck, Clock, ChevronRight, ChevronLeft, History as HistoryIcon } from 'lucide-react';
 import HandledPatientForm from './HandledPatientForm';
 import DetailHandledPatientModal from './DetailHandledPatientModal';
 import SplashScreen from '@/components/SplashScreen';
+import SystemHistoryView from '../SystemHistoryView';
 
 interface Patient {
   id: string;
@@ -74,7 +75,6 @@ interface Alert {
   };
 }
 
-
 const DoctorDashboard = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [handledPatients, setHandledPatients] = useState<HandledPatient[]>([]);
@@ -82,12 +82,10 @@ const DoctorDashboard = () => {
   const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [handledSearchTerm, setHandledSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'handled-patients' | 'nutrition' | 'pharmacy' | 'nursing'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'handled-patients' | 'system-history'>('dashboard');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
-  const [patientStatusFilter, setPatientStatusFilter] = useState<
-    'ALL' | 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL'
-  >('ALL');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<'ALL' | 'AKTIF' | 'RAWAT_JALAN' | 'RAWAT_INAP' | 'RUJUK_KELUAR' | 'PULANG' | 'PULANG_PAKSA' | 'MENINGGAL'>('ALL');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSplash, setShowRefreshSplash] = useState(false);
@@ -99,12 +97,13 @@ const DoctorDashboard = () => {
   const [handledPatientFormMode, setHandledPatientFormMode] = useState<'add' | 'edit'>('add');
   const [patientHandledHistory, setPatientHandledHistory] = useState<HandledPatient[]>([]);
   const [loadingPatientHistory, setLoadingPatientHistory] = useState(false);
-  
-  // State untuk modal detail handled patient
   const [showDetailHandledModal, setShowDetailHandledModal] = useState(false);
   const [selectedPatientForDetail, setSelectedPatientForDetail] = useState<Patient | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [handledCurrentPage, setHandledCurrentPage] = useState(1);
+  const [handledItemsPerPage, setHandledItemsPerPage] = useState(10);
 
-  
   const fetchPatients = async () => {
     try {
       const response = await fetch('/api/patients');
@@ -133,19 +132,6 @@ const DoctorDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchPatients(),
-        fetchHandledPatients(),
-        fetchAlerts()
-      ]);
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
   const fetchAlerts = async () => {
     try {
       const response = await fetch('/api/alerts?role=DOKTER_SPESIALIS&unreadOnly=false');
@@ -162,6 +148,19 @@ const DoctorDashboard = () => {
       console.error('Error fetching alerts:', error);
     }
   };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchPatients(),
+        fetchHandledPatients(),
+        fetchAlerts()
+      ]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   const calculateAge = (birthDate: string) => {
     const today = new Date();
@@ -268,6 +267,55 @@ const DoctorDashboard = () => {
 
   const filteredPatients = getFilteredPatients();
 
+  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
   const filteredHandledPatients = handledPatients.filter(handledPatient => {
     const searchLower = handledSearchTerm.toLowerCase().trim();
     const matchesSearch = !searchLower || (
@@ -292,6 +340,62 @@ const DoctorDashboard = () => {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  const handledTotalPages = Math.ceil(filteredHandledPatients.length / handledItemsPerPage);
+  const handledStartIndex = (handledCurrentPage - 1) * handledItemsPerPage;
+  const handledEndIndex = handledStartIndex + handledItemsPerPage;
+  const paginatedHandledPatients = filteredHandledPatients.slice(handledStartIndex, handledEndIndex);
+
+  const handleHandledPageChange = (page: number) => {
+    setHandledCurrentPage(page);
+  };
+
+  const handleHandledItemsPerPageChange = (value: number) => {
+    setHandledItemsPerPage(value);
+    setHandledCurrentPage(1);
+  };
+
+  const getHandledPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (handledTotalPages <= maxVisible) {
+      for (let i = 1; i <= handledTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (handledCurrentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(handledTotalPages);
+      } else if (handledCurrentPage >= handledTotalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = handledTotalPages - 3; i <= handledTotalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(handledCurrentPage - 1);
+        pages.push(handledCurrentPage);
+        pages.push(handledCurrentPage + 1);
+        pages.push('...');
+        pages.push(handledTotalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
+
+  useEffect(() => {
+    setHandledCurrentPage(1);
+  }, [handledSearchTerm, handledItemsPerPage, statusFilter, priorityFilter]);
 
   const fetchPatientHandledHistory = async (patientId: string) => {
     setLoadingPatientHistory(true);
@@ -318,8 +422,6 @@ const DoctorDashboard = () => {
     setIsRefreshing(false);
   };
 
-
-
   const handleViewPatient = (patient: Patient) => {
     setSelectedPatient(patient);
     setShowPatientDetail(true);
@@ -338,7 +440,6 @@ const DoctorDashboard = () => {
     setShowHandledPatientForm(true);
   };
 
-  // Handler baru untuk lihat riwayat detail
   const handleViewHandledPatientHistory = (handledPatient: HandledPatient) => {
     setSelectedPatientForDetail(handledPatient.patient);
     fetchPatientHandledHistory(handledPatient.patientId);
@@ -369,7 +470,6 @@ const DoctorDashboard = () => {
 
           await fetchHandledPatients();
 
-          // Mark alerts as read
           try {
             const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
             if (alertsResponse.ok) {
@@ -408,7 +508,6 @@ const DoctorDashboard = () => {
 
           await Promise.all([fetchHandledPatients(), fetchPatients()]);
 
-          // Mark alerts as read
           try {
             const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
             if (alertsResponse.ok) {
@@ -431,7 +530,6 @@ const DoctorDashboard = () => {
 
           await fetchAlerts();
 
-          // Medical report creation code...
           if (formData.diagnosis?.trim()) {
             try {
               await fetch('/api/medical-reports', {
@@ -538,9 +636,7 @@ const DoctorDashboard = () => {
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Data Pasien', icon: Users },
     { key: 'handled-patients', label: 'Pasien Ditangani', icon: UserCheck },
-    { key: 'nutrition', label: 'Gizi', icon: TrendingUp },
-    { key: 'pharmacy', label: 'Farmasi', icon: Pill },
-    { key: 'nursing', label: 'Keperawatan', icon: HeartPulse }
+    { key: 'system-history', label: 'Riwayat Sistem', icon: HistoryIcon }
   ];
 
   return (
@@ -641,7 +737,7 @@ const DoctorDashboard = () => {
 
         <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-25 px-6 justify-center">
+            <nav className="-mb-px flex space-x-50 px-6 justify-center">
               {navigationItems.map(tab => {
                 const IconComponent = tab.icon;
                 return (
@@ -833,7 +929,7 @@ const DoctorDashboard = () => {
                   <input
                     type="text"
                     placeholder="Cari pasien..."
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64"
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-900"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -873,7 +969,7 @@ const DoctorDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPatients.map((patient) => (
+                  {paginatedPatients.map((patient) => (
                     <tr key={patient.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {patient.mrNumber}
@@ -911,10 +1007,67 @@ const DoctorDashboard = () => {
                   ))}
                 </tbody>
               </table>
+              {filteredPatients.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">Tampilkan</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                      className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                    <span className="text-sm text-gray-700">
+                      dari {filteredPatients.length} pasien
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+
+                    <div className="flex gap-1">
+                      {getPageNumbers().map((page, index) => (
+                        <button
+                          key={index}
+                          onClick={() => typeof page === 'number' && handlePageChange(page)}
+                          disabled={page === '...'}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage
+                            ? 'bg-green-600 text-white'
+                            : page === '...'
+                              ? 'cursor-default text-gray-400'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="lg:hidden space-y-4 p-4">
-              {filteredPatients.map((patient) => (
+              {paginatedPatients.map((patient) => (
                 <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -961,13 +1114,56 @@ const DoctorDashboard = () => {
                 </div>
               ))}
 
-              {filteredPatients.length === 0 && (
+              {paginatedPatients.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>Tidak ada pasien yang ditemukan</p>
                 </div>
               )}
             </div>
+            {/* Pagination untuk Mobile di tab Data Pasien */}
+            {filteredPatients.length > 0 && (
+              <div className="lg:hidden px-4 pb-4 border-t border-gray-200">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-700">Tampilkan</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-400 rounded-lg text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-gray-600" />
+                    </button>
+
+                    <span className="text-xs text-gray-700 px-2">
+                      {currentPage}/{totalPages}
+                    </span>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1147,7 +1343,7 @@ const DoctorDashboard = () => {
                         Riwayat Penanganan Pasien ({patientHandledHistory.length} kali ditangani)
                       </h4>
                     </div>
-      
+
                     {loadingPatientHistory ? (
                       <div className="text-center py-8">
                         <div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
@@ -1280,7 +1476,7 @@ const DoctorDashboard = () => {
                     <input
                       type="text"
                       placeholder="Cari pasien ditangani..."
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full md:w-64 text-gray-900"
                       value={handledSearchTerm}
                       onChange={(e) => setHandledSearchTerm(e.target.value)}
                     />
@@ -1372,7 +1568,7 @@ const DoctorDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredHandledPatients.map((handledPatient) => (
+                  {paginatedHandledPatients.map((handledPatient) => (
                     <tr key={handledPatient.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center">
@@ -1428,10 +1624,67 @@ const DoctorDashboard = () => {
                   ))}
                 </tbody>
               </table>
+              {filteredHandledPatients.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">Tampilkan</span>
+                    <select
+                      value={handledItemsPerPage}
+                      onChange={(e) => handleHandledItemsPerPageChange(Number(e.target.value))}
+                      className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                    <span className="text-sm text-gray-700">
+                      dari {filteredHandledPatients.length} pasien
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleHandledPageChange(handledCurrentPage - 1)}
+                      disabled={handledCurrentPage === 1}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+
+                    <div className="flex gap-1">
+                      {getHandledPageNumbers().map((page, index) => (
+                        <button
+                          key={index}
+                          onClick={() => typeof page === 'number' && handleHandledPageChange(page)}
+                          disabled={page === '...'}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${page === handledCurrentPage
+                            ? 'bg-green-600 text-white'
+                            : page === '...'
+                              ? 'cursor-default text-gray-400'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handleHandledPageChange(handledCurrentPage + 1)}
+                      disabled={handledCurrentPage === handledTotalPages}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="lg:hidden space-y-4 p-4">
-              {filteredHandledPatients.map((handledPatient) => (
+              {paginatedHandledPatients.map((handledPatient) => (
                 <div key={handledPatient.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-3">
@@ -1488,25 +1741,72 @@ const DoctorDashboard = () => {
                 </div>
               ))}
 
-              {filteredHandledPatients.length === 0 && (
+              {paginatedHandledPatients.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <UserCheck className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>Tidak ada pasien ditangani yang ditemukan</p>
                 </div>
               )}
             </div>
+            {filteredHandledPatients.length > 0 && (
+              <div className="lg:hidden px-4 pb-4 border-t border-gray-200">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-700">Tampilkan</span>
+                    <select
+                      value={handledItemsPerPage}
+                      onChange={(e) => handleHandledItemsPerPageChange(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-400 rounded-lg text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleHandledPageChange(handledCurrentPage - 1)}
+                      disabled={handledCurrentPage === 1}
+                      className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-gray-600" />
+                    </button>
+
+                    <span className="text-xs text-gray-700 px-2">
+                      {handledCurrentPage}/{handledTotalPages}
+                    </span>
+
+                    <button
+                      onClick={() => handleHandledPageChange(handledCurrentPage + 1)}
+                      disabled={handledCurrentPage === handledTotalPages}
+                      className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
         )}
 
-        {(activeTab === 'nutrition' || activeTab === 'pharmacy' || activeTab === 'nursing') && (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              {activeTab === 'nutrition' && 'Manajemen Gizi'}
-              {activeTab === 'pharmacy' && 'Manajemen Farmasi'}
-              {activeTab === 'nursing' && 'Manajemen Keperawatan'}
-            </h2>
-            <p className="text-gray-600">Fitur ini sedang dalam pengembangan.</p>
-          </div>
+        {activeTab === 'system-history' && (
+          <SystemHistoryView
+            patients={patients as any}
+            selectedPatient={selectedPatient as any}
+            onPatientSelect={(patient: any) => {
+              if (patient) {
+                const found = patients.find(p => p.id === patient.id);
+                if (found) setSelectedPatient(found);
+              } else {
+                setSelectedPatient(null);
+              }
+            }}
+          />
         )}
       </div>
 

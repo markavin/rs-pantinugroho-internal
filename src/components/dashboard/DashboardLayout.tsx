@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useToast } from '../../app/providers';
 import { getRoleTheme, ROLE_NAMES, type UserRole } from '@/lib/auth';
-import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle } from 'lucide-react';
+import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle, Lock, KeyRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Alert {
@@ -356,11 +356,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     const userEmail = session?.user?.email || '';
                     router.push(`/reset-password?mode=change&email=${encodeURIComponent(userEmail)}`);
                   }}
-                  className="hidden md:flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
                   title="Ganti Password"
                 >
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden lg:inline">Ganti Password</span>
+                  <KeyRound className="h-3 w-3 sm:h-4 sm:w-4 group-hover:scale-110 transition-transform" />
                 </button>
                 <button
                   onClick={handleLogout}
@@ -502,13 +501,24 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <p className="text-xs text-gray-500 mt-1">tugas menunggu</p>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex space-x-2">
+            <button
+              onClick={() => {
+                const userEmail = session?.user?.email || '';
+                router.push(`/reset-password?mode=change&email=${encodeURIComponent(userEmail)}`);
+              }}
+              className="flex-1 bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 group"
+            >
+              <KeyRound className="h-4 w-4 text-gray-500 group-hover:text-gray-600" />
+              <span className='text-sm'>Ganti Password</span>
+            </button>
+
             <button
               onClick={handleLogout}
-              className="w-full bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 group"
+              className="flex-1 bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 group"
             >
               <LogOut className="h-4 w-4 text-red-500 group-hover:text-red-600" />
-              <span>Logout</span>
+              <span className='text-sm'>Logout</span>
             </button>
           </div>
         </div>

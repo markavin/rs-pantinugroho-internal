@@ -85,7 +85,7 @@ export const useStaffManagement = () => {
         throw new Error(`Failed to delete staff: ${errorText}`);
       }
 
-      console.log('✅ Staff deleted successfully');
+      console.log('  Staff deleted successfully');
       
       // Remove from local state
       setStaff(prev => {

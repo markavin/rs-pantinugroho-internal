@@ -2,11 +2,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, User, Activity, History, Eye, Menu, X, FlaskConical, ClipboardCheck, Plus } from 'lucide-react';
+import { Search, User, Activity, History, Eye, Menu, X, FlaskConical, ClipboardCheck, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import PatientExaminationForm from '@/components/dashboard/nursePoli/PatientExaminationForm';
 import LabHistoryView from '@/components/dashboard/nursePoli/LabHistoryView';
 import SplashScreen from '@/components/SplashScreen';
 import { useSession } from 'next-auth/react';
+import SystemHistoryView from '../SystemHistoryView';
 
 interface Patient {
   id: string;
@@ -53,7 +54,7 @@ const NursePoliDashboard = () => {
   const { data: session } = useSession();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'history' | 'system-history'>('dashboard');
   const [stats, setStats] = useState<DashboardStats>({
     totalPatientsToday: 0,
     examinationsToday: 0,
@@ -62,12 +63,14 @@ const NursePoliDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
+
   const [showExaminationForm, setShowExaminationForm] = useState(false);
   const [selectedPatientForExam, setSelectedPatientForExam] = useState<Patient | null>(null);
-  
+
   const [selectedPatientForHistory, setSelectedPatientForHistory] = useState<Patient | null>(null);
-  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSplash, setShowRefreshSplash] = useState(false);
   const [recentExaminations, setRecentExaminations] = useState<PatientRecord[]>([]);
@@ -81,7 +84,7 @@ const NursePoliDashboard = () => {
       setLoading(true);
 
       let activePatientsData: Patient[] = [];
-      
+
       const patientsRes = await fetch('/api/patients?activeOnly=true');
       if (patientsRes.ok) {
         activePatientsData = await patientsRes.json();
@@ -102,15 +105,15 @@ const NursePoliDashboard = () => {
 
       if (recordsRes.ok) {
         const allRecords = await recordsRes.json();
-        
-        const vitalRecords = allRecords.filter((r: PatientRecord) => 
+
+        const vitalRecords = allRecords.filter((r: PatientRecord) =>
           r.recordType === 'VITAL_SIGNS' && new Date(r.createdAt) >= today
         );
         vitalSignsToday = vitalRecords.length;
 
         recentExams = allRecords
           .filter((r: PatientRecord) => r.recordType === 'VITAL_SIGNS')
-          .sort((a: PatientRecord, b: PatientRecord) => 
+          .sort((a: PatientRecord, b: PatientRecord) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           )
           .slice(0, 5);
@@ -120,7 +123,7 @@ const NursePoliDashboard = () => {
       if (labsRes.ok) {
         const allLabs = await labsRes.json();
         const labsToday = allLabs.filter((lab: any) => new Date(lab.testDate) >= today);
-        abnormalCount = labsToday.filter((lab: any) => 
+        abnormalCount = labsToday.filter((lab: any) =>
           lab.status === 'HIGH' || lab.status === 'LOW' || lab.status === 'CRITICAL'
         ).length;
       }
@@ -128,7 +131,7 @@ const NursePoliDashboard = () => {
       let waitingCount = 0;
       if (alertsRes.ok) {
         const alerts = await alertsRes.json();
-        waitingCount = alerts.filter((alert: any) => 
+        waitingCount = alerts.filter((alert: any) =>
           !alert.isRead && alert.category === 'SYSTEM'
         ).length;
       }
@@ -164,6 +167,11 @@ const NursePoliDashboard = () => {
     patient.mrNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
+
   const formatDate = (date: Date | string) => {
     if (!date) return '-';
     return new Date(date).toLocaleDateString('id-ID', {
@@ -181,10 +189,10 @@ const NursePoliDashboard = () => {
     });
   };
 
-  const handleTabChange = (tab: 'dashboard' | 'patients' | 'history') => {
+  const handleTabChange = (tab: 'dashboard' | 'patients' | 'history' | 'system-history') => {
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
-    
+
     if (tab !== 'history') setSelectedPatientForHistory(null);
   };
 
@@ -207,11 +215,60 @@ const NursePoliDashboard = () => {
     setActiveTab('history');
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
+
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'patients', label: 'Daftar Pasien', icon: User },
-    { key: 'history', label: 'Riwayat', icon: History }
+    { key: 'history', label: 'Riwayat Lab', icon: FlaskConical },
+    { key: 'system-history', label: 'Riwayat Sistem', icon: History }
   ];
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -222,9 +279,8 @@ const NursePoliDashboard = () => {
         />
       )}
 
-      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-sm font-semibold text-gray-900">Menu Perawat Poli</h2>
           <button
@@ -242,11 +298,10 @@ const NursePoliDashboard = () => {
               <button
                 key={item.key}
                 onClick={() => handleTabChange(item.key as any)}
-                className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${
-                  activeTab === item.key
-                    ? 'bg-green-100 text-green-700 border border-green-200'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                className={`flex items-center space-x- w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'text-gray-700 hover:bg-gray-100'
+                  }`}
               >
                 <IconComponent className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -312,18 +367,17 @@ const NursePoliDashboard = () => {
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8 px-6 justify-center">
+              <nav className="-mb-px flex space-x-55 px-6 justify-center">
                 {navigationItems.map(tab => {
                   const IconComponent = tab.icon;
                   return (
                     <button
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key as any)}
-                      className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                        activeTab === tab.key
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
-                      }`}
+                      className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
                       <IconComponent className="h-5 w-5" />
                       <span>{tab.label}</span>
@@ -440,7 +494,7 @@ const NursePoliDashboard = () => {
                     <input
                       type="text"
                       placeholder="Cari nama atau RM..."
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent w-full text-gray-900"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -462,7 +516,7 @@ const NursePoliDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredPatients.map((patient) => (
+                    {paginatedPatients.map((patient) => (
                       <tr key={patient.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{patient.mrNumber}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{patient.name}</td>
@@ -471,11 +525,10 @@ const NursePoliDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{patient.insuranceType}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' :
                             patient.status === 'RAWAT_JALAN' ? 'bg-blue-100 text-blue-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
                             {patient.status || 'AKTIF'}
                           </span>
                         </td>
@@ -500,7 +553,7 @@ const NursePoliDashboard = () => {
                   </tbody>
                 </table>
 
-                {filteredPatients.length === 0 && (
+                {paginatedPatients.length === 0 && (
                   <div className="text-center py-12 text-gray-500">
                     <User className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p className="text-lg font-medium mb-2">
@@ -511,7 +564,7 @@ const NursePoliDashboard = () => {
               </div>
 
               <div className="lg:hidden space-y-4 p-4">
-                {filteredPatients.map((patient) => (
+                {paginatedPatients.map((patient) => (
                   <div key={patient.id} className="bg-white border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
@@ -519,9 +572,8 @@ const NursePoliDashboard = () => {
                         <p className="text-sm text-gray-600">RM: {patient.mrNumber}</p>
                         <p className="text-sm text-gray-600">{patient.insuranceType}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${patient.status === 'AKTIF' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
                         {patient.status || 'AKTIF'}
                       </span>
                     </div>
@@ -544,18 +596,84 @@ const NursePoliDashboard = () => {
                   </div>
                 ))}
 
-                {filteredPatients.length === 0 && (
+                {paginatedPatients.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>{searchTerm ? 'Tidak ada pasien ditemukan' : 'Belum ada pasien aktif'}</p>
                   </div>
                 )}
               </div>
+
+              {filteredPatients.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">Tampilkan</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                      className="px-3 py-1 border border-gray-400 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                    <span className="text-sm text-gray-700">
+                      dari {filteredPatients.length} pasien
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+
+                    <div className="flex gap-1">
+                      {getPageNumbers().map((page, index) => (
+                        <button
+                          key={index}
+                          onClick={() => typeof page === 'number' && handlePageChange(page)}
+                          disabled={page === '...'}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                            page === currentPage
+                              ? 'bg-green-600 text-white'
+                              : page === '...'
+                              ? 'cursor-default text-gray-400'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}</button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'history' && (
             <LabHistoryView
+              patients={filteredPatients}
+              selectedPatient={selectedPatientForHistory}
+              onPatientSelect={setSelectedPatientForHistory}
+            />
+          )}
+
+          {activeTab === 'system-history' && (
+            <SystemHistoryView
               patients={filteredPatients}
               selectedPatient={selectedPatientForHistory}
               onPatientSelect={setSelectedPatientForHistory}

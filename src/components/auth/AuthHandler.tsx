@@ -18,7 +18,7 @@ export default function AuthHandler({ children }: AuthHandlerProps) {
     console.log('🔍 Session:', session);
 
     if (status === 'authenticated' && session) {
-      console.log('✅ User authenticated, redirecting to dashboard');
+      console.log('  User authenticated, redirecting to dashboard');
       router.push('/dashboard');
     }
   }, [session, status, router]);

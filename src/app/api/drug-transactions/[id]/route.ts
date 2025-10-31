@@ -6,7 +6,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// GET - Get transaction detail
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -67,11 +66,8 @@ export async function GET(
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal
+        quantity: item.quantity
       })),
-      totalAmount: transaction.totalAmount,
       status: transaction.status,
       createdAt: transaction.createdAt.toISOString(),
       completedAt: transaction.completedAt?.toISOString(),
@@ -88,7 +84,6 @@ export async function GET(
   }
 }
 
-// PUT - Edit transaction
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -125,7 +120,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { items, totalAmount, notes } = body;
+    const { items, notes } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -134,15 +129,6 @@ export async function PUT(
       );
     }
 
-    const calculatedTotal = items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
-    if (Math.abs(totalAmount - calculatedTotal) > 0.01) {
-      return NextResponse.json(
-        { error: 'Total amount does not match sum of item subtotals' },
-        { status: 400 }
-      );
-    }
-
-    // Validate drugs and check stock availability
     for (const item of items) {
       const drug = await prisma.drugData.findUnique({
         where: { id: item.drugId }
@@ -155,12 +141,10 @@ export async function PUT(
         );
       }
 
-      // Calculate stock difference for this drug
       const oldItem = existingTransaction.items.find(i => i.drugId === item.drugId);
       const oldQuantity = oldItem?.quantity || 0;
       const stockDiff = item.quantity - oldQuantity;
 
-      // If we need more stock than before, check availability
       if (stockDiff > 0 && drug.stock < stockDiff) {
         return NextResponse.json(
           { error: `Insufficient stock for ${drug.name}. Available: ${drug.stock}, Required additional: ${stockDiff}` },
@@ -169,9 +153,7 @@ export async function PUT(
       }
     }
 
-    // Update transaction with stock adjustment
     const result = await prisma.$transaction(async (tx) => {
-      // Step 1: Return stock from old items
       for (const oldItem of existingTransaction.items) {
         await tx.drugData.update({
           where: { id: oldItem.drugId },
@@ -183,27 +165,22 @@ export async function PUT(
         });
       }
 
-      // Step 2: Delete old items
       await tx.drugTransactionItem.deleteMany({
         where: { transactionId: params.id }
       });
 
-      // Step 3: Create new items
       await Promise.all(
         items.map((item: any) =>
           tx.drugTransactionItem.create({
             data: {
               transactionId: params.id,
               drugId: item.drugId,
-              quantity: item.quantity,
-              price: item.price,
-              subtotal: item.subtotal
+              quantity: item.quantity
             }
           })
         )
       );
 
-      // Step 4: Deduct stock for new items
       for (const item of items) {
         await tx.drugData.update({
           where: { id: item.drugId },
@@ -215,11 +192,9 @@ export async function PUT(
         });
       }
 
-      // Step 5: Update transaction
       const updatedTransaction = await tx.drugTransaction.update({
         where: { id: params.id },
         data: {
-          totalAmount,
           notes: notes?.trim() || null
         },
         include: {
@@ -256,11 +231,8 @@ export async function PUT(
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal
+        quantity: item.quantity
       })),
-      totalAmount: result.totalAmount,
       status: result.status,
       createdAt: result.createdAt.toISOString(),
       completedAt: result.completedAt?.toISOString(),
