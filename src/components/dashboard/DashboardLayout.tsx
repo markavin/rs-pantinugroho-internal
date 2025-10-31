@@ -98,7 +98,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       console.error('Error marking alert as read:', error);
     }
   };
-
   const markAllAlertsAsRead = async () => {
     try {
       const unreadAlerts = alerts.filter(a => !a.isRead);

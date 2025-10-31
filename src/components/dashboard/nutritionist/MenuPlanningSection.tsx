@@ -285,7 +285,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="text"
                                   placeholder="Nama makanan"
-                                  className="col-span-3 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-3 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.name}
                                   onChange={(e) =>
                                     updateMealItem(key, menu.id, item.id, 'name', e.target.value)
@@ -294,7 +294,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="text"
                                   placeholder="Porsi"
-                                  className="col-span-2 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-2 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.portion}
                                   onChange={(e) =>
                                     updateMealItem(key, menu.id, item.id, 'portion', e.target.value)
@@ -303,7 +303,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="number"
                                   placeholder="Kal"
-                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.calories || ''}
                                   onChange={(e) =>
                                     updateMealItem(
@@ -318,7 +318,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="number"
                                   placeholder="K"
-                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.carbs || ''}
                                   onChange={(e) =>
                                     updateMealItem(
@@ -333,7 +333,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="number"
                                   placeholder="P"
-                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.protein || ''}
                                   onChange={(e) =>
                                     updateMealItem(
@@ -348,7 +348,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
                                 <input
                                   type="number"
                                   placeholder="L"
-                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                  className="col-span-1 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
                                   value={item.fat || ''}
                                   onChange={(e) =>
                                     updateMealItem(key, menu.id, item.id, 'fat', parseInt(e.target.value) || 0)

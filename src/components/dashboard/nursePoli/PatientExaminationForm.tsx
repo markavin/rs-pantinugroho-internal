@@ -1,4 +1,3 @@
-// src/components/dashboard/nursePoli/PatientExaminationForm.tsx
 import React, { useState, useEffect } from 'react';
 import { XCircle, Save, Send, Stethoscope, ClipboardList, Heart, FlaskConical, User, AlertCircle, TrendingUp, Activity } from 'lucide-react';
 
@@ -18,7 +17,8 @@ interface Patient {
   status?: string;
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   allergies?: string[];
-  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK'; // 👈 TAMBAHKAN
+  smokingStatus?: 'TIDAK_MEROKOK' | 'PEROKOK' | 'MANTAN_PEROKOK';
+  medicalHistory?: string;
   createdAt: Date;
 }
 
@@ -27,6 +27,20 @@ interface PatientExaminationFormProps {
   onClose: () => void;
   patient: Patient | null;
   onComplete: () => void;
+}
+
+interface PatientComplaint {
+  id: string;
+  patientId: string;
+  recordType: 'COMPLAINTS';
+  title: string;
+  content: string;
+  metadata?: {
+    severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
+    status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
+    notes?: string;
+  };
+  createdAt: Date;
 }
 
 interface LabTest {
@@ -46,6 +60,8 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
   const [sendToDoctor, setSendToDoctor] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showLabSection, setShowLabSection] = useState(false);
+  const [existingComplaints, setExistingComplaints] = useState<PatientComplaint[]>([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
 
   const [formData, setFormData] = useState({
     complaint: '',
@@ -95,7 +111,8 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && patient) {
+      fetchExistingComplaints(patient.id);
       setFormData({
         complaint: '',
         complaintSeverity: 'RINGAN',
@@ -128,7 +145,22 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
       setShowLabSection(false);
       setErrors({});
     }
-  }, [isOpen]);
+  }, [isOpen, patient]);
+
+  const fetchExistingComplaints = async (patientId: string) => {
+    setLoadingComplaints(true);
+    try {
+      const response = await fetch(`/api/patient-records?patientId=${patientId}&recordType=COMPLAINTS`);
+      if (response.ok) {
+        const data = await response.json();
+        setExistingComplaints(data);
+      }
+    } catch (error) {
+      console.error('Error fetching complaints:', error);
+    } finally {
+      setLoadingComplaints(false);
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -188,7 +220,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     setLoading(true);
 
     try {
-      // 1. Save complaint
       await fetch('/api/patient-records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,7 +235,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         })
       });
 
-      // 2. Save vital signs WITH SEAR B
       const vitalSigns = {
         bloodPressure: `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic}`,
         heartRate: parseInt(formData.heartRate),
@@ -238,8 +268,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
           metadata: vitalSigns
         })
       });
-      
-      // 3. Save lab results
+
       const labPromises: Promise<any>[] = [];
       let hasAbnormal = false;
       const abnormalTests: string[] = [];
@@ -291,7 +320,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
       }
       await Promise.all(labPromises);
 
-      // 4. HANYA jika ada hasil lab abnormal → kirim alert WARNING ke dokter
       if (hasAbnormal) {
         const abnormalAlertPayload = {
           type: abnormalTests.some(t => t.includes('CRITICAL')) ? 'CRITICAL' : 'WARNING',
@@ -319,11 +347,10 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         }
       }
 
-      // 5. HANYA jika checkbox "sendToDoctor" dicentang → kirim alert INFO
       if (sendToDoctor) {
         const doctorAlertPayload = {
           type: 'INFO',
-          message: `Pasien ${patient.name} (${patient.mrNumber}) siap diperiksa.\n\nKeluhan: ${formData.complaint.substring(0, 100)}...${hasAbnormal ? '\n\n⚠️ Catatan: Ada hasil lab abnormal' : '\n\nPemeriksaan awal sudah lengkap'}`,
+          message: `Pasien ${patient.name} (${patient.mrNumber}) siap diperiksa.\n\nKeluhan: ${formData.complaint.substring(0, 100)}...${hasAbnormal ? '\n\nCatatan: Ada hasil lab abnormal' : '\n\nPemeriksaan awal sudah lengkap'}`,
           patientId: patient.id,
           category: 'SYSTEM',
           priority: hasAbnormal ? 'HIGH' : 'MEDIUM',
@@ -369,7 +396,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
       }
 
       alert(
-        `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n📊 ${labPromises.length} hasil lab tersimpan.` : ''
+        `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n${labPromises.length} hasil lab tersimpan.` : ''
         }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim ke dokter.' : ''
         }${sendToDoctor ? '\n\nNotifikasi telah dikirim ke dokter.' : ''
         }`
@@ -439,56 +466,48 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     const bpRow = Math.max(120, Math.min(180, Math.round(systolic / 20) * 20));
 
     const RISK_MATRIX: any = {
-      // TANPA DIABETES - LAKI-LAKI - TIDAK MEROKOK
       'false-MALE-false': {
         40: { 120: [0, 0, 0, 0, 1], 140: [0, 0, 0, 1, 1], 160: [0, 0, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
         50: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [0, 1, 1, 2, 2], 180: [1, 1, 2, 2, 3] },
         60: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
         70: { 120: [1, 1, 1, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] }
       },
-      // TANPA DIABETES - LAKI-LAKI - MEROKOK
       'false-MALE-true': {
         40: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [0, 1, 1, 2, 2], 180: [1, 1, 2, 2, 3] },
         50: { 120: [0, 1, 1, 2, 2], 140: [1, 1, 2, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
         60: { 120: [1, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] },
         70: { 120: [1, 2, 2, 2, 3], 140: [2, 2, 2, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 4, 4] }
       },
-      // TANPA DIABETES - PEREMPUAN - TIDAK MEROKOK
       'false-FEMALE-false': {
         40: { 120: [0, 0, 0, 0, 0], 140: [0, 0, 0, 0, 1], 160: [0, 0, 0, 1, 1], 180: [0, 0, 1, 1, 1] },
         50: { 120: [0, 0, 0, 1, 1], 140: [0, 0, 1, 1, 1], 160: [0, 1, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
         60: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [1, 1, 1, 2, 2], 180: [1, 1, 2, 2, 2] },
         70: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 2, 3] }
       },
-      // TANPA DIABETES - PEREMPUAN - MEROKOK
       'false-FEMALE-true': {
         40: { 120: [0, 0, 0, 1, 1], 140: [0, 0, 1, 1, 1], 160: [0, 1, 1, 1, 2], 180: [0, 1, 1, 2, 2] },
         50: { 120: [0, 0, 1, 1, 1], 140: [0, 1, 1, 1, 2], 160: [1, 1, 1, 2, 2], 180: [1, 1, 2, 2, 2] },
         60: { 120: [0, 1, 1, 1, 2], 140: [1, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 2, 3] },
         70: { 120: [1, 1, 1, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 2, 3, 3] }
       },
-      // DENGAN DIABETES - LAKI-LAKI - TIDAK MEROKOK
       'true-MALE-false': {
         40: { 120: [0, 0, 1, 1, 2], 140: [0, 1, 1, 2, 2], 160: [1, 1, 2, 2, 3], 180: [1, 2, 2, 3, 3] },
         50: { 120: [1, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [2, 2, 2, 3, 3], 180: [2, 2, 3, 3, 4] },
         60: { 120: [1, 2, 2, 3, 3], 140: [2, 2, 3, 3, 3], 160: [2, 3, 3, 3, 4], 180: [3, 3, 3, 4, 4] },
         70: { 120: [2, 2, 3, 3, 4], 140: [2, 3, 3, 4, 4], 160: [3, 3, 4, 4, 4], 180: [3, 4, 4, 4, 4] }
       },
-      // DENGAN DIABETES - LAKI-LAKI - MEROKOK
       'true-MALE-true': {
         40: { 120: [1, 1, 2, 2, 3], 140: [1, 2, 2, 3, 3], 160: [2, 2, 3, 3, 3], 180: [2, 3, 3, 3, 4] },
         50: { 120: [2, 2, 2, 3, 3], 140: [2, 2, 3, 3, 4], 160: [2, 3, 3, 4, 4], 180: [3, 3, 4, 4, 4] },
         60: { 120: [2, 3, 3, 3, 4], 140: [3, 3, 3, 4, 4], 160: [3, 3, 4, 4, 4], 180: [3, 4, 4, 4, 4] },
         70: { 120: [3, 3, 4, 4, 4], 140: [3, 4, 4, 4, 4], 160: [4, 4, 4, 4, 4], 180: [4, 4, 4, 4, 4] }
       },
-      // DENGAN DIABETES - PEREMPUAN - TIDAK MEROKOK
       'true-FEMALE-false': {
         40: { 120: [0, 0, 1, 1, 2], 140: [0, 1, 1, 2, 2], 160: [1, 1, 2, 2, 2], 180: [1, 2, 2, 2, 3] },
         50: { 120: [0, 1, 2, 2, 2], 140: [1, 1, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 3] },
         60: { 120: [1, 2, 2, 2, 3], 140: [2, 2, 2, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 3, 4] },
         70: { 120: [2, 2, 2, 3, 3], 140: [2, 2, 3, 3, 4], 160: [2, 3, 3, 4, 4], 180: [3, 3, 4, 4, 4] }
       },
-      // DENGAN DIABETES - PEREMPUAN - MEROKOK
       'true-FEMALE-true': {
         40: { 120: [0, 1, 2, 2, 2], 140: [1, 2, 2, 2, 3], 160: [1, 2, 2, 3, 3], 180: [2, 2, 3, 3, 3] },
         50: { 120: [1, 2, 2, 3, 3], 140: [2, 2, 3, 3, 3], 160: [2, 2, 3, 3, 4], 180: [2, 3, 3, 4, 4] },
@@ -530,6 +549,25 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     'Darah Lengkap': ['hemoglobin', 'leukosit']
   };
 
+  const formatDate = (date: Date | string) => {
+    return new Date(date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'BERAT': return 'bg-red-100 text-red-800 border-red-300';
+      case 'SEDANG': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'RINGAN': return 'bg-green-100 text-green-800 border-green-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
   if (!isOpen || !patient) return null;
 
   return (
@@ -559,9 +597,10 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-6">
             <div className="bg-white border border-green-300 rounded-lg p-4">
-              <div className="flex items-center space-x-3">
-                <User className="h-5 w-5 text-green-600" />
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+              <div className="flex items-start space-x-3">
+                <User className="h-5 w-5 text-green-600 mt-1" />
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-y-2 text-sm">
+                  {/* Baris 1 */}
                   <div>
                     <span className="text-gray-600">Nama:</span>{' '}
                     <span className="font-semibold text-gray-900">{patient.name}</span>
@@ -574,9 +613,32 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                     <span className="text-gray-600">Penjamin:</span>{' '}
                     <span className="font-semibold text-gray-900">{patient.insuranceType}</span>
                   </div>
+
+                  {/* Baris 2 */}
+                  <div>
+                    <span className="text-gray-600">Keluhan Sebelumnya:</span>{' '}
+                    {existingComplaints.length > 0 ? (
+                      <span className="font-semibold text-gray-900">
+                        {existingComplaints.map((complaint) => complaint.content).join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Alergi:</span>{' '}
+                    {patient.allergies?.length > 0 ? (
+                      <span className="font-semibold text-gray-900">
+                        {patient.allergies.join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+
 
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
@@ -631,7 +693,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   </select>
                 </div>
               </div>
-
             </div>
 
             <div className="border border-green-300 rounded-lg p-4 bg-white">
@@ -774,7 +835,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
               </div>
             </div>
 
-
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
@@ -785,7 +845,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
 
               {Object.entries(groupedTests).map(([category, tests]) => (
                 <div key={category}>
-                  <h5 className="font-medium text-gray-900 mb-2 mt-4 pb-2 border-b border-gray-200 ">
+                  <h5 className="font-medium text-gray-900 mb-2 mt-4 pb-2 border-b border-gray-200">
                     {category}
                   </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -838,9 +898,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
               </div>
             </div>
 
-
-
-            {/* SECTION 4: SEAR B - REPLACE ENTIRE SECTION */}
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
@@ -850,7 +907,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
               </div>
 
               <div className="p-3 space-y-3">
-                {/* Data Ringkas */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div className="bg-blue-50 border border-blue-200 rounded p-2">
                     <p className="text-xs text-gray-600">Umur</p>
@@ -858,7 +914,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   </div>
                   <div className="bg-purple-50 border border-purple-200 rounded p-2">
                     <p className="text-xs text-gray-600">Gender</p>
-                    <p className="text-lg font-bold text-purple-700">{patient.gender === 'MALE' ? '♂ Laki-laki' : '♀ Perempuan'}</p>
+                    <p className="text-lg font-bold text-purple-700">{patient.gender === 'MALE' ? 'Laki-laki' : 'Perempuan'}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-200 rounded p-2">
                     <p className="text-xs text-gray-600">Status Merokok</p>
@@ -888,7 +944,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   </div>
                 </div>
 
-                {/* Hasil Prediksi */}
                 {searBResult ? (
                   <div className={`rounded-lg border-2 p-4 ${searBResult.color}`}>
                     <div className="flex items-center justify-between">
@@ -914,16 +969,15 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   </div>
                 )}
 
-                {/* Panduan Chart */}
                 <details className="bg-gray-50 border border-gray-200 rounded-lg">
                   <summary className="p-3 cursor-pointer font-medium text-sm text-gray-700 hover:bg-gray-100">
-                    📖 Panduan Membaca Chart WHO SEAR B
+                    Panduan Membaca Chart WHO SEAR B
                   </summary>
                   <div className="p-3 border-t">
                     <img src="/sear-b-chart.png" alt="WHO SEAR B Chart" className="w-full rounded border" />
                     <p className="text-xs text-gray-600 mt-2">
-                      <strong>Cara:</strong> Pilih chart (diabetes/tanpa) → Pilih gender → Tentukan umur →
-                      Cari kolesterol (sumbu X) → Cari TD (sumbu Y) → Lihat warna zona risiko
+                      <strong>Cara:</strong> Pilih chart (diabetes/tanpa) - Pilih gender - Tentukan umur -
+                      Cari kolesterol (sumbu X) - Cari TD (sumbu Y) - Lihat warna zona risiko
                     </p>
                   </div>
                 </details>
@@ -936,7 +990,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
                   type="checkbox"
                   checked={sendToDoctor}
                   onChange={(e) => setSendToDoctor(e.target.checked)}
-                  className="mt-1 h-4 w-4 text-green-600 rounded focus:ring-2focus:ring-green-500"
+                  className="mt-1 h-4 w-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
                   disabled={loading}
                 />
                 <div>

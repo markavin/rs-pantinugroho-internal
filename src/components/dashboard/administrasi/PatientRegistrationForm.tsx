@@ -1,4 +1,3 @@
-// src/components/dashboard/admin/PatientRegistrationForm.tsx
 import React, { useState, useEffect } from 'react';
 import { X, Save, User, Calendar, Phone, MapPin, Heart, Shield, AlertCircle, Clock, ClipboardList } from 'lucide-react';
 
@@ -21,19 +20,18 @@ interface Patient {
   createdAt: Date;
 }
 
-// Updated PatientComplaint interface to match backend PatientRecord structure
 interface PatientComplaint {
   id: string;
   patientId: string;
-  complaint: string;
-  severity: 'RINGAN' | 'SEDANG' | 'BERAT';
-  status: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
-  date: Date;
-  notes?: string;
-  patient?: {
-    name: string;
-    mrNumber: string;
+  recordType: 'COMPLAINTS';
+  title: string;
+  content: string;
+  metadata?: {
+    severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
+    status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
+    notes?: string;
   };
+  createdAt: Date;
 }
 
 interface PatientRecord {
@@ -79,6 +77,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     selectedPatient?.allergies && selectedPatient.allergies.length > 0
   );
   const [patientComplaints, setPatientComplaints] = useState<PatientComplaint[]>([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
 
   const [patientData, setPatientData] = useState({
     name: selectedPatient?.name || '',
@@ -97,7 +96,6 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     complaintSeverity: 'RINGAN' as 'RINGAN' | 'SEDANG' | 'BERAT'
   });
 
-  // Fetch patient complaints when in edit or view mode
   useEffect(() => {
     if (selectedPatient && (formMode === 'edit' || formMode === 'view')) {
       fetchPatientComplaints();
@@ -107,14 +105,17 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
   const fetchPatientComplaints = async () => {
     if (!selectedPatient) return;
 
+    setLoadingComplaints(true);
     try {
-      const response = await fetch(`/api/patient-complaints?patientId=${selectedPatient.id}`);
+      const response = await fetch(`/api/patient-records?patientId=${selectedPatient.id}&recordType=COMPLAINTS`);
       if (response.ok) {
         const complaints = await response.json();
         setPatientComplaints(complaints);
       }
     } catch (error) {
       console.error('Error fetching patient complaints:', error);
+    } finally {
+      setLoadingComplaints(false);
     }
   };
 
@@ -153,6 +154,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     setAllergies(allergies.filter((_, i) => i !== index));
   };
 
+  // src/components/dashboard/admin/PatientRegistrationForm.tsx - bagian handleSubmit saja
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formMode === 'view') return;
@@ -161,7 +163,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
     setError('');
 
     try {
-      const payload = {
+      const payload: any = {
         name: patientData.name,
         birthDate: new Date(patientData.birthDate),
         gender: patientData.gender,
@@ -174,11 +176,21 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
         smokingStatus: patientData.smokingStatus,
         allergies: allergies.length > 0 ? allergies : undefined,
         medicalHistory: patientData.medicalHistory || undefined,
-        status: patientData.status,
-        complaint: formMode === 'add' ? (patientData.complaint || undefined) : undefined,
-        complaintSeverity: formMode === 'add' ? patientData.complaintSeverity : undefined,
-        complaints: formMode === 'edit' ? patientComplaints : undefined
+        status: patientData.status
       };
+
+      if (formMode === 'add') {
+        payload.complaint = patientData.complaint || undefined;
+        payload.complaintSeverity = patientData.complaintSeverity;
+      }
+
+      if (formMode === 'edit') {
+        payload.complaints = patientComplaints.map(c => ({
+          id: c.id,
+          content: c.content,
+          metadata: c.metadata
+        }));
+      }
 
       const url = formMode === 'edit' && selectedPatient
         ? `/api/patients/${selectedPatient.id}`
@@ -197,7 +209,6 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       if (response.ok) {
         const newPatient = await response.json();
 
-        // CREATE ALERT untuk Perawat Poli
         if (formMode === 'add') {
           await fetch('/api/alerts', {
             method: 'POST',
@@ -290,6 +301,16 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       case 'RINGAN': return 'bg-green-100 text-green-800 border-green-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
+  };
+
+  const formatDate = (date: Date | string) => {
+    return new Date(date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const isModal = !!onClose;
@@ -584,7 +605,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
               {selectedPatient?.allergies && selectedPatient.allergies.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {selectedPatient.allergies.map((allergy, index) => (
-                    <span key={index} className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                    <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                       {allergy}
                     </span>
                   ))}
@@ -601,7 +622,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowAllergyInput(true)}
-                    className="px-3 py-1 text-sm bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                    className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                   >
                     Tambah Alergi
                   </button>
@@ -622,7 +643,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                     <button
                       type="button"
                       onClick={handleAddAllergy}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       Tambah
                     </button>
@@ -643,12 +664,12 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                   {allergies.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {allergies.map((allergy, index) => (
-                        <span key={index} className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                        <span key={index} className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                           {allergy}
                           <button
                             type="button"
                             onClick={() => handleRemoveAllergy(index)}
-                            className="ml-2 text-orange-600 hover:text-orange-800"
+                            className="ml-2 text-gray-600 hover:text-gray-800"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -662,7 +683,6 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
           )}
         </div>
 
-        {/* Keluhan section - separate from status */}
         {formMode === 'add' && (
           <>
             <div className="md:col-span-2">
@@ -694,92 +714,97 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
           </>
         )}
 
-        {/* Display existing complaints in view/edit mode - separate from status */}
-        {(formMode === 'view' || formMode === 'edit') && patientComplaints.length > 0 && (
+        {(formMode === 'view' || formMode === 'edit') && (
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <div className="flex items-center space-x-2">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
                 <span>Keluhan Pasien</span>
               </div>
             </label>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-              {patientComplaints.map((complaint, index) => (
-                <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-3">
-                  {formMode === 'view' ? (
-                    <>
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <p className="text-gray-900 font-medium">{complaint.complaint}</p>
-                          {complaint.notes && (
-                            <p className="text-gray-600 text-sm mt-1">Catatan: {complaint.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 ml-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(complaint.severity)}`}>
-                            {complaint.severity}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{new Date(complaint.date).toLocaleDateString('id-ID', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}</span>
-                      </div>
-                    </>
-                  ) : (
-                    // Edit mode - make complaints editable
+            {loadingComplaints ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            ) : patientComplaints.length > 0 ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                {patientComplaints.map((complaint, index) => (
+                  <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-3">
                     <div className="space-y-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">
                           Keluhan
                         </label>
-                        <textarea
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
-                          rows={2}
-                          value={complaint.complaint}
-                          onChange={(e) => {
-                            const updatedComplaints = [...patientComplaints];
-                            updatedComplaints[index] = { ...complaint, complaint: e.target.value };
-                            setPatientComplaints(updatedComplaints);
-                          }}
-                        />
+                        {formMode === 'view' ? (
+                          <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                            {complaint.content}
+                          </div>
+                        ) : (
+                          <textarea
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
+                            rows={2}
+                            value={complaint.content}
+                            onChange={(e) => {
+                              const updatedComplaints = [...patientComplaints];
+                              updatedComplaints[index] = { ...complaint, content: e.target.value };
+                              setPatientComplaints(updatedComplaints);
+                            }}
+                          />
+                        )}
                       </div>
 
-                      {complaint.notes !== undefined && (
+                      {complaint.metadata?.notes !== undefined && (
                         <div>
                           <label className="block text-sm font-medium text-gray-600 mb-1">
                             Catatan
                           </label>
-                          <textarea
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
-                            rows={1}
-                            value={complaint.notes || ''}
-                            onChange={(e) => {
-                              const updatedComplaints = [...patientComplaints];
-                              updatedComplaints[index] = { ...complaint, notes: e.target.value };
-                              setPatientComplaints(updatedComplaints);
-                            }}
-                          />
+                          {formMode === 'view' ? (
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                              {complaint.metadata.notes || '-'}
+                            </div>
+                          ) : (
+                            <textarea
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
+                              rows={1}
+                              value={complaint.metadata.notes || ''}
+                              onChange={(e) => {
+                                const updatedComplaints = [...patientComplaints];
+                                updatedComplaints[index] = {
+                                  ...complaint,
+                                  metadata: {
+                                    ...complaint.metadata,
+                                    notes: e.target.value
+                                  }
+                                };
+                                setPatientComplaints(updatedComplaints);
+                              }}
+                            />
+                          )}
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Tingkat Keparahan
-                          </label>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Tingkat Keparahan
+                        </label>
+                        {formMode === 'view' ? (
+                          <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(complaint.metadata?.severity || 'RINGAN')}`}>
+                              {complaint.metadata?.severity || 'RINGAN'}
+                            </span>
+                          </div>
+                        ) : (
                           <select
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 text-sm"
-                            value={complaint.severity}
+                            value={complaint.metadata?.severity || 'RINGAN'}
                             onChange={(e) => {
                               const updatedComplaints = [...patientComplaints];
-                              updatedComplaints[index] = { ...complaint, severity: e.target.value as 'RINGAN' | 'SEDANG' | 'BERAT' };
+                              updatedComplaints[index] = {
+                                ...complaint,
+                                metadata: {
+                                  ...complaint.metadata,
+                                  severity: e.target.value as 'RINGAN' | 'SEDANG' | 'BERAT'
+                                }
+                              };
                               setPatientComplaints(updatedComplaints);
                             }}
                           >
@@ -787,62 +812,91 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                             <option value="SEDANG">Sedang</option>
                             <option value="BERAT">Berat</option>
                           </select>
-                        </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-gray-200">
                         <div className="flex items-center text-xs text-gray-500">
                           <Clock className="h-3 w-3 mr-1" />
-                          <span>{new Date(complaint.date).toLocaleDateString('id-ID', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}</span>
+                          <span>{formatDate(complaint.createdAt)}</span>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm('Yakin ingin menghapus keluhan ini?')) {
-                              const updatedComplaints = patientComplaints.filter((_, i) => i !== index);
-                              setPatientComplaints(updatedComplaints);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center space-x-1"
-                        >
-                          <X className="h-3 w-3" />
-                          <span>Hapus</span>
-                        </button>
+                        {formMode === 'edit' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('Yakin ingin menghapus keluhan ini?')) {
+                                const updatedComplaints = patientComplaints.filter((_, i) => i !== index);
+                                setPatientComplaints(updatedComplaints);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center space-x-1"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Hapus</span>
+                          </button>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))}
 
-              {formMode === 'edit' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newComplaint: PatientComplaint = {
-                      id: `temp_${Date.now()}`,
-                      patientId: selectedPatient?.id || '',
-                      complaint: '',
-                      severity: 'RINGAN',
-                      status: 'BARU',
-                      date: new Date(),
-                      notes: ''
-                    };
-                    setPatientComplaints([...patientComplaints, newComplaint]);
-                  }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors flex items-center justify-center space-x-2"
-                >
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Tambah Keluhan Baru</span>
-                </button>
-              )}
-            </div>
+                {formMode === 'edit' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newComplaint: PatientComplaint = {
+                        id: `temp_${Date.now()}`,
+                        patientId: selectedPatient?.id || '',
+                        recordType: 'COMPLAINTS',
+                        title: 'Keluhan Pasien',
+                        content: '',
+                        metadata: {
+                          severity: 'RINGAN',
+                          status: 'BARU',
+                          notes: ''
+                        },
+                        createdAt: new Date()
+                      };
+                      setPatientComplaints([...patientComplaints, newComplaint]);
+                    }}
+                    className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Tambah Keluhan Baru</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-gray-500">
+                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Belum ada keluhan yang tercatat</p>
+                {formMode === 'edit' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newComplaint: PatientComplaint = {
+                        id: `temp_${Date.now()}`,
+                        patientId: selectedPatient?.id || '',
+                        recordType: 'COMPLAINTS',
+                        title: 'Keluhan Pasien',
+                        content: '',
+                        metadata: {
+                          severity: 'RINGAN',
+                          status: 'BARU',
+                          notes: ''
+                        },
+                        createdAt: new Date()
+                      };
+                      setPatientComplaints([newComplaint]);
+                    }}
+                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Tambah Keluhan
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -861,13 +915,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
                 Tanggal Registrasi
               </label>
               <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                {new Date(selectedPatient.createdAt).toLocaleDateString('id-ID', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
+                {formatDate(selectedPatient.createdAt)}
               </div>
             </div>
           </>
@@ -876,7 +924,7 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
 
       {formMode !== 'view' && (
         <div className="text-xs text-gray-500 mt-4">
-          <span className="text-red-500">*</span> Field wajib diisi!!!
+          <span className="text-red-500">*</span> Field wajib diisi
         </div>
       )}
 

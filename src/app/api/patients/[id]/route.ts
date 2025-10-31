@@ -109,7 +109,7 @@ export async function PUT(
       diagnosisDate,
       insuranceType,
       insuranceNumber,
-      smokingStatus, // ← TAMBAHKAN INI
+      smokingStatus,
       allergies,
       medicalHistory,
       comorbidities,
@@ -119,10 +119,9 @@ export async function PUT(
       calorieRequirement,
       dietPlan,
       dietCompliance,
-      complaints // untuk update keluhan jika ada
+      complaints
     } = body;
 
-    // Validate required fields
     if (!name || !birthDate || !gender || !insuranceType) {
       return NextResponse.json(
         { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
@@ -130,7 +129,6 @@ export async function PUT(
       );
     }
 
-    // Calculate BMI if height and weight are provided
     let bmi = null;
     if (height && weight) {
       const heightInMeters = parseFloat(height) / 100;
@@ -138,7 +136,6 @@ export async function PUT(
       bmi = Math.round(bmi * 100) / 100;
     }
 
-    // Update patient data
     const patient = await prisma.patient.update({
       where: { id: params.id },
       data: {
@@ -155,7 +152,7 @@ export async function PUT(
         diagnosisDate: diagnosisDate ? new Date(diagnosisDate) : null,
         insuranceType,
         insuranceNumber: insuranceNumber || null,
-        smokingStatus: smokingStatus || 'TIDAK_MEROKOK', // ← TAMBAHKAN INI
+        smokingStatus: smokingStatus || 'TIDAK_MEROKOK',
         allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
         medicalHistory: medicalHistory || null,
         comorbidities: comorbidities && Array.isArray(comorbidities) && comorbidities.length > 0 ? comorbidities : [],
@@ -168,55 +165,30 @@ export async function PUT(
       }
     });
 
-    // Handle complaints update if provided (untuk edit mode)
     if (complaints && Array.isArray(complaints)) {
-      // Get existing complaints from DB
-      const existingComplaints = await prisma.patientRecord.findMany({
-        where: {
-          patientId: params.id,
-          recordType: 'COMPLAINTS'
-        }
-      });
-
-      // Delete complaints that are not in the update list
-      const updatedIds = complaints
-        .filter((c: any) => c.id && !c.id.startsWith('temp_'))
-        .map((c: any) => c.id);
-      
-      const toDelete = existingComplaints
-        .filter(ec => !updatedIds.includes(ec.id))
-        .map(ec => ec.id);
-
-      if (toDelete.length > 0) {
-        await prisma.patientRecord.deleteMany({
-          where: {
-            id: { in: toDelete }
-          }
-        });
-      }
-
-      // Update or create complaints
       for (const complaint of complaints) {
+        if (!complaint.content || !complaint.content.trim()) {
+          continue;
+        }
+
         const complaintData = {
           patientId: params.id,
           recordType: 'COMPLAINTS' as const,
           title: 'Keluhan Pasien',
-          content: complaint.complaint,
+          content: complaint.content.trim(),
           metadata: {
-            severity: complaint.severity,
-            status: complaint.status || 'BARU',
-            notes: complaint.notes || ''
+            severity: complaint.metadata?.severity || 'RINGAN',
+            status: complaint.metadata?.status || 'BARU',
+            notes: complaint.metadata?.notes || ''
           }
         };
 
         if (complaint.id && !complaint.id.startsWith('temp_')) {
-          // Update existing complaint
           await prisma.patientRecord.update({
             where: { id: complaint.id },
             data: complaintData
           });
         } else {
-          // Create new complaint
           await prisma.patientRecord.create({
             data: complaintData
           });
@@ -258,7 +230,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
-    // Check if patient exists and has related data
     const existingPatient = await prisma.patient.findUnique({
       where: { id: params.id },
       include: {
@@ -279,7 +250,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Check if patient has any related medical data
     const hasRelatedData = 
       existingPatient.handledBy.length > 0 ||
       existingPatient.drugTransactions.length > 0 ||
@@ -297,16 +267,13 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Delete patient and cascade delete alerts (if any)
     await prisma.$transaction(async (tx) => {
-      // Delete alerts first
       if (existingPatient.alerts.length > 0) {
         await tx.alert.deleteMany({
           where: { patientId: params.id }
         });
       }
 
-      // Delete patient
       await tx.patient.delete({
         where: { id: params.id }
       });

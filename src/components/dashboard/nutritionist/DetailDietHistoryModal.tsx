@@ -69,7 +69,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
 
   const fetchNutritionRecords = async () => {
     if (!patient) return;
-    
+
     setLoadingNutrition(true);
     try {
       const response = await fetch(`/api/nutrition-records?patientId=${patient.id}`);
@@ -239,7 +239,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
                     <div
                       className={`h-2 rounded-full ${record.complianceScore >= 80 ? 'bg-green-500' :
                         record.complianceScore >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
+                        }`}
                       style={{ width: `${record.complianceScore}%` }}
                     ></div>
                   </div>
@@ -248,13 +248,13 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
             </div>
           )}
 
-          {record.weightChange !== null && (
+          {record.weightChange !== null && record.weightChange !== undefined && (
             <div className="bg-white border border-blue-200 rounded p-3">
               <p className="text-xs text-blue-600 mb-1">Perubahan Berat Badan</p>
               <p className={`text-sm font-semibold ${record.weightChange > 0 ? 'text-red-600' :
                 record.weightChange < 0 ? 'text-green-600' : 'text-gray-600'
-              }`}>
-                {record.weightChange > 0 ? '+' : ''}{record.weightChange.toFixed(1)} kg
+                }`}>
+                {record.weightChange > 0 ? '+' : ''}{Number(record.weightChange).toFixed(1)} kg
               </p>
             </div>
           )}
@@ -265,7 +265,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
               <div className="space-y-2 text-xs">
                 {Object.entries(record.mealDistribution).map(([mealTime, items]: [string, any]) => {
                   if (!Array.isArray(items) || items.length === 0) return null;
-                  
+
                   const mealLabels: any = {
                     breakfast: 'Sarapan',
                     morningSnack: 'Snack Pagi',
@@ -341,7 +341,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
               <div
                 className={`h-3 rounded-full ${visit.dietCompliance >= 80 ? 'bg-green-500' :
                   visit.dietCompliance >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
+                  }`}
                 style={{ width: `${visit.dietCompliance}%` }}
               ></div>
             </div>
@@ -376,11 +376,11 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
 
     const avgCompliance = monitoringItems.length > 0
       ? Math.round(
-          monitoringItems
-            .filter(item => item.data.dietCompliance !== null)
-            .reduce((sum, item) => sum + (item.data.dietCompliance || 0), 0) /
-          Math.max(monitoringItems.filter(item => item.data.dietCompliance !== null).length, 1)
-        )
+        monitoringItems
+          .filter(item => item.data.dietCompliance !== null)
+          .reduce((sum, item) => sum + (item.data.dietCompliance || 0), 0) /
+        Math.max(monitoringItems.filter(item => item.data.dietCompliance !== null).length, 1)
+      )
       : null;
 
     return (
@@ -462,7 +462,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
                     <p className="text-xs text-gray-600 mb-0.5">Rata-rata</p>
                     <p className={`text-sm font-semibold text-center ${stats.avg >= 80 ? 'text-green-600' :
                       stats.avg >= 50 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
+                      }`}>
                       {stats.avg}%
                     </p>
                   </button>
@@ -488,7 +488,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-wrap">
               <label className="text-sm font-medium text-gray-700">Filter:</label>
-              
+
               <div className="flex items-center gap-2">
                 {[
                   { key: 'all', label: 'Semua' },
@@ -501,7 +501,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType === key
                       ? 'bg-blue-500 text-white shadow-sm'
                       : 'bg-white text-gray-700 hover:bg-blue-50 border border-gray-200'
-                    }`}
+                      }`}
                   >
                     {label}
                   </button>
@@ -538,7 +538,7 @@ const DetailDietHistoryModal: React.FC<DetailDietHistoryModalProps> = ({
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${timeRange === key
                     ? 'bg-green-500 text-white shadow-sm'
                     : 'bg-white text-gray-700 hover:bg-orange-50 border border-gray-200'
-                  }`}
+                    }`}
                 >
                   {label}
                 </button>

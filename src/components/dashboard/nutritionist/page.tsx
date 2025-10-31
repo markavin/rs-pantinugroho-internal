@@ -534,21 +534,21 @@ const NutritionistDashboard = () => {
   const renderPatients = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-       <div className="p-4 sm:p-6 border-b border-gray-100">
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien Aktif</h3>
-    <div className="relative w-full sm:w-auto sm:min-w-[250px] sm:max-w-[300px]">
-      <input
-        type="text"
-        placeholder="Cari pasien atau MR..."
-        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full text-gray-900"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-      <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-    </div>
-  </div>
-</div>
+        <div className="p-4 sm:p-6 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="text-lg font-semibold text-gray-900">Daftar Pasien Aktif</h3>
+            <div className="relative w-full sm:w-auto sm:min-w-[250px] sm:max-w-[300px]">
+              <input
+                type="text"
+                placeholder="Cari pasien atau MR..."
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 w-full text-gray-900"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            </div>
+          </div>
+        </div>
 
 
 
@@ -1297,17 +1297,30 @@ const NutritionistDashboard = () => {
                     <div className="min-w-[500px] h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
+                          key={`chart-${compliancePeriod}-${selectedPatient.id}`} // ← TAMBAH INI
                           data={selectedPatient.visitationHistory
                             .filter(v => v.dietCompliance !== null)
                             .slice(0, parseInt(compliancePeriod))
-                            .reverse()
-                            .map(visit => ({
+                            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                            .map((visit, index) => ({
+                              index: index,
                               date: new Date(visit.createdAt).toLocaleDateString('id-ID', {
                                 day: '2-digit',
                                 month: 'short'
                               }),
+                              fullDate: new Date(visit.createdAt).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'long',
+                                year: 'numeric'
+                              }),
+                              time: new Date(visit.createdAt).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }),
                               kepatuhan: visit.dietCompliance,
-                              shift: visit.shift
+                              shift: visit.shift,
+                              nurse: visit.nurse?.name || 'N/A',
+                              issues: visit.dietIssues || null
                             }))}
                           margin={{ top: 5, right: 20, left: 10, bottom: 40 }}
                         >
@@ -1324,15 +1337,46 @@ const NutritionistDashboard = () => {
                             tick={{ fontSize: 12 }}
                             label={{ value: 'Kepatuhan (%)', angle: -90, position: 'insideLeft' }}
                           />
+
                           <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'white',
-                              border: '2px solid #10B981',
-                              borderRadius: '8px',
-                              padding: '10px'
+                            cursor={{ stroke: '#10B981', strokeWidth: 2 }}
+                            content={({ active, payload }) => {
+                              if (!active || !payload || !payload[0]) return null;
+
+                              const data = payload[0].payload;
+
+                              return (
+                                <div className="bg-white p-3 border-2 border-green-500 rounded-lg shadow-xl">
+                                  <p className="font-bold text-green-700 text-sm mb-1">
+                                    {data.fullDate}
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-2">
+                                    {data.time} - Shift {data.shift}
+                                  </p>
+                                  <div className="bg-green-50 p-2 rounded mb-2 text-center">
+                                    <p className={`text-2xl font-bold ${data.kepatuhan >= 80 ? 'text-green-600' :
+                                      data.kepatuhan >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                      }`}>
+                                      {data.kepatuhan}%
+                                    </p>
+                                    <p className="text-xs text-gray-600">Kepatuhan Diet</p>
+                                  </div>
+                                  <p className="text-xs text-gray-600 border-t pt-2">
+                                    Perawat: {data.nurse}
+                                  </p>
+                                  {data.issues && (
+                                    <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-500 rounded">
+                                      <p className="text-xs font-semibold text-yellow-900">Kendala:</p>
+                                      <p className="text-xs text-yellow-800">
+                                        {data.issues.length > 60 ? data.issues.substring(0, 60) + '...' : data.issues}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
                             }}
-                            formatter={(value: number) => [`${value}%`, 'Kepatuhan']}
                           />
+
                           <Legend />
                           <Line
                             type="monotone"
@@ -1340,8 +1384,11 @@ const NutritionistDashboard = () => {
                             stroke="#10B981"
                             strokeWidth={3}
                             dot={{ fill: '#10B981', r: 4 }}
-                            activeDot={{ r: 6 }}
-                            name="Kepatuhan Diet"
+                            activeDot={{
+                              r: 6,
+                              onClick: (data) => console.log(data)
+                            }}
+                            name="Kepatuhan Diet (%)"
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -1561,18 +1608,48 @@ const NutritionistDashboard = () => {
                           )
                           : 0;
 
-                        await fetch('/api/nutrition-records', {
+                        console.log('Calculated avgCompliance:', avgCompliance);
+
+                        const nutritionResponse = await fetch('/api/nutrition-records', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             patientId: selectedPatient.id,
                             complianceScore: avgCompliance,
+                            targetCalories: selectedPatient.latestEnergyCalculation || selectedPatient.calorieRequirement,
+                            dietPlan: selectedPatient.dietPlan,
                             weightChange: monitoringForm.weight ?
                               parseFloat(monitoringForm.weight) - (selectedPatient.currentWeight || selectedPatient.weight || 0) : null,
-                            recommendations: [monitoringForm.evaluationNotes, monitoringForm.dietRevisionNotes].filter(Boolean)
+                            recommendations: [
+                              monitoringForm.evaluationNotes,
+                              monitoringForm.dietRevisionNotes
+                            ].filter(Boolean),
+                            foodRecall: {
+                              evaluationDate: monitoringForm.evaluationDate,
+                              complianceStatus: monitoringForm.complianceStatus,
+                              evaluationNotes: monitoringForm.evaluationNotes
+                            }
                           })
                         });
 
+                        if (!nutritionResponse.ok) {
+                          const errorData = await nutritionResponse.json();
+                          throw new Error(errorData.error || 'Failed to save nutrition record');
+                        }
+
+                        console.log('Nutrition record saved successfully');
+
+                        // 3. MARK ALERT AS READ jika ada diet issue
+                        if (selectedPatient.dietAlert?.id) {
+                          await fetch(`/api/alerts/${selectedPatient.dietAlert.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ isRead: true })
+                          });
+                          console.log('Alert marked as read');
+                        }
+
+                        // 4. Buat alert baru jika perlu revisi
                         if (monitoringForm.reviseDiet && monitoringForm.dietRevisionNotes) {
                           await fetch('/api/alerts', {
                             method: 'POST',
@@ -1586,11 +1663,14 @@ const NutritionistDashboard = () => {
                               targetRole: 'PERAWAT_RUANGAN'
                             })
                           });
+                          console.log('Revision alert created');
                         }
 
                         alert('Evaluasi berhasil disimpan!' + (monitoringForm.reviseDiet ? '\nAlert revisi diet telah dikirim ke perawat' : ''));
+
                         await fetchPatients();
 
+                        // 6. Reset form
                         setMonitoringForm({
                           evaluationDate: new Date().toISOString().split('T')[0],
                           weight: '',
@@ -1599,9 +1679,10 @@ const NutritionistDashboard = () => {
                           reviseDiet: false,
                           dietRevisionNotes: ''
                         });
+
                       } catch (error) {
                         console.error('Error saving evaluation:', error);
-                        alert('Gagal menyimpan evaluasi');
+                        alert('Gagal menyimpan evaluasi: ' + (error instanceof Error ? error.message : 'Unknown error'));
                       }
                     }}
                     disabled={!monitoringForm.evaluationNotes}

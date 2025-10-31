@@ -54,7 +54,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '3m' | '6m' | 'all'>('30d');
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '3m' | '6m' | 'all'>('all');
   const [expandedDates, setExpandedDates] = useState<{ [key: string]: boolean }>({});
   const [chartFilter, setChartFilter] = useState<{ [key: string]: boolean }>({});
   const [lastFetch, setLastFetch] = useState<Date>(new Date());
@@ -739,11 +739,11 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-gray-700">Rentang Waktu:</span>
           {[
+            { key: 'all', label: 'Semua' },
             { key: '7d', label: '7 Hari' },
             { key: '30d', label: '30 Hari' },
             { key: '3m', label: '3 Bulan' },
             { key: '6m', label: '6 Bulan' },
-            { key: 'all', label: 'Semua' },
           ].map(({ key, label }) => (
             <button
               key={key}

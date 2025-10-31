@@ -20,11 +20,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // Get query parameters untuk filter
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('activeOnly') === 'true';
 
-    // Filter pasien berdasarkan status AKTIF untuk farmasi
     const whereClause: any = {};
 
     if (activeOnly) {
@@ -54,7 +52,6 @@ export async function GET(request: Request) {
   }
 }
 
-// POST method tetap sama...
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -149,19 +146,21 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json(patient, { status: 201 });
-
-    // if (complaint && complaint.trim()) {
-    //   await prisma.patientComplaint.create({
-    //     data: {
-    //       patientId: patient.id,
-    //       complaint: complaint.trim(),
-    //       severity: complaintSeverity || 'RINGAN',
-    //       status: 'BARU',
-    //       date: new Date()
-    //     }
-    //   });
-    // }
+    if (complaint && complaint.trim()) {
+      await prisma.patientRecord.create({
+        data: {
+          patientId: patient.id,
+          recordType: 'COMPLAINTS',
+          title: 'Keluhan Pasien',
+          content: complaint.trim(),
+          metadata: {
+            severity: complaintSeverity || 'RINGAN',
+            status: 'BARU',
+            notes: ''
+          }
+        }
+      });
+    }
 
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {
