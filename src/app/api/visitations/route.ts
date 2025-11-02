@@ -245,6 +245,7 @@ export async function POST(request: Request) {
         });
       }
 
+
       if (dietIssues && dietIssues.trim()) {
         console.log('Creating diet alert...');
 
@@ -307,7 +308,7 @@ export async function GET(request: Request) {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -537,6 +538,8 @@ export async function PUT(request: Request) {
           }
         });
       }
+
+    
 
       return updated;
     });

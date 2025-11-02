@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, Activity, Pill, FileText, BookOpen, AlertTriangle, ChevronDown, Clock, Utensils, Calculator, Info } from 'lucide-react';
+import { X, Save, User, Activity, Pill, FileText, BookOpen, AlertTriangle, ChevronDown, Clock, Utensils, Calculator, Info, CheckCircle, Package } from 'lucide-react';
 import { Patient, Visitation } from '@prisma/client';
-// import DietComplianceChecker from './DietComplianceChecker';
-
 
 interface TambahVisitasiFormProps {
     isOpen: boolean;
@@ -63,6 +61,10 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
     const [activityLevel, setActivityLevel] = useState('ringan');
     const [stressLevel, setStressLevel] = useState('tidak_ada');
     const [showEnergyCalc, setShowEnergyCalc] = useState(false);
+    const [reportToDoctor, setReportToDoctor] = useState(false);
+    const [improvementNotes, setImprovementNotes] = useState('');
+    const [requestMedication, setRequestMedication] = useState(false);
+    const [medicationRequest, setMedicationRequest] = useState('');
 
     const stressDescriptions: { [key: string]: string } = {
         'tidak_ada': 'Tidak ada stres metabolik, kondisi stabil, status gizi normal',
@@ -109,6 +111,10 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
             setNotes(editData.notes || '');
             setDietCompliance(editData.dietCompliance?.toString() || '');
             setDietIssues(editData.dietIssues || '');
+            setReportToDoctor(false);
+            setImprovementNotes('');
+            setRequestMedication(false);
+            setMedicationRequest('');
         } else if (!isOpen) {
             resetForm();
         }
@@ -221,6 +227,14 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
             newErrors.patient = 'Pasien harus dipilih';
         }
 
+        if (reportToDoctor && !improvementNotes.trim()) {
+            newErrors.improvementNotes = 'Catatan perbaikan kondisi harus diisi';
+        }
+
+        if (requestMedication && !medicationRequest.trim()) {
+            newErrors.medicationRequest = 'Daftar obat yang diminta harus diisi';
+        }
+
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
@@ -228,6 +242,11 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
 
         setIsSubmitting(true);
         try {
+            const selectedPatientData = patients.find(p => p.id === selectedPatient);
+            if (!selectedPatientData) {
+                throw new Error('Data pasien tidak ditemukan');
+            }
+
             // Hitung BMI jika ada tinggi dan berat
             let calculatedBMI: number | null = null;
             if (vitalSigns.height && vitalSigns.weight) {
@@ -268,13 +287,11 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                     ? parseInt(vitalSigns.height)
                     : null,
 
-                // MEDICAL DATA
                 medicationsGiven: filteredMedications,
                 education: education?.trim() || null,
                 complications: complications?.trim() || null,
                 notes: notes?.trim() || null,
 
-                // DIET MONITORING
                 dietCompliance: dietCompliance?.trim() ? parseInt(dietCompliance) : null,
                 dietIssues: dietIssues?.trim() || null,
 
@@ -327,6 +344,49 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 throw new Error(responseData.error || responseData.details || `Server error: ${response.status}`);
             }
 
+            // Kirim alert untuk laporan perbaikan kondisi ke dokter
+            if (reportToDoctor && improvementNotes.trim()) {
+                const vitalSignsInfo = [
+                    vitalSigns.bloodPressure ? `- TD: ${vitalSigns.bloodPressure}` : null,
+                    vitalSigns.temperature ? `- Suhu: ${vitalSigns.temperature}°C` : null,
+                    vitalSigns.heartRate ? `- Nadi: ${vitalSigns.heartRate} bpm` : null,
+                    vitalSigns.respiratoryRate ? `- Pernapasan: ${vitalSigns.respiratoryRate} x/mnt` : null,
+                    vitalSigns.oxygenSaturation ? `- SpO2: ${vitalSigns.oxygenSaturation}%` : null,
+                    vitalSigns.bloodSugar ? `- GDS: ${vitalSigns.bloodSugar} mg/dL` : null
+                ].filter(Boolean).join('\n');
+
+                await fetch('/api/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'INFO',
+                        message: `Laporan perbaikan kondisi pasien ${selectedPatientData.name} (${selectedPatientData.mrNumber}):\n\n${improvementNotes}\n\n${vitalSignsInfo ? `Vital Signs Terbaru:\n${vitalSignsInfo}\n\n` : ''}Dimohon evaluasi untuk kemungkinan perubahan status perawatan.`,
+                        patientId: selectedPatient,
+                        category: 'VITAL_SIGNS',
+                        priority: 'MEDIUM',
+                        targetRole: 'DOKTER_SPESIALIS'
+                    })
+                });
+            }
+
+            // Kirim alert untuk request obat ke farmasi
+            if (requestMedication && medicationRequest.trim()) {
+                await fetch('/api/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'INFO',
+                        message: `Pasien rawat inap ${selectedPatientData.name} (${selectedPatientData.mrNumber}) memerlukan obat tambahan:\n\n${medicationRequest}\n\nSegera disiapkan dan koordinasikan dengan perawat ruangan.`,
+                        patientId: selectedPatient,
+                        category: 'MEDICATION',
+                        priority: 'HIGH',
+                        targetRole: 'FARMASI'
+                    })
+                });
+            }
+
+            await markRelatedAlertsAsRead(selectedPatient);
+
             alert(editData ? 'Visitasi berhasil diupdate!' : 'Visitasi berhasil disimpan!');
 
             resetForm();
@@ -339,6 +399,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
             setIsSubmitting(false);
         }
     };
+
     const resetForm = () => {
         setSelectedPatient('');
         setVisitationType('vital');
@@ -362,7 +423,37 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
         setShowEnergyCalc(false);
         setActivityLevel('ringan');
         setStressLevel('tidak_ada');
+        setReportToDoctor(false);
+        setImprovementNotes('');
+        setRequestMedication(false);
+        setMedicationRequest('');
         setErrors({});
+    };
+
+    const markRelatedAlertsAsRead = async (patientId: string) => {
+        try {
+            const alertsResponse = await fetch(
+                `/api/alerts?patientId=${patientId}&targetRole=PERAWAT_RUANGAN&unreadOnly=true`
+            );
+
+            if (alertsResponse.ok) {
+                const alerts = await alertsResponse.json();
+
+                await Promise.all(
+                    alerts.map((alert: any) =>
+                        fetch(`/api/alerts/${alert.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ isRead: true })
+                        })
+                    )
+                );
+
+                console.log(`Marked ${alerts.length} alerts as read after visitation`);
+            }
+        } catch (err) {
+            console.error('Error marking alerts as read:', err);
+        }
     };
 
     const getShiftBadge = (shift: string) => {
@@ -787,7 +878,6 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                             )}
                         </div>
 
-
                         <div className="bg-white border border-gray-300 rounded-lg p-4">
                             <div className="flex items-center mb-3">
                                 <Utensils className="h-5 w-5 text-green-600 mr-2" />
@@ -836,6 +926,113 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <label className="flex items-start space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={reportToDoctor}
+                                    onChange={(e) => setReportToDoctor(e.target.checked)}
+                                    className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center">
+                                        <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                                        <span className="font-medium text-gray-900">
+                                            Laporkan Perbaikan Kondisi ke Dokter
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Pasien menunjukkan perbaikan signifikan dan memerlukan evaluasi dokter untuk kemungkinan perubahan status perawatan
+                                    </p>
+                                </div>
+                            </label>
+
+                            {reportToDoctor && (
+                                <div className="mt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Catatan Perbaikan Kondisi <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 resize-none text-base text-gray-900 ${errors.improvementNotes ? 'border-red-300' : 'border-gray-300'}`}
+                                        rows={4}
+                                        placeholder="Contoh: Pasien sudah tidak demam selama 2 hari, vital signs stabil, sudah bisa mobilisasi mandiri, nafsu makan membaik..."
+                                        value={improvementNotes}
+                                        onChange={(e) => {
+                                            setImprovementNotes(e.target.value);
+                                            const newErrors = { ...errors };
+                                            delete newErrors.improvementNotes;
+                                            setErrors(newErrors);
+                                        }}
+                                    />
+                                    {errors.improvementNotes && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.improvementNotes}</p>
+                                    )}
+                                    <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded flex items-start">
+                                        <Info className="h-4 w-4 text-green-700 mr-2 mt-0.5 flex-shrink-0" />
+                                        <p className="text-xs text-green-800">
+                                            Alert akan dikirim ke Dokter Spesialis dengan priority MEDIUM untuk evaluasi lebih lanjut
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <label className="flex items-start space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={requestMedication}
+                                    onChange={(e) => setRequestMedication(e.target.checked)}
+                                    className="mt-1 h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center">
+                                        <Package className="h-5 w-5 text-yellow-600 mr-2" />
+                                        <span className="font-medium text-gray-900">
+                                            Request Obat Tambahan ke Farmasi
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Pasien memerlukan obat tambahan di luar resep dokter (untuk kondisi mendesak atau kebutuhan supportif)
+                                    </p>
+                                </div>
+                            </label>
+
+                            {requestMedication && (
+                                <div className="mt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Daftar Obat yang Diperlukan <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 resize-none text-base text-gray-900 ${errors.medicationRequest ? 'border-red-300' : 'border-gray-300'}`}
+                                        rows={4}
+                                        placeholder="Contoh: 
+- Paracetamol 500mg (demam tinggi mendadak)
+- Antasida syrup (keluhan mual/muntah)
+- Salep luka bakar (luka kecil dari infus)
+                                        
+Sertakan alasan kebutuhan untuk koordinasi dengan farmasi"
+                                        value={medicationRequest}
+                                        onChange={(e) => {
+                                            setMedicationRequest(e.target.value);
+                                            const newErrors = { ...errors };
+                                            delete newErrors.medicationRequest;
+                                            setErrors(newErrors);
+                                        }}
+                                    />
+                                    {errors.medicationRequest && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.medicationRequest}</p>
+                                    )}
+                                    <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded flex items-start">
+                                        <AlertTriangle className="h-4 w-4 text-yellow-700 mr-2 mt-0.5 flex-shrink-0" />
+                                        <p className="text-xs text-yellow-800">
+                                            Alert akan dikirim ke Farmasi dengan priority HIGH untuk segera disiapkan dan dikoordinasikan
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="bg-white border border-gray-300 rounded-lg p-4">
@@ -905,6 +1102,22 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                                         <span className="text-blue-600 font-medium">Kebutuhan Energi</span>
                                         <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
                                             {energyCalculation.totalEnergy} kkal/hari
+                                        </span>
+                                    </div>
+                                )}
+                                {reportToDoctor && improvementNotes.trim() && (
+                                    <div className="flex justify-between items-start pt-2 border-t border-gray-200">
+                                        <span className="text-green-600 font-medium">Laporan Perbaikan</span>
+                                        <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                                            Alert ke Dokter
+                                        </span>
+                                    </div>
+                                )}
+                                {requestMedication && medicationRequest.trim() && (
+                                    <div className="flex justify-between items-start pt-2 border-t border-gray-200">
+                                        <span className="text-yellow-600 font-medium">Request Obat</span>
+                                        <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                                            Alert ke Farmasi
                                         </span>
                                     </div>
                                 )}

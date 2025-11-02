@@ -1,11 +1,10 @@
-//src//components//dashboard//Dashboardlayout.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useToast } from '../../app/providers';
 import { getRoleTheme, ROLE_NAMES, type UserRole } from '@/lib/auth';
-import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle, Lock, KeyRound } from 'lucide-react';
+import { Bell, LogOut, Menu, X, Clock, User, Shield, Heart, AlertCircle, KeyRound, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Alert {
@@ -31,17 +30,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { data: session } = useSession();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationPreview, setShowNotificationPreview] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
   const router = useRouter();
   const userRole = session?.user?.role as UserRole;
   const roleTheme = getRoleTheme(userRole || 'SUPER_ADMIN');
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [changePasswordEmail, setChangePasswordEmail] = useState('');
-  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
-  const [changePasswordMessage, setChangePasswordMessage] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,6 +53,17 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       return () => clearInterval(interval);
     }
   }, [session]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotificationPreview(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchAlerts = async () => {
     try {
@@ -75,49 +82,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       }
     } catch (error) {
       console.error('Error fetching alerts:', error);
-    }
-  };
-
-  const markAlertAsRead = async (alertId: string) => {
-    try {
-      const response = await fetch(`/api/alerts/${alertId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isRead: true }),
-      });
-
-      if (response.ok) {
-        // Update state untuk reflect perubahan UI
-        const updatedAlerts = alerts.map(a =>
-          a.id === alertId ? { ...a, isRead: true } : a
-        );
-        setAlerts(updatedAlerts);
-        setUnreadCount(updatedAlerts.filter((a: Alert) => !a.isRead).length);
-      }
-    } catch (error) {
-      console.error('Error marking alert as read:', error);
-    }
-  };
-  const markAllAlertsAsRead = async () => {
-    try {
-      const unreadAlerts = alerts.filter(a => !a.isRead);
-
-      await Promise.all(
-        unreadAlerts.map(alert =>
-          fetch(`/api/alerts/${alert.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isRead: true }),
-          })
-        )
-      );
-
-      // Update state
-      const updatedAlerts = alerts.map(a => ({ ...a, isRead: true }));
-      setAlerts(updatedAlerts);
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all alerts as read:', error);
     }
   };
 
@@ -150,39 +114,17 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return { shift: 'Shift Malam', time: '19:00-07:00', color: 'text-purple-600 bg-purple-100' };
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setChangePasswordLoading(true);
-    setChangePasswordMessage('');
-
-    try {
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: changePasswordEmail }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        addToast({
-          message: 'Email verifikasi telah dikirim. Cek inbox Anda.',
-          type: 'success'
-        });
-        setShowChangePassword(false);
-        setChangePasswordEmail('');
-      } else {
-        setChangePasswordMessage(data.error || 'Gagal mengirim email');
-      }
-    } catch (error) {
-      setChangePasswordMessage('Terjadi kesalahan. Silakan coba lagi.');
-    } finally {
-      setChangePasswordLoading(false);
+  const getAlertColor = (type: string) => {
+    switch (type) {
+      case 'CRITICAL': return 'bg-red-100 border-red-200 text-red-700';
+      case 'WARNING': return 'bg-yellow-100 border-yellow-200 text-yellow-700';
+      default: return 'bg-blue-100 border-blue-200 text-blue-700';
     }
   };
 
   const shiftInfo = getShiftInfo();
   const unreadAlerts = alerts.filter(a => !a.isRead);
+  const recentAlerts = alerts.slice(0, 5);
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${roleTheme.gradient}`}>
@@ -233,9 +175,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
 
-              <div className="relative">
+              <div className="relative" ref={notificationRef}>
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={() => setShowNotificationPreview(!showNotificationPreview)}
                   className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -246,48 +188,57 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   )}
                 </button>
 
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-hidden origin-top-right animate-in fade-in zoom-in-95 flex flex-col">
-                    <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex-shrink-0">
+                {showNotificationPreview && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden flex flex-col" style={{ maxHeight: '500px' }}>
+                    <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50 flex-shrink-0">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">Notifikasi</h3>
-                        {unreadAlerts.length > 0 && (
-                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                            {unreadAlerts.length} Baru
-                          </span>
-                        )}
+                        <h3 className="font-semibold text-gray-900">Notifikasi Terbaru</h3>
+                        <div className="flex items-center gap-3">
+                          {unreadAlerts.length > 0 && (
+                            <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                              {unreadAlerts.length} Belum Dibaca
+                            </span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setShowNotificationPreview(false);
+                              router.push('/notifications');
+                            }}
+                            className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors flex items-center gap-1"
+                          >
+                            Lihat Semua
+                            <ChevronRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
-                      {alerts.length > 0 ? (
-                        alerts.map((alert) => (
+                    
+                    <div className="overflow-y-auto flex-1" style={{ maxHeight: '350px' }}>
+                      {recentAlerts.length > 0 ? (
+                        recentAlerts.map((alert) => (
                           <div
                             key={alert.id}
-                            className={`p-3 hover:bg-gray-50 transition-colors cursor-pointer ${!alert.isRead ? 'bg-blue-50' : ''
-                              }`}
-                            onClick={() => markAlertAsRead(alert.id)}
+                            className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${!alert.isRead ? 'bg-blue-50' : ''}`}
                           >
-                            <div className="flex items-start space-x-2">
-                              <div className={`p-1.5 rounded-lg flex-shrink-0 ${alert.type === 'CRITICAL' ? 'bg-red-100' :
-                                alert.type === 'WARNING' ? 'bg-yellow-100' :
-                                  'bg-blue-100'
-                                }`}>
-                                <AlertCircle className={`h-4 w-4 ${alert.type === 'CRITICAL' ? 'text-red-600' :
-                                  alert.type === 'WARNING' ? 'text-yellow-600' :
-                                    'text-blue-600'
-                                  }`} />
+                            <div className="flex items-start gap-3">
+                              <div className={`p-1.5 rounded-lg ${getAlertColor(alert.type)} flex-shrink-0`}>
+                                <AlertCircle className="h-4 w-4" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getAlertColor(alert.type)}`}>
+                                    {alert.type}
+                                  </span>
+                                  {!alert.isRead && (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                                      Baru
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-900 line-clamp-2 mb-1">
                                   {alert.message}
                                 </p>
-                                {alert.patient && (
-                                  <p className="text-xs text-gray-600 mt-1">
-                                    {alert.patient.name} ({alert.patient.mrNumber})
-                                  </p>
-                                )}
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500">
                                   {new Date(alert.createdAt).toLocaleString('id-ID', {
                                     day: 'numeric',
                                     month: 'short',
@@ -296,27 +247,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                                   })}
                                 </p>
                               </div>
-                              {!alert.isRead && (
-                                <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
-                              )}
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="p-8 text-center text-gray-500">
-                          <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Tidak ada notifikasi</p>
+                        <div className="p-8 text-center">
+                          <Bell className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-600">Belum ada notifikasi</p>
                         </div>
                       )}
                     </div>
-
-                    {alerts.length > 5 && (
-                      <div className="px-4 py-2 border-t border-gray-200 text-center bg-gray-50 flex-shrink-0">
-                        <button className="text-sm text-green-600 hover:text-green-700 font-medium">
-                          Lihat Semua
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -336,7 +276,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
                     <span className="hidden lg:inline xl:inline">{getGreeting()}, </span>
                     <span className="lg:hidden xl:hidden">Hi, </span>
-                    {session?.user?.name}!
+                    {session?.user?.name}
                   </p>
                   <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                     <Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
@@ -379,13 +319,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </div>
       </header>
-
-      {showNotifications && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setShowNotifications(false)}
-        />
-      )}
 
       <div className="lg:hidden bg-white/70 backdrop-blur-sm border-b border-white/20 px-3 sm:px-4 py-2 sm:py-3">
         <div className="flex items-center justify-between">
@@ -487,18 +420,28 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+          <button
+            onClick={() => {
+              router.push('/notifications');
+              setSidebarOpen(false);
+            }}
+            className="w-full bg-white rounded-lg p-3 border border-gray-100 shadow-sm hover:bg-gray-50 transition-colors"
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Bell className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium text-gray-800">Notifikasi</span>
               </div>
-              <div className="bg-red-100 text-red-800 px-2 py-1 rounded-md">
-                <span className="text-sm font-bold">{unreadAlerts.length}</span>
-              </div>
+              {unreadAlerts.length > 0 && (
+                <div className="bg-red-100 text-red-800 px-2 py-1 rounded-md">
+                  <span className="text-sm font-bold">{unreadAlerts.length}</span>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">tugas menunggu</p>
-          </div>
+            <p className="text-xs text-gray-500 mt-1 text-left">
+              {unreadAlerts.length > 0 ? `${unreadAlerts.length} tugas menunggu` : 'Tidak ada tugas baru'}
+            </p>
+          </button>
 
           <div className="pt-2 flex space-x-2">
             <button
@@ -556,63 +499,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </div>
       </footer>
-      {/* Change Password Modal */}
-      {showChangePassword && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Ganti Password</h3>
-              <button
-                onClick={() => {
-                  setShowChangePassword(false);
-                  setChangePasswordEmail('');
-                  setChangePasswordMessage('');
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Verifikasi Email
-                </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Masukkan email Anda untuk menerima link verifikasi ganti password
-                </p>
-                <input
-                  type="email"
-                  value={changePasswordEmail}
-                  onChange={(e) => setChangePasswordEmail(e.target.value)}
-                  placeholder="Email terdaftar"
-                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg focus:ring-2 focus:ring-green-500"
-                  required
-                  disabled={changePasswordLoading}
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Email: {session?.user?.email}
-                </p>
-              </div>
-
-              {changePasswordMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-red-700 text-sm">{changePasswordMessage}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={changePasswordLoading}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-              >
-                {changePasswordLoading ? 'Mengirim...' : 'Kirim Link Verifikasi'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

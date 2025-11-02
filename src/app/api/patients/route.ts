@@ -142,6 +142,7 @@ export async function POST(request: Request) {
         - Alergi: ${patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(', ') : 'Tidak ada'}`,
         patientId: patient.id,
         priority: 'MEDIUM',
+        targetRole: 'PERAWAT_POLI',
         isRead: false
       }
     });

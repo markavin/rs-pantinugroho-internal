@@ -12,10 +12,10 @@ function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string):
         case 'SEDANG_DITANGANI':
             return 'AKTIF';
         case 'KONSULTASI':
+        case 'STABIL':
             return 'RAWAT_JALAN';
         case 'OBSERVASI':
         case 'EMERGENCY':
-        case 'STABIL':
             return 'RAWAT_INAP';
         case 'RUJUK_KELUAR':
             return 'RUJUK_KELUAR';
@@ -58,7 +58,9 @@ export async function POST(request: Request) {
             priority,
             nextVisitDate,
             estimatedDuration,
-            specialInstructions
+            specialInstructions,
+            requestLabTests,
+            labTestsRequested
         } = body;
 
         if (!patientId) {
@@ -102,6 +104,54 @@ export async function POST(request: Request) {
             }
         });
 
+
+        if (requestLabTests && labTestsRequested && Array.isArray(labTestsRequested) && labTestsRequested.length > 0) {
+            console.log('Checking for existing lab request alerts...');
+
+            const existingAlerts = await prisma.alert.findMany({
+                where: {
+                    patientId: patient.id,
+                    category: 'LAB_RESULT',
+                    targetRole: 'PERAWAT_POLI',
+                    isRead: false,
+                    message: {
+                        contains: 'Permintaan pemeriksaan lab ulang'
+                    }
+                }
+            });
+
+            if (existingAlerts.length === 0) {
+                console.log('No existing unread lab request found, creating new alert...');
+                console.log('Lab tests requested:', labTestsRequested);
+
+                try {
+                    const labRequestAlert = await prisma.alert.create({
+                        data: {
+                            type: 'INFO',
+                            message: `Permintaan pemeriksaan lab ulang untuk ${patient.name} (${patient.mrNumber}).\n\nPemeriksaan yang diminta:\n${labTestsRequested.map((test: string) => `- ${test}`).join('\n')}\n\nSegera lakukan pemeriksaan lab.`,
+                            patientId: patient.id,
+                            category: 'LAB_RESULT',
+                            priority: 'HIGH',
+                            targetRole: 'PERAWAT_POLI',
+                            isRead: false
+                        }
+                    });
+
+                    console.log('Lab request notification created:', {
+                        alertId: labRequestAlert.id,
+                        patientName: patient.name,
+                        mrNumber: patient.mrNumber,
+                        testsCount: labTestsRequested.length,
+                        targetRole: 'PERAWAT_POLI'
+                    });
+                } catch (alertError) {
+                    console.error('Failed to create lab request alert:', alertError);
+                }
+            } else {
+                console.log(`Skipped creating duplicate alert. Found ${existingAlerts.length} existing unread lab request(s)`);
+            }
+        }
+
         return NextResponse.json(handledPatient, { status: 201 });
     } catch (error) {
         console.error('Error creating handled patient:', error);
@@ -143,15 +193,13 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
         const handledBy = searchParams.get('handledBy');
-        const patientId = searchParams.get('patientId'); // TAMBAH INI
+        const patientId = searchParams.get('patientId');
 
         let whereClause: any = {};
 
-        // TAMBAH: Jika ada patientId, ambil semua riwayat pasien tersebut
         if (patientId) {
             whereClause.patientId = patientId;
         } else {
-            // Logic normal untuk filter berdasarkan role
             if (userRole === 'DOKTER_SPESIALIS') {
                 whereClause.OR = [
                     { status: 'ANTRIAN' },
@@ -198,7 +246,7 @@ export async function GET(request: Request) {
                 }
             },
             orderBy: [
-                { handledDate: 'desc' } // Urutkan dari terbaru
+                { handledDate: 'desc' }
             ]
         });
 

@@ -852,39 +852,7 @@ async function main() {
   }
 
 
-  // Create Appointments
-  await prisma.appointment.createMany({
-    data: [
-      {
-        patientId: patient1.id,
-        appointmentDate: new Date('2024-09-05'),
-        appointmentTime: '10:00',
-        type: 'FOLLOW_UP',
-        status: 'SCHEDULED',
-        priority: 'HIGH',
-        notes: 'Evaluasi terapi dan keluhan gastrointestinal'
-      },
-      {
-        patientId: patient4.id,
-        appointmentDate: new Date('2024-09-10'),
-        appointmentTime: '14:00',
-        type: 'FOLLOW_UP',
-        status: 'SCHEDULED',
-        priority: 'NORMAL',
-        notes: 'Kontrol rutin diabetes tipe 1'
-      },
-      {
-        patientId: patient5.id,
-        appointmentDate: new Date('2024-09-15'),
-        appointmentTime: '09:00',
-        type: 'INITIAL_VISIT',
-        status: 'SCHEDULED',
-        priority: 'NORMAL',
-        notes: 'Evaluasi awal diabetes baru terdiagnosis'
-      }
-    ]
-  });
-
+  
   console.log('  Seeding finished!');
   console.log(`Created users: Admin, Doctor, Nurse (Ruangan & Poli), Nutritionist, Pharmacist, Administration, Manager`);
   console.log(`Created patients: ${patient1.name}, ${patient2.name}, ${patient3.name}, ${patient4.name}, ${patient5.name}`);
@@ -899,7 +867,6 @@ async function main() {
   console.log(`Created ${await prisma.drugData.count()} drug data entries`);
   console.log(`Created ${await prisma.drugTransaction.count()} drug transactions`);
   console.log(`Created ${await prisma.alert.count()} alerts`);
-  console.log(`Created ${await prisma.appointment.count()} appointments`);
 }
 
 main()

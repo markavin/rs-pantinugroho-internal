@@ -340,24 +340,24 @@ const AdministrasiDashboard = () => {
     return { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount };
   };
 
-  const createAlertForNewPatient = async (patientId: string, patientName: string) => {
-    try {
-      await fetch('/api/alerts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'INFO',
-          message: `Pasien baru ${patientName} terdaftar, segera lakukan pemeriksaan awal`,
-          patientId: patientId,
-          category: 'SYSTEM',
-          priority: 'MEDIUM',
-          targetRole: 'PERAWAT_POLI'
-        }),
-      });
-    } catch (error) {
-      console.error('Error creating alert:', error);
-    }
-  };
+  // const createAlertForNewPatient = async (patientId: string, patientName: string) => {
+  //   try {
+  //     await fetch('/api/alerts', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({
+  //         type: 'INFO',
+  //         message: `Pasien baru ${patientName} terdaftar, segera lakukan pemeriksaan awal`,
+  //         patientId: patientId,
+  //         category: 'SYSTEM',
+  //         priority: 'MEDIUM',
+  //         targetRole: 'PERAWAT_POLI'
+  //       }),
+  //     });
+  //   } catch (error) {
+  //     console.error('Error creating alert:', error);
+  //   }
+  // };
 
   const { activeCount, rujukKeluarCount, rawatJalanCount, rawatInapCount, pulangCount } = getStatusCounts();
 
@@ -545,7 +545,7 @@ const AdministrasiDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-blue-600">Total Pasien</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalPatients}</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">{patients.length}</p>
                       </div>
                       <div className="bg-blue-100 p-3 rounded-full">
                         <Users className="h-8 w-8 text-blue-600" />
@@ -567,7 +567,7 @@ const AdministrasiDashboard = () => {
                   <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-purple-600">Rujuk Balik</p>
+                        <p className="text-sm font-medium text-purple-600">Rujuk Keluar</p>
                         <p className="text-3xl font-bold text-gray-900 mt-2">{rujukKeluarCount}</p>
                       </div>
                       <div className="bg-purple-100 p-3 rounded-full">
@@ -680,7 +680,7 @@ const AdministrasiDashboard = () => {
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                       }`}
                   >
-                    Rujuk Balik ({rujukKeluarCount})
+                    Rujuk Keluar ({rujukKeluarCount})
                   </button>
                   <button
                     onClick={() => setPatientStatusFilter('PULANG')}

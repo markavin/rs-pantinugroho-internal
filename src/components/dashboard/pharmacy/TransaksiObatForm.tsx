@@ -139,10 +139,36 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   };
 
   useEffect(() => {
-    if (selectedPatient && prescriptionSource === 'DOCTOR_PRESCRIPTION') {
-      fetchPrescriptionAlerts(selectedPatient);
+    if (selectedPatient) {
+      if (prescriptionSource === 'DOCTOR_PRESCRIPTION') {
+        fetchPrescriptionAlerts(selectedPatient);
+      } else if (prescriptionSource === 'MANUAL') {
+        fetchNurseRequestAlerts(selectedPatient);
+      }
     }
   }, [selectedPatient, prescriptionSource]);
+
+  const fetchNurseRequestAlerts = async (patientId: string) => {
+    try {
+      const response = await fetch(
+        `/api/alerts?patientId=${patientId}&category=MEDICATION&targetRole=FARMASI&unreadOnly=true`
+      );
+      if (response.ok) {
+        const alerts = await response.json();
+        const nurseRequests = alerts.filter((a: any) =>
+          a.message.includes('memerlukan obat tambahan')
+        );
+
+        if (nurseRequests.length > 0) {
+          setSelectedPrescription(nurseRequests[0]);
+          setShowPrescriptionInfo(true);
+          parseAndFillPrescription(nurseRequests[0].message);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching nurse request alerts:', error);
+    }
+  };
 
   const fetchPrescriptionAlerts = async (patientId: string) => {
     try {
@@ -255,7 +281,35 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
 
       await onSave(transactionData);
 
-      if (selectedPrescription && prescriptionSource === 'DOCTOR_PRESCRIPTION') {
+      if (selectedPrescription && prescriptionSource === 'MANUAL') {
+        try {
+          await fetch(`/api/alerts/${selectedPrescription.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isRead: true })
+          });
+
+          const medicationList = items
+            .map(item => `- ${item.drugName}: ${item.quantity} unit`)
+            .join('\n');
+
+          await fetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'INFO',
+              message: `Obat tambahan yang diminta untuk pasien ${patient.name} (${patient.mrNumber}) sudah siap dan dapat diambil di farmasi.\n\nDaftar Obat:\n${medicationList}\n\nTotal: ${items.length} jenis obat, ${totalQuantity} unit\n\nSilakan ambil dan berikan kepada pasien sesuai kebutuhan.`,
+              patientId: selectedPatient,
+              category: 'MEDICATION',
+              priority: 'HIGH',
+              targetRole: 'PERAWAT_RUANGAN'
+            })
+          });
+        } catch (err) {
+          console.error('Error processing nurse request notification:', err);
+        }
+      }
+      else if (selectedPrescription && prescriptionSource === 'DOCTOR_PRESCRIPTION') {
         try {
           await fetch(`/api/alerts/${selectedPrescription.id}`, {
             method: 'PATCH',
@@ -266,6 +320,7 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
           console.error('Error marking prescription as processed:', err);
         }
       }
+
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -304,7 +359,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[95vh] overflow-y-auto">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-green-50">
           <div className="flex items-center space-x-3">
             <ShoppingCart className="h-6 w-6 text-green-600" />
@@ -326,7 +380,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
 
         <form onSubmit={handleSubmit} className="px-6 py-4">
           <div className="space-y-6">
-            {/* Patient Info */}
             <div className="border border-gray-300 rounded-lg p-4">
               <div className="flex items-center mb-3">
                 <User className="h-5 w-5 text-green-600 mr-2" />
@@ -551,7 +604,25 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               </div>
             )}
 
-            {/* Items Section */}
+            {prescriptionSource === 'MANUAL' && selectedPatient && selectedPrescription && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                <div className="flex items-start">
+                  <Info className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-yellow-900 mb-2">Request Obat dari Perawat</h4>
+                    <div className="bg-white rounded-lg p-3 border border-yellow-200 mb-3">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {selectedPrescription.message}
+                      </p>
+                    </div>
+                    <p className="text-xs text-yellow-800">
+                      Setelah transaksi selesai, notifikasi akan otomatis dikirim ke perawat bahwa obat sudah siap diambil
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white border border-gray-300 rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
@@ -694,7 +765,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               </div>
             </div>
 
-            {/* Notes */}
             <div>
               <label className="flex items-center gap-2 text-base font-medium text-gray-800 mb-2">
                 <FileText className="w-5 h-5 text-green-600" />
@@ -721,7 +791,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
               )}
             </div>
 
-            {/* Summary */}
             <div className="bg-white border border-green-400 rounded-xl p-5 shadow-md">
               <h4 className="font-semibold text-green-900 mb-4 flex items-center">
                 <ShoppingCart className="h-5 w-5 mr-2 text-green-600" />
@@ -758,7 +827,6 @@ const TransaksiObatForm: React.FC<TransaksiObatFormProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-end border-t border-gray-200 pt-6">
             <button
               type="button"

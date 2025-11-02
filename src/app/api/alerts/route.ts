@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
+    const targetRole = searchParams.get('targetRole');
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const patientId = searchParams.get('patientId');
     const category = searchParams.get('category');
@@ -28,9 +29,16 @@ export async function GET(request: Request) {
       whereClause.category = category;
     }
 
-    if (role && !category) {
-      whereClause.targetRole = role;
+    if (targetRole) {
+      whereClause.targetRole = targetRole;
+    } else if (role && !category && !patientId) {
+      whereClause.OR = [
+        { targetRole: role },
+        { targetRole: null }
+      ];
     }
+
+    console.log('Alert query whereClause:', JSON.stringify(whereClause, null, 2));
 
     const alerts = await prisma.alert.findMany({
       where: whereClause,
@@ -49,6 +57,8 @@ export async function GET(request: Request) {
       ],
       take: 100
     });
+
+    console.log('Found alerts:', alerts.length);
 
     return NextResponse.json(alerts);
   } catch (error) {
@@ -70,9 +80,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    
+
     console.log('Alert Request Body:', JSON.stringify(body, null, 2));
-    
+
     const {
       type,
       message,
@@ -90,7 +100,6 @@ export async function POST(request: Request) {
       hasPatientId: !!patientId
     });
 
-    // Validasi required fields
     if (!type || !message || !category) {
       return NextResponse.json(
         { error: 'Missing required fields: type, message, category' },
@@ -98,7 +107,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validasi enum values
     const validTypes = ['CRITICAL', 'WARNING', 'INFO'];
     const validCategories = [
       'SYSTEM',
@@ -144,11 +152,10 @@ export async function POST(request: Request) {
     }
 
     let finalTargetRole = null;
-    
+
     if (targetRole) {
       const trimmedRole = String(targetRole).trim();
-      
-      // Hanya set jika bukan string kosong atau 'null'
+
       if (trimmedRole && trimmedRole !== 'null' && trimmedRole !== 'undefined') {
         if (validRoles.includes(trimmedRole)) {
           finalTargetRole = trimmedRole;
@@ -165,9 +172,8 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log('✅ Final targetRole to save:', finalTargetRole);
+    console.log('Final targetRole to save:', finalTargetRole);
 
-    // Create alert
     const alert = await prisma.alert.create({
       data: {
         type,
@@ -188,7 +194,7 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log('✅ Alert created successfully:', {
+    console.log('Alert created successfully:', {
       id: alert.id,
       type: alert.type,
       targetRole: alert.targetRole,
@@ -197,7 +203,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(alert, { status: 201 });
   } catch (error) {
-    console.error('❌ Error creating alert:', error);
+    console.error('Error creating alert:', error);
     return NextResponse.json(
       { error: 'Failed to create alert', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }

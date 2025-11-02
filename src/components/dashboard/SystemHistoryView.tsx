@@ -662,7 +662,8 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                         {[
                             { key: 'all', label: 'Semua Role' },
                             { key: 'DOKTER', label: 'Dokter' },
-                            { key: 'PERAWAT', label: 'Perawat' },
+                            { key: 'PERAWAT_POLI', label: 'Perawat Poli' },
+                            { key: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
                             { key: 'AHLI_GIZI', label: 'Ahli Gizi' },
                             { key: 'FARMASI', label: 'Farmasi' },
                             { key: 'ADMINISTRASI', label: 'Administrasi' },

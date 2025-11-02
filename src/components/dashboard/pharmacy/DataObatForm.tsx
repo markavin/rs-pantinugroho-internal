@@ -68,20 +68,19 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
 
     // Dosage forms untuk dropdown
     const dosageForms = [
+        'Injection',
 
-        'Injeksi 100 IU/ml',
-        'Injeksi 300 IU/ml',
-        'Injeksi 200 IU/ml',
-
+        'Tablet',
+        'Tablet 60 mg MR',
         'Tablet 30 mg',
-        'Tablet 2 mg',
-        'Tablet 4 mg',
-        'Tablet 500 mg',
-        'Tablet 850 mg',
-        'Tablet 1000 mg',
-        'Tablet 15 mg'
-    ];
 
+        'Kapsul',
+        'Sirup',
+        'Suspensi',
+        'Larutan',
+        'Krim',
+        'Salep',
+    ];
     const categorieshamil = [
         'A',
         'B',
@@ -173,7 +172,7 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
             newErrors.stock = 'Jumlah stok harus lebih dari atau sama dengan 0';
         }
 
-    
+
         if (!formData.expiryDate?.trim()) {
             newErrors.expiryDate = 'Tanggal kedaluwarsa wajib diisi';
         } else {
@@ -351,8 +350,8 @@ const DataObatForm: React.FC<DataObatFormProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    
-                                    
+
+
                                 </div>
                             </div>
 

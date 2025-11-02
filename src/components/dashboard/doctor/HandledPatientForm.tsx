@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, Save, User, Calendar, Activity, AlertCircle, FileText, Edit, Eye, Trash2, Clock, Flag, CheckCircle2, Info, Heart, Thermometer, Users2, Stethoscope, History, TrendingUp, Droplet, Droplets, Wind, Pill, ClipboardList } from 'lucide-react';
+import { Search, Plus, X, Save, User, Calendar, Activity, AlertCircle, FileText, Edit, Eye, Trash2, Clock, Flag, CheckCircle2, Info, Heart, Thermometer, Users2, Stethoscope, History, TrendingUp, Droplet, Droplets, Wind, Pill, ClipboardList, FlaskConical, CheckSquare, Square } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -92,21 +92,41 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedPatientData, setSelectedPatientData] = useState<Patient | null>(null);
-
   const [patientHistory, setPatientHistory] = useState<{
     complaints: any[];
     vitals: any[];
     labs: any[];
     visitations: any[];
-    handledHistory: any[]; // TAMBAH INI
+    handledHistory: any[];
   }>({
     complaints: [],
     vitals: [],
     labs: [],
     visitations: [],
-    handledHistory: [] // TAMBAH INI
+    handledHistory: []
   });
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [requestLabTests, setRequestLabTests] = useState(false);
+  const [labTestsRequested, setLabTestsRequested] = useState<string[]>([]);
+  const [selectAllLabs, setSelectAllLabs] = useState(false);
+
+  const availableLabTests = [
+    'Gula Darah Sewaktu',
+    'Gula Darah Puasa',
+    'Glukosa 2 Jam PP',
+    'HbA1c',
+    'Kolesterol Total',
+    'LDL',
+    'HDL',
+    'Trigliserida',
+    'Urea',
+    'Kreatinin',
+    'Albumin',
+    'SGOT (AST)',
+    'SGPT (ALT)',
+    'Hemoglobin (Hb)',
+    'Leukosit (AL)'
+  ];
 
   const fetchPatientHistory = async (patientId: string) => {
     setLoadingHistory(true);
@@ -115,7 +135,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
         fetch(`/api/patient-records?patientId=${patientId}`),
         fetch(`/api/lab-results?patientId=${patientId}`),
         fetch(`/api/visitations?patientId=${patientId}`),
-        fetch(`/api/handled-patients?patientId=${patientId}`) // TAMBAH INI
+        fetch(`/api/handled-patients?patientId=${patientId}`)
       ]);
 
       const complaints = [];
@@ -129,7 +149,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
       const labs = labsResponse.ok ? await labsResponse.json() : [];
       const visitations = visitationsResponse.ok ? await visitationsResponse.json() : [];
-      const handledHistory = handledResponse.ok ? await handledResponse.json() : []; // TAMBAH INI
+      const handledHistory = handledResponse.ok ? await handledResponse.json() : [];
 
       setPatientHistory({ complaints, vitals, labs, visitations, handledHistory });
     } catch (error) {
@@ -138,6 +158,19 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
       setLoadingHistory(false);
     }
   };
+
+  const handleSelectAllLabs = () => {
+    if (selectAllLabs) {
+      setLabTestsRequested([]);
+    } else {
+      setLabTestsRequested([...availableLabTests]);
+    }
+    setSelectAllLabs(!selectAllLabs);
+  };
+
+  useEffect(() => {
+    setSelectAllLabs(labTestsRequested.length === availableLabTests.length && labTestsRequested.length > 0);
+  }, [labTestsRequested]);
 
   const calculateAge = (birthDate: string) => {
     const today = new Date();
@@ -304,6 +337,8 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
         isPulangPaksa: false,
         autoCalculateNextVisit: true
       });
+      setRequestLabTests(false);
+      setLabTestsRequested([]);
     } else if (isOpen && selectedHandledPatient && (mode === 'edit' || mode === 'view')) {
       const isPulangPaksa = selectedHandledPatient.notes?.toLowerCase().includes('pulang paksa') || false;
 
@@ -356,7 +391,9 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
         ...formData,
         notes: formData.isPulangPaksa ?
           (formData.notes ? `${formData.notes} - Pulang paksa` : 'Pulang paksa') :
-          formData.notes
+          formData.notes,
+        requestLabTests,
+        labTestsRequested
       };
 
       await onSubmit(submitData);
@@ -383,7 +420,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
 
   if (!isOpen) return null;
 
-  // HAPUS filter yang membatasi pasien - semua pasien AKTIF, RAWAT_JALAN, RAWAT_INAP bisa dihandle
   const getAvailablePatients = () => {
     return availablePatients.filter(patient => {
       const isActiveStatus =
@@ -455,7 +491,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
             </div>
           )}
 
-          {/* Patient Summary Card */}
           {selectedPatientData && (
             <div className="bg-white p-6 rounded-xl border border-green-400">
               <div className="flex items-start justify-between mb-4">
@@ -1198,6 +1233,86 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
               readOnly={isReadOnly}
               disabled={submitting}
             />
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <label className="flex items-start space-x-3 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={requestLabTests}
+                onChange={(e) => setRequestLabTests(e.target.checked)}
+                className="mt-1 h-4 w-4 text-yellow-600 rounded focus:ring-2 focus:ring-yellow-500"
+                disabled={isViewMode}
+              />
+              <div>
+                <div className="flex items-center space-x-2">
+                  <FlaskConical className="h-4 w-4 text-yellow-600" />
+                  <span className="font-medium text-gray-900">Permintaan Pemeriksaan Lab Ulang</span>
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Kirim permintaan ke Perawat Poli untuk melakukan pemeriksaan lab ulang
+                </p>
+              </div>
+            </label>
+
+            {requestLabTests && !isViewMode && (
+              <div className="mt-3 pl-7">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Pilih Pemeriksaan yang Diminta:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllLabs}
+                    className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-amber-600 hover:text-amber-700 rounded-lg transition-colors"
+                  >
+                    {selectAllLabs ? (
+                      <>
+                        <CheckSquare className="h-4 w-4" />
+                        <span>Batalkan Semua</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="h-4 w-4" />
+                        <span>Pilih Semua</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {availableLabTests.map((test) => (
+                    <label key={test} className="flex items-center space-x-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={labTestsRequested.includes(test)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setLabTestsRequested([...labTestsRequested, test]);
+                          } else {
+                            setLabTestsRequested(labTestsRequested.filter(t => t !== test));
+                          }
+                        }}
+                        className="h-4 w-4 text-yellow-600 rounded"
+                      />
+                      <span className="text-gray-700">{test}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {requestLabTests && isViewMode && labTestsRequested.length > 0 && (
+              <div className="mt-3 pl-7">
+                <p className="text-sm font-medium text-gray-700 mb-2">Pemeriksaan yang Diminta:</p>
+                <div className="flex flex-wrap gap-2">
+                  {labTestsRequested.map((test) => (
+                    <span key={test} className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                      {test}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

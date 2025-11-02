@@ -228,6 +228,31 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      if (prescriptionSource === 'MANUAL' && relatedHandledPatientId) {
+        try {
+          const nurseAlerts = await tx.alert.findMany({
+            where: {
+              patientId,
+              category: 'MEDICATION',
+              targetRole: 'FARMASI',
+              isRead: false,
+              message: { contains: 'memerlukan obat tambahan' }
+            }
+          });
+
+          await Promise.all(
+            nurseAlerts.map(alert =>
+              tx.alert.update({
+                where: { id: alert.id },
+                data: { isRead: true }
+              })
+            )
+          );
+        } catch (err) {
+          console.error('Error marking nurse medication alerts:', err);
+        }
+      }
+
       if (relatedPrescriptionAlertId) {
         await tx.alert.update({
           where: { id: relatedPrescriptionAlertId },

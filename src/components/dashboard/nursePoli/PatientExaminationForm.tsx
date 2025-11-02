@@ -62,6 +62,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
   const [showLabSection, setShowLabSection] = useState(false);
   const [existingComplaints, setExistingComplaints] = useState<PatientComplaint[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
+  const [notifyRoomNurse, setNotifyRoomNurse] = useState(false);
 
   const [formData, setFormData] = useState({
     complaint: '',
@@ -150,10 +151,13 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
   const fetchExistingComplaints = async (patientId: string) => {
     setLoadingComplaints(true);
     try {
-      const response = await fetch(`/api/patient-records?patientId=${patientId}&recordType=COMPLAINTS`);
+      const response = await fetch(`/api/patient-records?patientId=${patientId}&type=COMPLAINTS`);
       if (response.ok) {
         const data = await response.json();
-        setExistingComplaints(data);
+        // Filter hanya yang recordType = 'COMPLAINTS' untuk memastikan
+        const complaints = data.filter((record: any) => record.recordType === 'COMPLAINTS');
+        setExistingComplaints(complaints);
+        console.log('✅ Fetched complaints:', complaints);
       }
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -311,11 +315,32 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
 
       if (labPromises.length > 0) {
         try {
-          await Promise.all(labPromises);
-          console.log(`${labPromises.length} lab results saved successfully`);
-        } catch (error) {
-          console.error('Error saving lab results:', error);
-          alert('Beberapa hasil lab gagal disimpan. Silakan periksa console untuk detail.');
+          const alertsResponse = await fetch(`/api/alerts?patientId=${patient.id}&category=LAB_RESULT&targetRole=PERAWAT_POLI&unreadOnly=true`);
+          if (alertsResponse.ok) {
+            const alertsData = await alertsResponse.json();
+
+            const labRequestAlerts = alertsData.filter((alert: any) =>
+              !alert.isRead &&
+              alert.targetRole === 'PERAWAT_POLI' &&
+              alert.category === 'LAB_RESULT' &&
+              (alert.message.toLowerCase().includes('permintaan pemeriksaan lab') ||
+                alert.message.toLowerCase().includes('pemeriksaan lab ulang'))
+            );
+
+            if (labRequestAlerts.length > 0) {
+              await Promise.all(
+                labRequestAlerts.map((alert: any) =>
+                  fetch(`/api/alerts/${alert.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isRead: true }),
+                  })
+                )
+              );
+            }
+          }
+        } catch (err) {
+          console.error('Error marking lab request alerts as read:', err);
         }
       }
       await Promise.all(labPromises);
@@ -374,31 +399,75 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         }
       }
 
+      if (notifyRoomNurse && patient.status === 'RAWAT_INAP') {
+        const vitalSummary = `- TD: ${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic} mmHg
+- Nadi: ${formData.heartRate} bpm
+- Suhu: ${formData.temperature} °C
+${formData.respiratoryRate ? `- RR: ${formData.respiratoryRate} x/mnt` : ''}
+${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
+
+        const roomNurseAlertPayload = {
+          type: 'INFO',
+          message: `Data pemeriksaan baru untuk pasien rawat inap ${patient.name} (${patient.mrNumber}).\n\nKeluhan: ${formData.complaint.substring(0, 100)}...\n\nTanda Vital:\n${vitalSummary}\n\nSegera lakukan monitoring lanjutan.`,
+          patientId: patient.id,
+          category: 'SYSTEM',
+          priority: 'MEDIUM',
+          targetRole: 'PERAWAT_RUANGAN'
+        };
+
+        const roomNurseAlertResponse = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(roomNurseAlertPayload)
+        });
+
+        if (roomNurseAlertResponse.ok) {
+          console.log('Room nurse notification sent successfully');
+        }
+      }
+
+      // 🔧 AUTO-READ: Mark lab request alerts as read after completing lab tests
       try {
-        const alertsResponse = await fetch(`/api/alerts?patientId=${patient.id}&role=PERAWAT_POLI`);
+        const alertsResponse = await fetch(`/api/alerts?patientId=${patient.id}&category=LAB_RESULT&targetRole=PERAWAT_POLI&unreadOnly=true`);
         if (alertsResponse.ok) {
           const alertsData = await alertsResponse.json();
 
-          await Promise.all(
-            alertsData
-              .filter((alert: any) => !alert.isRead && alert.targetRole === 'PERAWAT_POLI')
-              .map((alert: any) =>
-                fetch(`/api/alerts/${alert.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ isRead: true }),
-                })
-              )
+          // Filter alerts that mention "permintaan pemeriksaan lab ulang"
+          const labRequestAlerts = alertsData.filter((alert: any) =>
+            !alert.isRead &&
+            alert.targetRole === 'PERAWAT_POLI' &&
+            alert.category === 'LAB_RESULT' &&
+            (alert.message.toLowerCase().includes('permintaan pemeriksaan lab') ||
+              alert.message.toLowerCase().includes('pemeriksaan lab ulang'))
           );
+
+          console.log(`Found ${labRequestAlerts.length} lab request alerts to mark as read`);
+
+          // Mark them as read
+          await Promise.all(
+            labRequestAlerts.map((alert: any) =>
+              fetch(`/api/alerts/${alert.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isRead: true }),
+              })
+            )
+          );
+
+          if (labRequestAlerts.length > 0) {
+            console.log('✅ Lab request alerts marked as read');
+          }
         }
       } catch (err) {
-        console.error('Error marking alerts as read:', err);
+        console.error('Error marking lab request alerts as read:', err);
       }
+
 
       alert(
         `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n${labPromises.length} hasil lab tersimpan.` : ''
         }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim ke dokter.' : ''
         }${sendToDoctor ? '\n\nNotifikasi telah dikirim ke dokter.' : ''
+        }${notifyRoomNurse ? '\n\nNotifikasi telah dikirim ke perawat ruangan.' : ''
         }`
       );
 
@@ -1005,6 +1074,29 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
               </label>
             </div>
           </div>
+
+          {patient.status === 'RAWAT_INAP' && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <label className="flex items-start space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notifyRoomNurse}
+                  onChange={(e) => setNotifyRoomNurse(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                  disabled={loading}
+                />
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Send className="h-4 w-4 text-purple-600" />
+                    <span className="font-medium text-gray-900">Kirim data ke Perawat Ruangan</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Pasien rawat inap - teruskan data pemeriksaan ke perawat ruangan untuk monitoring.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200">
             <button

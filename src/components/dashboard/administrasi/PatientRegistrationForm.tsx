@@ -209,20 +209,20 @@ const PatientRegistrationForm: React.FC<PatientRegistrationFormProps> = ({
       if (response.ok) {
         const newPatient = await response.json();
 
-        if (formMode === 'add') {
-          await fetch('/api/alerts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'INFO',
-              message: `Pasien baru ${newPatient.name} (${newPatient.mrNumber}) terdaftar, segera lakukan pemeriksaan awal`,
-              patientId: newPatient.id,
-              category: 'SYSTEM',
-              priority: 'MEDIUM',
-              targetRole: 'PERAWAT_POLI'
-            }),
-          });
-        }
+        // if (formMode === 'add') {
+        //   await fetch('/api/alerts', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //       type: 'INFO',
+        //       message: `Pasien baru ${newPatient.name} (${newPatient.mrNumber}) terdaftar, segera lakukan pemeriksaan awal`,
+        //       patientId: newPatient.id,
+        //       category: 'SYSTEM',
+        //       priority: 'MEDIUM',
+        //       targetRole: 'PERAWAT_POLI'
+        //     }),
+        //   });
+        // }
 
         onPatientAdded();
         if (onClose) {

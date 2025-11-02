@@ -122,7 +122,6 @@
     pharmacyRecords   PharmacyRecord[]
     medicalReports    MedicalReport[]
     alerts            Alert[]
-    appointments      Appointment[]
 
     @@map("patients")
   }
@@ -487,27 +486,6 @@
 
     @@map("alerts")
   }
-  model Appointment {
-    id              String   @id @default(cuid())
-    patientId       String
-    appointmentDate DateTime
-    appointmentTime String
-    type            AppointmentType
-    status          AppointmentStatus
-    priority        AppointmentPriority @default(NORMAL)
-    notes           String?
-
-    patient Patient @relation(fields: [patientId], references: [id])
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@index([patientId])
-    @@index([appointmentDate])
-    @@index([status])
-
-    @@map("appointments")
-  }
 
   // Enums
   enum UserRole {
@@ -636,7 +614,6 @@
     SYSTEM
     BLOOD_SUGAR
     VITAL_SIGNS
-    APPOINTMENT
     LAB_RESULT
     MEDICATION
     NUTRITION
@@ -650,28 +627,6 @@
     URGENT
   }
 
-  enum AppointmentType {
-    INITIAL_VISIT
-    FOLLOW_UP
-    EMERGENCY
-    CONSULTATION
-    LAB_CHECK
-  }
-
-  enum AppointmentStatus {
-    SCHEDULED
-    CONFIRMED
-    COMPLETED
-    CANCELLED
-    NO_SHOW
-  }
-
-  enum AppointmentPriority {
-    LOW
-    NORMAL
-    HIGH
-    URGENT
-  }
 
   enum SmokingStatus {
   TIDAK_MEROKOK

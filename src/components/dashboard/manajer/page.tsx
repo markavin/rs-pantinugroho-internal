@@ -402,7 +402,8 @@ const ManajerDashboard = () => {
     if (roleFilter !== 'all') {
       filtered = filtered.filter(a => {
         if (roleFilter === 'DOKTER') return a.role === 'DOKTER_SPESIALIS' || a.role === 'DOKTER_POLI';
-        if (roleFilter === 'PERAWAT') return a.role === 'PERAWAT_RUANGAN' || a.role === 'PERAWAT_POLI';
+        if (roleFilter === 'PERAWAT_POLI') return a.role === 'PERAWAT_POLI';
+        if (roleFilter === 'PERAWAT_RUANGAN') return a.role === 'PERAWAT_RUANGAN';
         return a.role === roleFilter;
       });
     }
@@ -1640,7 +1641,8 @@ const ManajerDashboard = () => {
                       {[
                         { key: 'all', label: 'Semua Role' },
                         { key: 'DOKTER', label: 'Dokter' },
-                        { key: 'PERAWAT', label: 'Perawat' },
+                        { key: 'PERAWAT_POLI', label: 'Perawat Poli' },
+                        { key: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
                         { key: 'AHLI_GIZI', label: 'Ahli Gizi' },
                         { key: 'FARMASI', label: 'Farmasi' },
                         { key: 'ADMINISTRASI', label: 'Administrasi' }

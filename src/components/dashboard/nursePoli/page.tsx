@@ -97,7 +97,7 @@ const NursePoliDashboard = () => {
       const [recordsRes, labsRes, alertsRes] = await Promise.all([
         fetch('/api/patient-records'),
         fetch('/api/lab-results'),
-        fetch('/api/alerts?targetRole=PERAWAT_POLI')
+        fetch('/api/alerts?targetRole=PERAWAT_POLI&unreadOnly=false')  // UBAH INI
       ]);
 
       let vitalSignsToday = 0;
@@ -131,8 +131,9 @@ const NursePoliDashboard = () => {
       let waitingCount = 0;
       if (alertsRes.ok) {
         const alerts = await alertsRes.json();
+        console.log('Alerts for PERAWAT_POLI:', alerts.length);  // TAMBAH LOG
         waitingCount = alerts.filter((alert: any) =>
-          !alert.isRead && alert.category === 'SYSTEM'
+          !alert.isRead && (alert.category === 'SYSTEM' || alert.category === 'LAB_RESULT')
         ).length;
       }
 
@@ -151,7 +152,6 @@ const NursePoliDashboard = () => {
       setLoading(false);
     }
   };
-
   const refreshData = async () => {
     setShowRefreshSplash(true);
     await fetchDashboardData();
@@ -238,7 +238,7 @@ const NursePoliDashboard = () => {
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    
+
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -266,7 +266,7 @@ const NursePoliDashboard = () => {
         pages.push(totalPages);
       }
     }
-    
+
     return pages;
   };
 
@@ -396,7 +396,7 @@ const NursePoliDashboard = () => {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                       <div className="flex items-center justify-between">
                         <div>
@@ -421,17 +421,6 @@ const NursePoliDashboard = () => {
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-orange-600">Menunggu Dokter</p>
-                          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.waitingForDoctor}</p>
-                        </div>
-                        <div className="bg-orange-100 p-3 rounded-full">
-                          <Activity className="h-8 w-8 text-orange-600" />
-                        </div>
-                      </div>
-                    </div>
 
                     <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
                       <div className="flex items-center justify-between">
@@ -639,13 +628,12 @@ const NursePoliDashboard = () => {
                           key={index}
                           onClick={() => typeof page === 'number' && handlePageChange(page)}
                           disabled={page === '...'}
-                          className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                            page === currentPage
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage
                               ? 'bg-green-600 text-white'
                               : page === '...'
-                              ? 'cursor-default text-gray-400'
-                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
+                                ? 'cursor-default text-gray-400'
+                                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
                         >
                           {page}</button>
                       ))}

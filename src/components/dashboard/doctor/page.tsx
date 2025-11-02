@@ -446,6 +446,41 @@ const DoctorDashboard = () => {
     setShowDetailHandledModal(true);
   };
 
+  const markRelatedAlertsAsRead = async (patientId: string) => {
+    try {
+      const alertsResponse = await fetch(`/api/alerts?patientId=${patientId}&targetRole=DOKTER_SPESIALIS&unreadOnly=true`);
+      if (alertsResponse.ok) {
+        const alertsData = await alertsResponse.json();
+
+        const relevantAlerts = alertsData.filter((alert: any) =>
+          !alert.isRead &&
+          (
+            alert.category === 'SYSTEM' ||
+            alert.category === 'LAB_RESULT' ||
+            alert.category === 'VITAL_SIGNS' ||
+            alert.category === 'NUTRITION'
+          )
+        );
+
+        await Promise.all(
+          relevantAlerts.map((alert: any) =>
+            fetch(`/api/alerts/${alert.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isRead: true }),
+            })
+          )
+        );
+
+        console.log(`✅ Marked ${relevantAlerts.length} relevant alerts as read for patient ${patientId}`);
+        return relevantAlerts.length;
+      }
+    } catch (err) {
+      console.error('❌ Error marking alerts as read:', err);
+      return 0;
+    }
+  };
+
   const handleHandledPatientFormSubmit = async (formData) => {
     try {
       const sessionResponse = await fetch('/api/auth/session');
@@ -470,28 +505,60 @@ const DoctorDashboard = () => {
 
           await fetchHandledPatients();
 
-          try {
-            const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
-            if (alertsResponse.ok) {
-              const alertsData = await alertsResponse.json();
-              await Promise.all(
-                alertsData
-                  .filter((alert: any) => !alert.isRead)
-                  .map((alert: any) =>
-                    fetch(`/api/alerts/${alert.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ isRead: true }),
-                    })
-                  )
-              );
-            }
-          } catch (err) {
-            console.error('Error marking alerts as read:', err);
+          const markedCount = await markRelatedAlertsAsRead(savedPatientId);
+          await fetchAlerts();
+
+          if (markedCount > 0) {
+            console.log(`${markedCount} notifikasi ditandai sebagai terbaca`);
           }
 
-          await fetchAlerts();
           alert('Pasien berhasil ditambahkan ke daftar yang ditangani!');
+
+          const isInpatient = ['OBSERVASI', 'EMERGENCY'].includes(formData.status);
+          if (isInpatient) {
+            const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+            let patientName = 'Pasien';
+            let patientMRNumber = '';
+
+            if (patientResponse.ok) {
+              const patientData = await patientResponse.json();
+              patientName = patientData.name;
+              patientMRNumber = patientData.mrNumber;
+            }
+            try {
+              await fetch('/api/alerts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  type: 'INFO',
+                  message: `Pasien rawat inap baru: ${patientName} (${patientMRNumber})\n\nStatus: ${formData.status}\nDiagnosis: ${formData.diagnosis || '-'}\n\n${formData.treatmentPlan ? `Rencana Pengobatan:\n${formData.treatmentPlan}\n\n` : ''}${formData.specialInstructions ? `Instruksi Khusus:\n${formData.specialInstructions}\n\n` : ''}Segera lakukan monitoring dan visitasi rutin.`,
+                  patientId: savedPatientId,
+                  category: 'SYSTEM',
+                  priority: formData.status === 'EMERGENCY' ? 'URGENT' : 'HIGH',
+                  targetRole: 'PERAWAT_RUANGAN'
+                })
+              });
+
+              console.log('Notification sent to PERAWAT_RUANGAN for inpatient');
+            } catch (alertError) {
+              console.error('Error sending alert to room nurse:', alertError);
+            }
+
+            // Update patient status ke RAWAT_INAP
+            try {
+              await fetch(`/api/patients/${savedPatientId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status: 'RAWAT_INAP'
+                })
+              });
+              console.log('Patient status updated to RAWAT_INAP');
+            } catch (err) {
+              console.error('Error updating patient status:', err);
+            }
+          }
+
         }
       } else if (handledPatientFormMode === 'edit') {
         const response = await fetch(`/api/handled-patients/${selectedHandledPatient.id}`, {
@@ -508,27 +575,12 @@ const DoctorDashboard = () => {
 
           await Promise.all([fetchHandledPatients(), fetchPatients()]);
 
-          try {
-            const alertsResponse = await fetch(`/api/alerts?patientId=${savedPatientId}`);
-            if (alertsResponse.ok) {
-              const alertsData = await alertsResponse.json();
-              await Promise.all(
-                alertsData
-                  .filter((alert: any) => !alert.isRead)
-                  .map((alert: any) =>
-                    fetch(`/api/alerts/${alert.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ isRead: true }),
-                    })
-                  )
-              );
-            }
-          } catch (err) {
-            console.error('Error marking alerts as read:', err);
-          }
-
+          const markedCount = await markRelatedAlertsAsRead(savedPatientId);
           await fetchAlerts();
+
+          if (markedCount > 0) {
+            console.log(`${markedCount} notifikasi ditandai sebagai terbaca`);
+          }
 
           if (formData.diagnosis?.trim()) {
             try {
@@ -592,12 +644,54 @@ const DoctorDashboard = () => {
         }
       }
 
+      if (savedPatientId && formData.requestLabTests && formData.labTestsRequested?.length > 0) {
+        const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+        let patientName = 'Pasien';
+        let patientMRNumber = '';
+
+        if (patientResponse.ok) {
+          const patientData = await patientResponse.json();
+          patientName = patientData.name;
+          patientMRNumber = patientData.mrNumber;
+        }
+
+        const labTestsList = formData.labTestsRequested.map((test: string) => `- ${test}`).join('\n');
+
+        try {
+          const alertPayload = {
+            type: 'INFO',
+            message: `Permintaan pemeriksaan lab ulang dari Dr. ${doctorName} untuk pasien ${patientName} (${patientMRNumber}).\n\nPemeriksaan yang diminta:\n${labTestsList}\n\nSegera lakukan pemeriksaan dan input hasilnya.`,
+            patientId: savedPatientId,
+            category: 'LAB_RESULT',
+            priority: 'HIGH',
+            targetRole: 'PERAWAT_POLI'
+          };
+
+          const response = await fetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(alertPayload),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log('Lab request alert created successfully:', result);
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to send lab request alert:', errorText);
+          }
+        } catch (alertError) {
+          console.error('Error sending lab request alert:', alertError);
+        }
+      }
+
       setShowHandledPatientForm(false);
     } catch (error) {
       console.error('Error submitting handled patient form:', error);
       alert('Error submitting form');
     }
   };
+
 
   const handleDeleteHandledPatient = async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus pasien dari daftar yang ditangani?')) return;
@@ -799,88 +893,27 @@ const DoctorDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
+              <div className="bg-gradient-to-br from-white to-yellow-50 p-6 rounded-xl shadow-sm border border-blue-100">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-purple-600">Total Alerts</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">{alerts.length}</p>
+                    <p className="text-sm font-medium text-yellow-600">Antrian Pasien</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                      {patients.filter(p =>
+                        p.status === 'AKTIF' &&
+                        !handledPatients.some(hp =>
+                          hp.patientId === p.id &&
+                          ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY'].includes(hp.status)
+                        )
+                      ).length}
+                    </p>
                   </div>
-                  <div className="bg-purple-100 p-3 rounded-full">
-                    <Bell className="h-8 w-8 text-purple-600" />
+                  <div className="bg-yellow-100 p-3 rounded-full">
+                    <Clock className="h-8 w-8 text-yellow-600" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-white to-yellow-50 p-6 rounded-xl shadow-sm border border-yellow-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-600">Antrian Pasien</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {patients.filter(p =>
-                      p.status === 'AKTIF' &&
-                      !handledPatients.some(hp =>
-                        hp.patientId === p.id &&
-                        ['SEDANG_DITANGANI', 'KONSULTASI', 'OBSERVASI', 'EMERGENCY'].includes(hp.status)
-                      )
-                    ).length}
-                  </p>
-                </div>
-                <div className="bg-yellow-100 p-3 rounded-full">
-                  <Clock className="h-8 w-8 text-yellow-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Peringatan & Notifikasi</h3>
-                <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                  {unreadAlertsCount} Belum Dibaca
-                </span>
-              </div>
-              <div className="p-6">
-                {alerts.length > 0 ? (
-                  <div className="space-y-3">
-                    {alerts.slice(0, 5).map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`p-3 rounded-lg border-l-4 ${alert.type === 'CRITICAL' ? 'bg-red-50 border-red-400' :
-                          alert.type === 'WARNING' ? 'bg-yellow-50 border-yellow-400' :
-                            'bg-green-50 border-green-400'
-                          } ${!alert.isRead ? 'ring-2 ring-blue-200' : 'opacity-60'}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">{alert.message}</p>
-                            {alert.patient && (
-                              <p className="text-xs text-gray-600 mt-1">
-                                {alert.patient.name} ({alert.patient.mrNumber})
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {!alert.isRead && (
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                                Baru
-                              </span>
-                            )}
-                            <span className="text-xs text-gray-500">
-                              {new Date(alert.createdAt).toLocaleTimeString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-4">Tidak ada peringatan saat ini</p>
-                )}
-              </div>
-            </div>
 
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">

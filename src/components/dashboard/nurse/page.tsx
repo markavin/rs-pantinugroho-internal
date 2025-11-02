@@ -67,12 +67,16 @@ const NurseDashboard = () => {
                     new Date(v.createdAt).toDateString() === today
                 );
 
+                // Helper function to check if visit has vital signs
+                const hasVitalSigns = (v: any) => {
+                    return !!(v.temperature || v.bloodPressure || v.heartRate ||
+                        v.respiratoryRate || v.oxygenSaturation || v.bloodSugar);
+                };
+
                 setStats({
                     totalInpatients: patientsData.filter((p: any) => p.status === 'RAWAT_INAP').length,
                     todayVisitations: todayVisits.length,
-                    vitalSignsRecorded: todayVisits.filter((v: any) =>
-                        v.vitalSigns && Object.keys(v.vitalSigns).length > 0
-                    ).length,
+                    vitalSignsRecorded: todayVisits.filter((v: any) => hasVitalSigns(v)).length,
                     medicationsGiven: todayVisits.filter((v: any) =>
                         v.medicationsGiven && v.medicationsGiven.length > 0
                     ).length,
@@ -92,7 +96,7 @@ const NurseDashboard = () => {
                     );
                     return {
                         date: new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-                        vital: dayVisits.filter((v: any) => v.vitalSigns && Object.keys(v.vitalSigns).length > 0).length,
+                        vital: dayVisits.filter((v: any) => hasVitalSigns(v)).length,
                         medication: dayVisits.filter((v: any) => v.medicationsGiven && v.medicationsGiven.length > 0).length,
                         education: dayVisits.filter((v: any) => v.education).length
                     };
@@ -290,15 +294,15 @@ const NurseDashboard = () => {
                                         <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-200 text-xs">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                                                <span>Vital</span>
+                                                <span className='text-gray-600'>Vital</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 bg-green-500 rounded"></div>
-                                                <span>Obat</span>
+                                                <span className='text-gray-600'>Obat</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                                                <span>Edukasi</span>
+                                                <span className='text-gray-600'>Edukasi</span>
                                             </div>
                                         </div>
                                     </div>
