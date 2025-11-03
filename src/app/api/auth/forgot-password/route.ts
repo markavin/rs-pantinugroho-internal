@@ -230,8 +230,8 @@ function generateOTPEmail(otpCode: string, userName: string) {
         <div class="email-wrapper">
           <div class="container">
             <div class="header">
-              <h1>🏥 RS Panti Nugroho</h1>
-              <p>KAWAN DIABETES</p>
+              <h1>KAWAN DIABETES</h1>
+              <p>RS Panti Nugroho</p>
             </div>
             
             <div class="content">

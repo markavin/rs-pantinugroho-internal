@@ -151,7 +151,7 @@ export default function LoginForm() {
             </button>
           </form>
 
-          <div className="text-center mt-4">
+          <div className="text-end mt-4">
             <button
               type="button"
               onClick={() => router.push('/reset-password?mode=forgot')}

@@ -236,16 +236,16 @@ function generateOTPEmail(otpCode: string, userName: string) {
         <div class="email-wrapper">
           <div class="container">
             <div class="header">
-              <h1>RS Panti Nugroho</h1>
-              <p>KAWAN DIABETES</p>
+              <h1>KAWAN DIABETES</h1>
+              <p>RS Panti Nugroho</p>
             </div>
             
             <div class="content">
-              <p class="greeting">Halo, ${userName}</p>
+              <p class="greeting">Halo, ${userName}!</p>
               
               <p class="intro-text">
-                Kami menerima permintaan untuk mengganti password akun Anda.
-                Gunakan kode verifikasi di bawah ini untuk melanjutkan proses ganti password.
+                Kami menerima permintaan untuk mereset password akun Anda.
+                Gunakan kode verifikasi di bawah ini untuk melanjutkan proses reset password.
               </p>
               
               <div class="otp-section">
@@ -254,28 +254,28 @@ function generateOTPEmail(otpCode: string, userName: string) {
                   <div class="otp-code">${otpCode}</div>
                 </div>
                 <div class="copy-hint">
-                  Ketik atau copy kode di atas
+                  👆 Ketik atau copy kode di atas
                 </div>
               </div>
               
               <div class="warning-box">
-                <strong>Perhatian</strong>
+                <strong>⏰ Perhatian:</strong>
                 <p>Kode ini hanya berlaku selama <strong>10 menit</strong>. Segera gunakan kode ini sebelum kadaluarsa.</p>
               </div>
 
               <div class="security-note">
-                <p>Jangan bagikan kode ini kepada siapapun, termasuk petugas RS</p>
+                <p>🔒 Jangan bagikan kode ini kepada siapapun, termasuk petugas RS!</p>
               </div>
               
               <p class="help-text">
-                Jika Anda tidak melakukan permintaan ganti password, abaikan email ini. 
+                Jika Anda tidak melakukan permintaan reset password, abaikan email ini. 
                 Password Anda akan tetap aman dan tidak akan berubah.
               </p>
             </div>
             
             <div class="footer">
               <p><strong>RS Panti Nugroho - Kawan Diabetes</strong></p>
-              <p>2025 Semua hak dilindungi</p>
+              <p>© 2025 Semua hak dilindungi</p>
               <p style="margin-top: 15px; color: #9ca3af; font-size: 12px;">
                 Email ini dikirim secara otomatis, mohon tidak membalas email ini.
               </p>
