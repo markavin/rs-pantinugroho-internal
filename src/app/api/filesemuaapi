@@ -1,3 +1,1739 @@
+// src/app/api/admin/stats/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+// Helper function to check if LoginLog table exists and has data
+async function checkLoginLogTable() {
+  try {
+    const count = await prisma.loginLog.count();
+    console.log('LoginLog table exists with', count, 'records');
+    return { exists: true, count };
+  } catch (error: any) {
+    console.log('LoginLog table check failed:', error.code);
+    if (error.code === 'P2021') {
+      console.log('LoginLog table does not exist');
+    }
+    return { exists: false, count: 0 };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || (session.user as any).role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('Admin stats request from:', (session.user as any).username);
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    // Get total staff count (always accurate)
+    const totalStaff = await prisma.user.count({
+      where: { isActive: true }
+    });
+
+    console.log('Total staff:', totalStaff);
+
+    // Check if LoginLog table exists
+    const loginLogStatus = await checkLoginLogTable();
+
+    let dailyLogins = 0;
+    let weeklyActivity = [];
+
+    if (loginLogStatus.exists && loginLogStatus.count > 0) {
+      console.log('Using real LoginLog data');
+
+      try {
+        // Get today's actual login count
+        dailyLogins = await prisma.loginLog.count({
+          where: {
+            loginTime: {
+              gte: startOfDay,
+              lt: endOfDay
+            }
+          }
+        });
+
+        console.log('Daily logins found:', dailyLogins);
+
+        // Get 7-day login activity with real data
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+          const logins = await prisma.loginLog.count({
+            where: {
+              loginTime: {
+                gte: dayStart,
+                lt: dayEnd
+              }
+            }
+          });
+
+          const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+          const isToday = dayStart.toDateString() === now.toDateString();
+
+          weeklyActivity.push({
+            day: dayNames[date.getDay()],
+            date: date.toISOString().split('T')[0],
+            logins,
+            isToday
+          });
+        }
+
+        console.log('Weekly activity generated from real data');
+
+      } catch (queryError) {
+        console.error('Error querying LoginLog data:', queryError);
+
+        // If query fails, set to 0 to show no data available
+        dailyLogins = 0;
+
+        const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          const isToday = date.toDateString() === now.toDateString();
+
+          weeklyActivity.push({
+            day: dayNames[date.getDay()],
+            date: date.toISOString().split('T')[0],
+            logins: 0,
+            isToday
+          });
+        }
+      }
+    } else {
+      console.log('LoginLog table not available, no login data');
+
+      // No LoginLog table = no login tracking data
+      dailyLogins = 0;
+
+      const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const isToday = date.toDateString() === now.toDateString();
+
+        weeklyActivity.push({
+          day: dayNames[date.getDay()],
+          date: date.toISOString().split('T')[0],
+          logins: 0,
+          isToday
+        });
+      }
+    }
+
+    // Get staff distribution by role (always accurate)
+    const staffDistribution = await prisma.user.groupBy({
+      by: ['role'],
+      where: { isActive: true },
+      _count: {
+        role: true
+      }
+    });
+
+    const roleNames = {
+      'DOKTER_SPESIALIS': 'Dokter Spesialis',
+      'PERAWAT_RUANGAN': 'Perawat Ruangan',
+      'PERAWAT_POLI': 'Perawat Poli',
+      'FARMASI': 'Farmasi',
+      'ADMINISTRASI': 'Administrasi',
+      'MANAJER': 'Manajer',
+      'AHLI_GIZI': 'Ahli Gizi'
+    };
+
+    const roleColors = {
+      'DOKTER_SPESIALIS': 'bg-blue-500',
+      'PERAWAT_RUANGAN': 'bg-teal-500',
+      'PERAWAT_POLI': 'bg-cyan-500',
+      'FARMASI': 'bg-emerald-500',
+      'ADMINISTRASI': 'bg-gray-500',
+      'MANAJER': 'bg-amber-500',
+      'AHLI_GIZI': 'bg-green-500'
+    };
+
+    const distribution = staffDistribution.map(item => ({
+      role: roleNames[item.role as keyof typeof roleNames] || item.role,
+      count: item._count.role,
+      color: roleColors[item.role as keyof typeof roleColors] || 'bg-gray-500'
+    }));
+
+    const responseData = {
+      totalStaff,
+      dailyLogins,
+      weeklyActivity,
+      distribution,
+      meta: {
+        hasLoginData: loginLogStatus.exists && loginLogStatus.count > 0,
+        loginLogRecords: loginLogStatus.count,
+        timestamp: now.toISOString()
+      }
+    };
+
+    console.log('Returning stats:', {
+      totalStaff,
+      dailyLogins,
+      weeklyActivityDays: weeklyActivity.length,
+      distributionItems: distribution.length,
+      hasRealLoginData: loginLogStatus.exists && loginLogStatus.count > 0
+    });
+
+    return NextResponse.json(responseData);
+
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+
+    return NextResponse.json({
+      error: 'Failed to fetch stats',
+      details: error.message
+    }, { status: 500 });
+  }
+}
+
+// File baru: src/app/api/alerts/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { isRead } = body;
+
+    const alert = await prisma.alert.update({
+      where: { id: params.id },
+      data: { isRead }
+    });
+
+    return NextResponse.json(alert);
+  } catch (error) {
+    console.error('Error updating alert:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/alerts/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const role = searchParams.get('role');
+    const targetRole = searchParams.get('targetRole');
+    const unreadOnly = searchParams.get('unreadOnly') === 'true';
+    const patientId = searchParams.get('patientId');
+    const category = searchParams.get('category');
+
+    const whereClause: any = {};
+
+    if (unreadOnly) {
+      whereClause.isRead = false;
+    }
+
+    if (patientId) {
+      whereClause.patientId = patientId;
+    }
+
+    if (category) {
+      whereClause.category = category;
+    }
+
+    if (targetRole) {
+      whereClause.targetRole = targetRole;
+    } else if (role && !category && !patientId) {
+      whereClause.OR = [
+        { targetRole: role },
+        { targetRole: null }
+      ];
+    }
+
+    console.log('Alert query whereClause:', JSON.stringify(whereClause, null, 2));
+
+    const alerts = await prisma.alert.findMany({
+      where: whereClause,
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        }
+      },
+      orderBy: [
+        { isRead: 'asc' },
+        { priority: 'desc' },
+        { createdAt: 'desc' }
+      ],
+      take: 100
+    });
+
+    console.log('Found alerts:', alerts.length);
+
+    return NextResponse.json(alerts);
+  } catch (error) {
+    console.error('Error fetching alerts:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch alerts', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+
+    console.log('Alert Request Body:', JSON.stringify(body, null, 2));
+
+    const {
+      type,
+      message,
+      patientId,
+      category,
+      priority = 'MEDIUM',
+      targetRole
+    } = body;
+
+    console.log('Parsed Values:', {
+      type,
+      category,
+      priority,
+      targetRole,
+      hasPatientId: !!patientId
+    });
+
+    if (!type || !message || !category) {
+      return NextResponse.json(
+        { error: 'Missing required fields: type, message, category' },
+        { status: 400 }
+      );
+    }
+
+    const validTypes = ['CRITICAL', 'WARNING', 'INFO'];
+    const validCategories = [
+      'SYSTEM',
+      'BLOOD_SUGAR',
+      'VITAL_SIGNS',
+      'LAB_RESULT',
+      'MEDICATION',
+      'NUTRITION',
+      'APPOINTMENT',
+      'REGISTRATION'
+    ];
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const validRoles = [
+      'SUPER_ADMIN',
+      'DOKTER_SPESIALIS',
+      'PERAWAT_RUANGAN',
+      'PERAWAT_POLI',
+      'AHLI_GIZI',
+      'FARMASI',
+      'MANAJER',
+      'ADMINISTRASI'
+    ];
+
+    if (!validTypes.includes(type)) {
+      return NextResponse.json(
+        { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    if (!validCategories.includes(category)) {
+      return NextResponse.json(
+        { error: `Invalid category. Must be one of: ${validCategories.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    if (!validPriorities.includes(priority)) {
+      return NextResponse.json(
+        { error: `Invalid priority. Must be one of: ${validPriorities.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    let finalTargetRole = null;
+
+    if (targetRole) {
+      const trimmedRole = String(targetRole).trim();
+
+      if (trimmedRole && trimmedRole !== 'null' && trimmedRole !== 'undefined') {
+        if (validRoles.includes(trimmedRole)) {
+          finalTargetRole = trimmedRole;
+          console.log('Valid targetRole:', finalTargetRole);
+        } else {
+          console.error('Invalid targetRole:', trimmedRole);
+          return NextResponse.json(
+            { error: `Invalid targetRole '${trimmedRole}'. Must be one of: ${validRoles.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      } else {
+        console.warn('targetRole is empty/null/undefined, will be set to null');
+      }
+    }
+
+    console.log('Final targetRole to save:', finalTargetRole);
+
+    const alert = await prisma.alert.create({
+      data: {
+        type,
+        message,
+        patientId: patientId || null,
+        category,
+        priority,
+        targetRole: finalTargetRole,
+        isRead: false,
+      },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        }
+      }
+    });
+
+    console.log('Alert created successfully:', {
+      id: alert.id,
+      type: alert.type,
+      targetRole: alert.targetRole,
+      category: alert.category
+    });
+
+    return NextResponse.json(alert, { status: 201 });
+  } catch (error) {
+    console.error('Error creating alert:', error);
+    return NextResponse.json(
+      { error: 'Failed to create alert', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const olderThanDays = parseInt(searchParams.get('olderThanDays') || '30');
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const result = await prisma.alert.deleteMany({
+      where: {
+        isRead: true,
+        createdAt: {
+          lt: cutoffDate
+        }
+      }
+    });
+
+    return NextResponse.json({
+      message: `Deleted ${result.count} old read alerts`,
+      count: result.count
+    });
+  } catch (error) {
+    console.error('Error deleting old alerts:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete alerts', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+
+// src\app\api\auth\[...nextauth]\route.ts
+import NextAuth, { NextAuthOptions } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
+import type { UserRole } from '@/lib/auth';
+
+const prisma = new PrismaClient();
+
+/**
+ * Track login activity
+ */
+async function trackLoginActivity(userId: string, sessionId: string, account?: any) {
+  try {
+    // Ambil IP & User Agent, fallback ke "unknown"
+    const ipAddress = account?.ip ?? "unknown";
+    const userAgent = account?.userAgent ?? "unknown";
+
+    const loginLog = await prisma.loginLog.create({
+      data: {
+        userId,
+        sessionId,
+        loginTime: new Date(),
+        ipAddress,
+        userAgent,
+      },
+    });
+
+    console.log("✅ Login tracked:", loginLog.id);
+    return loginLog;
+  } catch (error: any) {
+    console.error("❌ Error tracking login:", error.message, {
+      userId,
+      sessionId,
+    });
+    return null; // jangan blokir login walaupun tracking gagal
+  }
+}
+
+/**
+ * Track logout activity
+ */
+async function trackLogoutActivity(sessionId: string) {
+  try {
+    const result = await prisma.loginLog.updateMany({
+      where: {
+        sessionId,
+        logoutTime: null,
+      },
+      data: {
+        logoutTime: new Date(),
+      },
+    });
+
+    console.log("✅ Logout tracked. Records updated:", result.count);
+    return result;
+  } catch (error: any) {
+    console.error("❌ Error tracking logout:", error.message);
+    return null;
+  }
+}
+
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        login: { label: "Email/Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.login || !credentials?.password) return null;
+
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: credentials.login },
+              { username: credentials.login },
+            ],
+            isActive: true,
+          },
+        });
+
+        if (!user) return null;
+
+        const isValidPassword = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+        if (!isValidPassword) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role as UserRole,
+          username: user.username,
+          employeeId: user.employeeId,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+        token.username = (user as any).username;
+        token.employeeId = (user as any).employeeId;
+        token.userId = user.id;
+
+        // generate sessionId baru saat login
+        token.sessionId = `${user.id}_${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}`;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token) {
+        (session.user as any).id = token.sub;
+        (session.user as any).role = token.role;
+        (session.user as any).username = token.username;
+        (session.user as any).employeeId = token.employeeId;
+        (session.user as any).sessionId = token.sessionId;
+      }
+      return session;
+    },
+  },
+  events: {
+    async signIn({ user, account }) {
+      console.log("🎉 signIn event for:", user?.name);
+
+      const sessionId = `${user.id}_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Catat login
+      await trackLoginActivity(user.id, sessionId, account);
+    },
+    async signOut({ token }) {
+      console.log("👋 signOut event for sessionId:", token?.sessionId);
+      if (token?.sessionId) {
+        await trackLogoutActivity(token.sessionId as string);
+      }
+    },
+  },
+  pages: {
+    signIn: "/",
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 jam
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
+};
+
+const handler = NextAuth(authOptions);
+export { handler as GET, handler as POST };
+
+// app/api/auth/change-password-otp/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { prisma } from '@/lib/prisma';
+import { sendEmail } from '@/lib/email';
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { email } = await request.json();
+
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Email is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify email matches logged-in user
+    const user = await prisma.user.findUnique({
+      where: { id: (session.user as any).id },
+    });
+
+    if (!user || user.email !== email) {
+      return NextResponse.json(
+        { error: 'Email does not match your account' },
+        { status: 400 }
+      );
+    }
+
+    // Generate 6-digit OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 600000); // 10 minutes
+
+    // Save OTP to database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: otpCode,
+        resetPasswordExpires: otpExpiry,
+      },
+    });
+
+    // Send email with OTP
+    const emailHtml = generateOTPEmail(otpCode, user.name);
+
+    const emailResult = await sendEmail({
+      to: user.email,
+      subject: 'Kode Verifikasi Ganti Password - RS Panti Nugroho',
+      html: emailHtml,
+    });
+
+    if (!emailResult.success) {
+      console.error('Failed to send OTP email:', emailResult.error);
+      return NextResponse.json(
+        { error: 'Failed to send verification code' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`OTP sent to ${user.email}: ${otpCode}`);
+
+    return NextResponse.json({
+      message: 'Verification code sent successfully',
+      success: true,
+    });
+  } catch (error) {
+    console.error('Change password OTP error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+function generateOTPEmail(otpCode: string, userName: string) {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6; 
+            color: #1f2937;
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+          }
+          .email-wrapper {
+            background-color: #f3f4f6;
+            padding: 40px 20px;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .header { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            padding: 40px 30px; 
+            text-align: center; 
+            color: white; 
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            font-size: 14px;
+            opacity: 0.95;
+          }
+          .content { 
+            padding: 40px 30px; 
+          }
+          .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #059669;
+            margin: 0 0 20px 0;
+          }
+          .intro-text {
+            color: #4b5563;
+            margin: 0 0 30px 0;
+            font-size: 15px;
+          }
+          .otp-section {
+            text-align: center;
+            margin: 40px 0;
+          }
+          .otp-label {
+            font-size: 13px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+          }
+          .otp-box {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border: 3px solid #10b981;
+            border-radius: 12px;
+            padding: 25px;
+            display: inline-block;
+            margin: 10px 0;
+          }
+          .otp-code {
+            font-size: 42px;
+            font-weight: 700;
+            color: #047857;
+            letter-spacing: 10px;
+            font-family: 'Courier New', Consolas, monospace;
+          }
+          .copy-hint {
+            font-size: 13px;
+            color: #065f46;
+            margin-top: 12px;
+            font-weight: 500;
+          }
+          .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px 20px;
+            margin: 30px 0;
+            border-radius: 6px;
+          }
+          .warning-box strong {
+            color: #92400e;
+            display: block;
+            margin-bottom: 5px;
+          }
+          .warning-box p {
+            margin: 0;
+            color: #78350f;
+            font-size: 14px;
+          }
+          .security-note {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .security-note p {
+            margin: 0;
+            color: #991b1b;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          .help-text {
+            color: #6b7280;
+            font-size: 14px;
+            margin: 30px 0 0 0;
+            line-height: 1.6;
+          }
+          .footer { 
+            background: #f9fafb;
+            text-align: center; 
+            padding: 30px 20px;
+            color: #6b7280; 
+            font-size: 13px;
+            border-top: 1px solid #e5e7eb;
+          }
+          .footer p {
+            margin: 5px 0;
+          }
+          @media only screen and (max-width: 600px) {
+            .content {
+              padding: 30px 20px;
+            }
+            .otp-code {
+              font-size: 36px;
+              letter-spacing: 8px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="email-wrapper">
+          <div class="container">
+            <div class="header">
+              <h1>KAWAN DIABETES</h1>
+              <p>RS Panti Nugroho</p>
+            </div>
+            
+            <div class="content">
+              <p class="greeting">Halo, ${userName}!</p>
+              
+              <p class="intro-text">
+                Kami menerima permintaan untuk mereset password akun Anda.
+                Gunakan kode verifikasi di bawah ini untuk melanjutkan proses reset password.
+              </p>
+              
+              <div class="otp-section">
+                <div class="otp-label">KODE VERIFIKASI ANDA</div>
+                <div class="otp-box">
+                  <div class="otp-code">${otpCode}</div>
+                </div>
+                <div class="copy-hint">
+                  👆 Ketik atau copy kode di atas
+                </div>
+              </div>
+              
+              <div class="warning-box">
+                <strong>⏰ Perhatian:</strong>
+                <p>Kode ini hanya berlaku selama <strong>10 menit</strong>. Segera gunakan kode ini sebelum kadaluarsa.</p>
+              </div>
+
+              <div class="security-note">
+                <p>🔒 Jangan bagikan kode ini kepada siapapun, termasuk petugas RS!</p>
+              </div>
+              
+              <p class="help-text">
+                Jika Anda tidak melakukan permintaan reset password, abaikan email ini. 
+                Password Anda akan tetap aman dan tidak akan berubah.
+              </p>
+            </div>
+            
+            <div class="footer">
+              <p><strong>RS Panti Nugroho - Kawan Diabetes</strong></p>
+              <p>© 2025 Semua hak dilindungi</p>
+              <p style="margin-top: 15px; color: #9ca3af; font-size: 12px;">
+                Email ini dikirim secara otomatis, mohon tidak membalas email ini.
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+// app/api/auth/forgot-password/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { sendEmail } from '@/lib/email';
+import crypto from 'crypto';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email } = await request.json();
+
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Email is required' },
+        { status: 400 }
+      );
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if user exists or not (security best practice)
+      return NextResponse.json({
+        message: 'If the email exists, a verification code has been sent',
+      });
+    }
+
+    // Generate 6-digit OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 600000); // 10 minutes
+
+    // Save OTP to database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: otpCode,
+        resetPasswordExpires: otpExpiry,
+      },
+    });
+
+    // Send email with OTP
+    const emailHtml = generateOTPEmail(otpCode, user.name);
+
+    const emailResult = await sendEmail({
+      to: user.email,
+      subject: 'Kode Verifikasi Reset Password - RS Panti Nugroho',
+      html: emailHtml,
+    });
+
+    if (!emailResult.success) {
+      console.error('Failed to send OTP email:', emailResult.error);
+      return NextResponse.json(
+        { error: 'Failed to send verification code' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`✅ OTP sent to ${user.email}: ${otpCode}`); // Log untuk development
+
+    return NextResponse.json({
+      message: 'If the email exists, a verification code has been sent',
+      success: true,
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+function generateOTPEmail(otpCode: string, userName: string) {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6; 
+            color: #1f2937;
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+          }
+          .email-wrapper {
+            background-color: #f3f4f6;
+            padding: 40px 20px;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .header { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            padding: 40px 30px; 
+            text-align: center; 
+            color: white; 
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            font-size: 14px;
+            opacity: 0.95;
+          }
+          .content { 
+            padding: 40px 30px; 
+          }
+          .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #059669;
+            margin: 0 0 20px 0;
+          }
+          .intro-text {
+            color: #4b5563;
+            margin: 0 0 30px 0;
+            font-size: 15px;
+          }
+          .otp-section {
+            text-align: center;
+            margin: 40px 0;
+          }
+          .otp-label {
+            font-size: 13px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+          }
+          .otp-box {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border: 3px solid #10b981;
+            border-radius: 12px;
+            padding: 25px;
+            display: inline-block;
+            margin: 10px 0;
+          }
+          .otp-code {
+            font-size: 42px;
+            font-weight: 700;
+            color: #047857;
+            letter-spacing: 10px;
+            font-family: 'Courier New', Consolas, monospace;
+            user-select: all;
+            -webkit-user-select: all;
+            -moz-user-select: all;
+            -ms-user-select: all;
+          }
+          .copy-hint {
+            font-size: 13px;
+            color: #065f46;
+            margin-top: 12px;
+            font-weight: 500;
+          }
+          .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px 20px;
+            margin: 30px 0;
+            border-radius: 6px;
+          }
+          .warning-box strong {
+            color: #92400e;
+            display: block;
+            margin-bottom: 5px;
+          }
+          .warning-box p {
+            margin: 0;
+            color: #78350f;
+            font-size: 14px;
+          }
+          .security-note {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .security-note p {
+            margin: 0;
+            color: #991b1b;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          .help-text {
+            color: #6b7280;
+            font-size: 14px;
+            margin: 30px 0 0 0;
+            line-height: 1.6;
+          }
+          .footer { 
+            background: #f9fafb;
+            text-align: center; 
+            padding: 30px 20px;
+            color: #6b7280; 
+            font-size: 13px;
+            border-top: 1px solid #e5e7eb;
+          }
+          .footer p {
+            margin: 5px 0;
+          }
+          @media only screen and (max-width: 600px) {
+            .content {
+              padding: 30px 20px;
+            }
+            .otp-code {
+              font-size: 36px;
+              letter-spacing: 8px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="email-wrapper">
+          <div class="container">
+            <div class="header">
+              <h1>KAWAN DIABETES</h1>
+              <p>RS Panti Nugroho</p>
+            </div>
+            
+            <div class="content">
+              <p class="greeting">Halo, ${userName}!</p>
+              
+              <p class="intro-text">
+                Kami menerima permintaan untuk mereset password akun Anda.
+                Gunakan kode verifikasi di bawah ini untuk melanjutkan proses reset password.
+              </p>
+              
+              <div class="otp-section">
+                <div class="otp-label">KODE VERIFIKASI ANDA</div>
+                <div class="otp-box">
+                  <div class="otp-code">${otpCode}</div>
+                </div>
+                <div class="copy-hint">
+                  👆 Ketik atau copy kode di atas
+                </div>
+              </div>
+              
+              <div class="warning-box">
+                <strong>⏰ Perhatian:</strong>
+                <p>Kode ini hanya berlaku selama <strong>10 menit</strong>. Segera gunakan kode ini sebelum kadaluarsa.</p>
+              </div>
+
+              <div class="security-note">
+                <p>🔒 Jangan bagikan kode ini kepada siapapun, termasuk petugas RS!</p>
+              </div>
+              
+              <p class="help-text">
+                Jika Anda tidak melakukan permintaan reset password, abaikan email ini. 
+                Password Anda akan tetap aman dan tidak akan berubah.
+              </p>
+            </div>
+            
+            <div class="footer">
+              <p><strong>RS Panti Nugroho - Kawan Diabetes</strong></p>
+              <p>© 2025 Semua hak dilindungi</p>
+              <p style="margin-top: 15px; color: #9ca3af; font-size: 12px;">
+                Email ini dikirim secara otomatis, mohon tidak membalas email ini.
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+//src\app\api\auth\login-tracking\route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+function getStartAndEndOfDay(date: Date, tzOffset = 7) {
+  // shift date to local timezone (WIB default)
+  const local = new Date(date.getTime() + tzOffset * 60 * 60 * 1000);
+  const start = new Date(local.getFullYear(), local.getMonth(), local.getDate());
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  // shift back to UTC for DB comparison
+  return {
+    start: new Date(start.getTime() - tzOffset * 60 * 60 * 1000),
+    end: new Date(end.getTime() - tzOffset * 60 * 60 * 1000),
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || (session.user as any).role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('Admin stats requested by:', (session.user as any).username);
+
+    const now = new Date();
+    const { start, end } = getStartAndEndOfDay(now);
+
+    // Total staff aktif
+    const totalStaff = await prisma.user.count({
+      where: { isActive: true },
+    });
+
+    // Daily logins
+    const dailyLogins = await prisma.loginLog.count({
+      where: {
+        loginTime: { gte: start, lt: end },
+      },
+    });
+
+    // Weekly logins (1 query, bukan loop 7 kali)
+    const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const rawWeekly = await prisma.loginLog.groupBy({
+      by: ['loginTime'],
+      where: {
+        loginTime: { gte: sevenDaysAgo },
+      },
+      _count: { loginTime: true },
+    });
+
+    // Format data biar konsisten 7 hari
+    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const weeklyActivity = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const { start, end } = getStartAndEndOfDay(d);
+      const count = rawWeekly
+        .filter(r => r.loginTime >= start && r.loginTime < end)
+        .reduce((sum, r) => sum + r._count.loginTime, 0);
+
+      weeklyActivity.push({
+        day: dayNames[d.getDay()],
+        date: d.toISOString().split('T')[0],
+        logins: count,
+        isToday: d.toDateString() === now.toDateString(),
+      });
+    }
+
+    // Staff distribution by role
+    const staffDistribution = await prisma.user.groupBy({
+      by: ['role'],
+      where: { isActive: true },
+      _count: { role: true },
+    });
+
+    const roleNames = {
+      DOKTER_SPESIALIS: 'Dokter Spesialis',
+      PERAWAT_RUANGAN: 'Perawat Ruangan',
+      PERAWAT_POLI: 'Perawat Poli',
+      FARMASI: 'Farmasi',
+      ADMINISTRASI: 'Administrasi',
+      MANAJER: 'Manajer',
+      AHLI_GIZI: 'Ahli Gizi',
+    };
+
+    const roleColors = {
+      DOKTER_SPESIALIS: 'bg-blue-500',
+      PERAWAT_RUANGAN: 'bg-teal-500',
+      PERAWAT_POLI: 'bg-cyan-500',
+      FARMASI: 'bg-emerald-500',
+      ADMINISTRASI: 'bg-gray-500',
+      MANAJER: 'bg-amber-500',
+      AHLI_GIZI: 'bg-green-500',
+    };
+
+    const distribution = staffDistribution.map(item => ({
+      role: roleNames[item.role as keyof typeof roleNames] || item.role,
+      count: item._count.role,
+      color: roleColors[item.role as keyof typeof roleColors] || 'bg-gray-500',
+    }));
+
+    return NextResponse.json({
+      totalStaff,
+      dailyLogins,
+      weeklyActivity,
+      distribution,
+      meta: {
+        timestamp: now.toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching admin stats:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch stats', details: error.message },
+      { status: 500 },
+    );
+  }
+}
+
+
+// app/api/auth/reset-password/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email, token, newPassword, mode } = await request.json();
+
+    if (!token || !newPassword) {
+      return NextResponse.json(
+        { error: 'Token and new password are required' },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Find user with valid token
+    let user;
+    
+    if (email) {
+      // Jika ada email, cari berdasarkan email DAN token
+      user = await prisma.user.findFirst({
+        where: {
+          email: email,
+          resetPasswordToken: token,
+          resetPasswordExpires: {
+            gt: new Date(),
+          },
+        },
+      });
+    } else {
+      // Fallback ke cara lama (cari by token saja)
+      user = await prisma.user.findFirst({
+        where: {
+          resetPasswordToken: token,
+          resetPasswordExpires: {
+            gt: new Date(),
+          },
+        },
+      });
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 400 }
+      );
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    console.log(`Password reset successful for user: ${user.email}`);
+
+    return NextResponse.json({
+      message: 'Password reset successful',
+      success: true,
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// app/api/auth/verify-otp/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email, otpCode } = await request.json();
+
+    if (!email || !otpCode) {
+      return NextResponse.json(
+        { error: 'Email and OTP code are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate OTP format
+    if (otpCode.length !== 6 || !/^\d+$/.test(otpCode)) {
+      return NextResponse.json(
+        { error: 'Invalid OTP format' },
+        { status: 400 }
+      );
+    }
+
+    // Find user with matching email and valid OTP
+    const user = await prisma.user.findFirst({
+      where: {
+        email: email,
+        resetPasswordToken: otpCode,
+        resetPasswordExpires: {
+          gt: new Date(), // OTP not expired
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired verification code' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`  OTP verified for: ${user.email}`);
+
+    // OTP valid, tapi jangan clear dulu - masih perlu untuk reset password
+    return NextResponse.json({
+      message: 'OTP verified successfully',
+      success: true,
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// src/app/api/drug-transactions/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN', 'MANAJER'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const transaction = await prisma.drugTransaction.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            mrNumber: true,
+            phone: true
+          }
+        },
+        items: {
+          include: {
+            drug: {
+              select: {
+                id: true,
+                name: true,
+                strength: true,
+                dosageForm: true,
+                category: true,
+                manufacturer: true,
+                stock: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!transaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
+
+    const response = {
+      id: transaction.id,
+      patientId: transaction.patientId,
+      patientName: transaction.patient.name,
+      mrNumber: transaction.patient.mrNumber,
+      patientPhone: transaction.patient.phone,
+      items: transaction.items.map(item => ({
+        id: item.id,
+        drugId: item.drugId,
+        drugName: item.drug.name,
+        quantity: item.quantity
+      })),
+      status: transaction.status,
+      createdAt: transaction.createdAt.toISOString(),
+      completedAt: transaction.completedAt?.toISOString(),
+      notes: transaction.notes
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error fetching transaction detail:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch transaction detail' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const existingTransaction = await prisma.drugTransaction.findUnique({
+      where: { id: params.id },
+      include: {
+        items: true
+      }
+    });
+
+    if (!existingTransaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
+
+    if (existingTransaction.status === 'CANCELLED') {
+      return NextResponse.json(
+        { error: 'Cannot edit cancelled transaction' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { items, notes } = body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { error: 'Items are required' },
+        { status: 400 }
+      );
+    }
+
+    for (const item of items) {
+      const drug = await prisma.drugData.findUnique({
+        where: { id: item.drugId }
+      });
+
+      if (!drug) {
+        return NextResponse.json(
+          { error: `Drug with ID ${item.drugId} not found` },
+          { status: 404 }
+        );
+      }
+
+      const oldItem = existingTransaction.items.find(i => i.drugId === item.drugId);
+      const oldQuantity = oldItem?.quantity || 0;
+      const stockDiff = item.quantity - oldQuantity;
+
+      if (stockDiff > 0 && drug.stock < stockDiff) {
+        return NextResponse.json(
+          { error: `Insufficient stock for ${drug.name}. Available: ${drug.stock}, Required additional: ${stockDiff}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      for (const oldItem of existingTransaction.items) {
+        await tx.drugData.update({
+          where: { id: oldItem.drugId },
+          data: {
+            stock: {
+              increment: oldItem.quantity
+            }
+          }
+        });
+      }
+
+      await tx.drugTransactionItem.deleteMany({
+        where: { transactionId: params.id }
+      });
+
+      await Promise.all(
+        items.map((item: any) =>
+          tx.drugTransactionItem.create({
+            data: {
+              transactionId: params.id,
+              drugId: item.drugId,
+              quantity: item.quantity
+            }
+          })
+        )
+      );
+
+      for (const item of items) {
+        await tx.drugData.update({
+          where: { id: item.drugId },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
+      }
+
+      const updatedTransaction = await tx.drugTransaction.update({
+        where: { id: params.id },
+        data: {
+          notes: notes?.trim() || null
+        },
+        include: {
+          patient: {
+            select: {
+              name: true,
+              mrNumber: true
+            }
+          },
+          items: {
+            include: {
+              drug: {
+                select: {
+                  name: true,
+                  strength: true,
+                  dosageForm: true,
+                  category: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      return updatedTransaction;
+    });
+
+    const response = {
+      id: result.id,
+      patientId: result.patientId,
+      patientName: result.patient.name,
+      mrNumber: result.patient.mrNumber,
+      items: result.items.map(item => ({
+        id: item.id,
+        drugId: item.drugId,
+        drugName: item.drug.name,
+        quantity: item.quantity
+      })),
+      status: result.status,
+      createdAt: result.createdAt.toISOString(),
+      completedAt: result.completedAt?.toISOString(),
+      notes: result.notes
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    return NextResponse.json(
+      { error: 'Failed to update transaction' },
+      { status: 500 }
+    );
+  }
+}
+
 // src/app/api/drug-transactions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -13,14 +1749,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userRole = (session.user as any).role;
-    const allowedRoles = ['FARMASI', 'SUPER_ADMIN', 'MANAJER'];
-
-    if (!allowedRoles.includes(userRole)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
+
+    console.log('GET drug-transactions - patientId:', patientId); // DEBUG
 
     const whereClause: any = {};
     if (patientId) {
@@ -56,6 +1788,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    console.log('Found transactions:', transactions.length); // DEBUG
+
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       patientId: transaction.patientId,
@@ -65,12 +1799,15 @@ export async function GET(request: NextRequest) {
         id: item.id,
         drugId: item.drugId,
         drugName: item.drug.name,
+        strength: item.drug.strength,
+        dosageForm: item.drug.dosageForm,
         quantity: item.quantity
       })),
       status: transaction.status,
       createdAt: transaction.createdAt.toISOString(),
       completedAt: transaction.completedAt?.toISOString(),
-      notes: transaction.notes
+      notes: transaction.notes,
+      prescriptionSource: (transaction as any).prescriptionSource || 'MANUAL'
     }));
 
     return NextResponse.json(transformedTransactions);
@@ -83,6 +1820,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST tetap sama seperti sebelumnya
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -108,7 +1846,6 @@ export async function POST(request: NextRequest) {
       relatedPrescriptionAlertId
     } = body;
 
-    // Validate required fields
     if (!patientId || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'Missing required fields: patientId, items' },
@@ -116,7 +1853,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate patient exists
     const patient = await prisma.patient.findUnique({
       where: { id: patientId }
     });
@@ -125,7 +1861,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Validate all drugs exist and have sufficient stock
     for (const item of items) {
       if (!item.drugId || !item.quantity) {
         return NextResponse.json(
@@ -160,11 +1895,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create transaction with items and REDUCE STOCK IMMEDIATELY
     const result = await prisma.$transaction(async (tx) => {
       const now = new Date();
 
-      // Create the drug transaction with COMPLETED status
       const drugTransaction = await tx.drugTransaction.create({
         data: {
           patientId,
@@ -175,7 +1908,6 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Create transaction items
       const transactionItems = await Promise.all(
         items.map((item: any) =>
           tx.drugTransactionItem.create({
@@ -188,7 +1920,6 @@ export async function POST(request: NextRequest) {
         )
       );
 
-      // REDUCE STOCK for all items
       for (const item of items) {
         await tx.drugData.update({
           where: { id: item.drugId },
@@ -200,7 +1931,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Create PharmacyRecord
       await tx.pharmacyRecord.create({
         data: {
           patientId,
@@ -216,7 +1946,6 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Send alert ONLY if from doctor prescription AND patient is inpatient
       if (prescriptionSource === 'DOCTOR_PRESCRIPTION' && patient.status === 'RAWAT_INAP') {
         const medicationList = items
           .map((item: any) => `- ${item.drugName}: ${item.quantity} unit`)
@@ -225,14 +1954,7 @@ export async function POST(request: NextRequest) {
         await tx.alert.create({
           data: {
             type: 'INFO',
-            message: `📦 Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.
-
-Daftar Obat:
-${medicationList}
-
-Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit
-
- Harap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
+            message: `Obat dari resep dokter untuk pasien ${patient.name} (${patient.mrNumber}) sudah tersedia dan siap diberikan.\n\nDaftar Obat:\n${medicationList}\n\nTotal: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => sum + item.quantity, 0)} unit\n\nHarap segera diambil dan diberikan kepada pasien sesuai instruksi dokter.`,
             patientId,
             category: 'MEDICATION',
             priority: 'MEDIUM',
@@ -242,7 +1964,31 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
         });
       }
 
-      // Mark prescription alert as read if exists
+      if (prescriptionSource === 'MANUAL' && relatedHandledPatientId) {
+        try {
+          const nurseAlerts = await tx.alert.findMany({
+            where: {
+              patientId,
+              category: 'MEDICATION',
+              targetRole: 'FARMASI',
+              isRead: false,
+              message: { contains: 'memerlukan obat tambahan' }
+            }
+          });
+
+          await Promise.all(
+            nurseAlerts.map(alert =>
+              tx.alert.update({
+                where: { id: alert.id },
+                data: { isRead: true }
+              })
+            )
+          );
+        } catch (err) {
+          console.error('Error marking nurse medication alerts:', err);
+        }
+      }
+
       if (relatedPrescriptionAlertId) {
         await tx.alert.update({
           where: { id: relatedPrescriptionAlertId },
@@ -256,7 +2002,6 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
       };
     });
 
-    // Fetch the complete transaction with relations for response
     const completeTransaction = await prisma.drugTransaction.findUnique({
       where: { id: result.id },
       include: {
@@ -282,7 +2027,6 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
       }
     });
 
-    // Transform response
     const response = {
       id: completeTransaction!.id,
       patientId: completeTransaction!.patientId,
@@ -312,6 +2056,924 @@ Total: ${items.length} jenis obat, ${items.reduce((sum: number, item: any) => su
   }
 }
 
+// src/app/api/drug-transactions/[id]/cancel/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    // Find the transaction
+    const transaction = await prisma.drugTransaction.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        },
+        items: {
+          include: {
+            drug: {
+              select: {
+                name: true,
+                strength: true,
+                dosageForm: true,
+                category: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!transaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
+
+    if (transaction.status === 'CANCELLED') {
+      return NextResponse.json(
+        { error: 'Transaction is already cancelled' },
+        { status: 400 }
+      );
+    }
+
+    // FIX: Allow cancellation of COMPLETED transactions and restore stock
+    if (transaction.status === 'COMPLETED') {
+      // Restore stock for all items in the transaction
+      await prisma.$transaction(async (tx) => {
+        for (const item of transaction.items) {
+          await tx.drugData.update({
+            where: { id: item.drugId },
+            data: {
+              stock: {
+                increment: item.quantity
+              }
+            }
+          });
+        }
+
+        // Update transaction status to CANCELLED
+        await tx.drugTransaction.update({
+          where: { id: params.id },
+          data: {
+            status: 'CANCELLED'
+          }
+        });
+      });
+    } else {
+      // For PENDING transactions, just update status (no stock to restore)
+      await prisma.drugTransaction.update({
+        where: { id: params.id },
+        data: {
+          status: 'CANCELLED'
+        }
+      });
+    }
+
+    // Fetch updated transaction
+    const updatedTransaction = await prisma.drugTransaction.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: {
+          select: {
+            name: true,
+            mrNumber: true
+          }
+        },
+        items: {
+          include: {
+            drug: {
+              select: {
+                name: true,
+                strength: true,
+                dosageForm: true,
+                category: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Transform response
+    const response = {
+      id: updatedTransaction!.id,
+      patientId: updatedTransaction!.patientId,
+      patientName: updatedTransaction!.patient.name,
+      mrNumber: updatedTransaction!.patient.mrNumber,
+      items: updatedTransaction!.items.map(item => ({
+        id: item.id,
+        drugId: item.drugId,
+        drugName: item.drug.name,
+        quantity: item.quantity,
+      })),
+      status: updatedTransaction!.status,
+      createdAt: updatedTransaction!.createdAt.toISOString(),
+      completedAt: updatedTransaction!.completedAt?.toISOString(),
+      notes: updatedTransaction!.notes
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error cancelling drug transaction:', error);
+    return NextResponse.json(
+      { error: 'Failed to cancel drug transaction' },
+      { status: 500 }
+    );
+  }
+}
+
+
+// src/app/api/drugs/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+
+    const existingDrug = await prisma.drugData.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!existingDrug) {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    const requiredFields = ['name', 'category', 'categoryKehamilan', 'dosageForm', 'strength', 'manufacturer', 'expiryDate'];
+    for (const field of requiredFields) {
+      if (!body[field]) {
+        return NextResponse.json(
+          { error: `Missing required field: ${field}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.stock !== undefined && (isNaN(body.stock) || body.stock < 0)) {
+      return NextResponse.json(
+        { error: 'Stock must be a non-negative number' },
+        { status: 400 }
+      );
+    }
+
+    const expiryDate = new Date(body.expiryDate);
+    if (isNaN(expiryDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid expiry date format' },
+        { status: 400 }
+      );
+    }
+
+    const updatedDrug = await prisma.drugData.update({
+      where: { id: params.id },
+      data: {
+        name: body.name.trim(),
+        category: body.category,
+        categoryKehamilan: body.categoryKehamilan,
+        dosageForm: body.dosageForm,
+        strength: body.strength.trim(),
+        manufacturer: body.manufacturer.trim(),
+        stock: body.stock !== undefined ? parseInt(body.stock) : existingDrug.stock,
+        expiryDate: expiryDate,
+        interactions: Array.isArray(body.interactions) ? body.interactions : existingDrug.interactions || [],
+        contraindications: Array.isArray(body.contraindications) ? body.contraindications : existingDrug.contraindications || [],
+        sideEffects: Array.isArray(body.sideEffects) ? body.sideEffects : existingDrug.sideEffects || [],
+        indications: Array.isArray(body.indications) ? body.indications : existingDrug.indications || []
+      }
+    });
+
+    const response = {
+      id: updatedDrug.id,
+      name: updatedDrug.name,
+      category: updatedDrug.category,
+      categoryKehamilan: updatedDrug.categoryKehamilan,
+      dosageForm: updatedDrug.dosageForm,
+      strength: updatedDrug.strength,
+      manufacturer: updatedDrug.manufacturer,
+      stock: updatedDrug.stock,
+      expiryDate: updatedDrug.expiryDate.toISOString(),
+      interactions: updatedDrug.interactions,
+      contraindications: updatedDrug.contraindications,
+      sideEffects: updatedDrug.sideEffects,
+      indications: updatedDrug.indications,
+      createdAt: updatedDrug.createdAt?.toISOString() || new Date().toISOString()
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error updating drug:', error);
+
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Drug with this name already exists' },
+        { status: 400 }
+      );
+    }
+
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to update drug' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const existingDrug = await prisma.drugData.findUnique({
+      where: { id: params.id },
+      include: {
+        transactionItems: true
+      }
+    });
+
+    if (!existingDrug) {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    if (existingDrug.transactionItems.length > 0) {
+      return NextResponse.json({
+        error: 'Cannot delete drug with existing transaction history. Consider deactivating instead.'
+      }, { status: 400 });
+    }
+
+    await prisma.drugData.delete({
+      where: { id: params.id }
+    });
+
+    return NextResponse.json({ message: 'Drug deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting drug:', error);
+
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({
+        error: 'Cannot delete drug due to existing related data. Consider deactivating instead.'
+      }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to delete drug' },
+      { status: 500 }
+    );
+  }
+}
+
+// src/app/api/drugs/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN', 'MANAJER', 'DOKTER_SPESIALIS'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const drugs = await prisma.drugData.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const transformedDrugs = drugs.map(drug => ({
+      id: drug.id,
+      name: drug.name,
+      category: drug.category,
+      categoryKehamilan: drug.categoryKehamilan,
+      dosageForm: drug.dosageForm,
+      strength: drug.strength,
+      manufacturer: drug.manufacturer,
+      stock: drug.stock,
+      expiryDate: drug.expiryDate.toISOString(),
+      interactions: drug.interactions,
+      contraindications: drug.contraindications,
+      sideEffects: drug.sideEffects,
+      indications: drug.indications,
+      createdAt: drug.createdAt?.toISOString() || new Date().toISOString()
+    }));
+
+    return NextResponse.json(transformedDrugs);
+  } catch (error) {
+    console.error('Error fetching drugs:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch drugs' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    
+    const requiredFields = ['name', 'category', 'dosageForm', 'strength', 'manufacturer', 'stock', 'expiryDate'];
+    for (const field of requiredFields) {
+      if (!body[field]) {
+        return NextResponse.json(
+          { error: `Missing required field: ${field}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (isNaN(body.stock) || body.stock < 0) {
+      return NextResponse.json(
+        { error: 'Stock must be a non-negative number' },
+        { status: 400 }
+      );
+    }
+
+    const expiryDate = new Date(body.expiryDate);
+    if (isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
+      return NextResponse.json(
+        { error: 'Expiry date must be a valid future date' },
+        { status: 400 }
+      );
+    }
+
+    const drug = await prisma.drugData.create({
+      data: {
+        name: body.name.trim(),
+        category: body.category,
+        categoryKehamilan: body.categoryKehamilan,
+        dosageForm: body.dosageForm,
+        strength: body.strength.trim(),
+        manufacturer: body.manufacturer.trim(),
+        stock: parseInt(body.stock),
+        expiryDate: expiryDate,
+        interactions: Array.isArray(body.interactions) ? body.interactions : [],
+        contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
+        sideEffects: Array.isArray(body.sideEffects) ? body.sideEffects : [],
+        indications: Array.isArray(body.indications) ? body.indications : []
+      }
+    });
+
+    const response = {
+      id: drug.id,
+      name: drug.name,
+      category: drug.category,
+      categoryKehamilan: drug.categoryKehamilan,
+      dosageForm: drug.dosageForm,
+      strength: drug.strength,
+      manufacturer: drug.manufacturer,
+      stock: drug.stock,
+      expiryDate: drug.expiryDate.toISOString(),
+      interactions: drug.interactions,
+      contraindications: drug.contraindications,
+      sideEffects: drug.sideEffects,
+      indications: drug.indications,
+      createdAt: drug.createdAt?.toISOString() || new Date().toISOString()
+    };
+
+    return NextResponse.json(response, { status: 201 });
+  } catch (error) {
+    console.error('Error creating drug:', error);
+
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Drug with this name already exists' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to create drug' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+
+    const existingDrug = await prisma.drugData.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!existingDrug) {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    const requiredFields = ['name', 'category', 'dosageForm', 'strength', 'manufacturer', 'stock', 'expiryDate'];
+    for (const field of requiredFields) {
+      if (!body[field]) {
+        return NextResponse.json(
+          { error: `Missing required field: ${field}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (isNaN(body.stock) || body.stock < 0) {
+      return NextResponse.json(
+        { error: 'Stock must be a non-negative number' },
+        { status: 400 }
+      );
+    }
+
+    const expiryDate = new Date(body.expiryDate);
+    if (isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
+      return NextResponse.json(
+        { error: 'Expiry date must be a valid future date' },
+        { status: 400 }
+      );
+    }
+
+    const updatedDrug = await prisma.drugData.update({
+      where: { id: params.id },
+      data: {
+        name: body.name.trim(),
+        category: body.category,
+        categoryKehamilan: body.categoryKehamilan,
+        dosageForm: body.dosageForm,
+        strength: body.strength.trim(),
+        manufacturer: body.manufacturer.trim(),
+        stock: parseInt(body.stock),
+        expiryDate: expiryDate,
+        interactions: Array.isArray(body.interactions) ? body.interactions : [],
+        contraindications: Array.isArray(body.contraindications) ? body.contraindications : [],
+        sideEffects: Array.isArray(body.sideEffects) ? body.sideEffects : [],
+        indications: Array.isArray(body.indications) ? body.indications : []
+      }
+    });
+
+    const response = {
+      id: updatedDrug.id,
+      name: updatedDrug.name,
+      category: updatedDrug.category,
+      categoryKehamilan: updatedDrug.categoryKehamilan,
+      dosageForm: updatedDrug.dosageForm,
+      strength: updatedDrug.strength,
+      manufacturer: updatedDrug.manufacturer,
+      stock: updatedDrug.stock,
+      expiryDate: updatedDrug.expiryDate.toISOString(),
+      interactions: updatedDrug.interactions,
+      contraindications: updatedDrug.contraindications,
+      sideEffects: updatedDrug.sideEffects,
+      indications: updatedDrug.indications,
+      createdAt: updatedDrug.createdAt?.toISOString() || new Date().toISOString()
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error updating drug:', error);
+
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Drug with this name already exists' },
+        { status: 400 }
+      );
+    }
+
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to update drug' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['FARMASI', 'SUPER_ADMIN'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const existingDrug = await prisma.drugData.findUnique({
+      where: { id: params.id },
+      include: {
+        transactionItems: true
+      }
+    });
+
+    if (!existingDrug) {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    if (existingDrug.transactionItems.length > 0) {
+      return NextResponse.json({
+        error: 'Cannot delete drug with existing transaction history. Consider deactivating instead.'
+      }, { status: 400 });
+    }
+
+    await prisma.drugData.delete({
+      where: { id: params.id }
+    });
+
+    return NextResponse.json({ message: 'Drug deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting drug:', error);
+
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
+    }
+
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({
+        error: 'Cannot delete drug due to existing related data. Consider deactivating instead.'
+      }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to delete drug' },
+      { status: 500 }
+    );
+  }
+}
+
+// src/app/api/handled-patients/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string): string {
+    switch (handledStatus) {
+        case 'ANTRIAN':
+        case 'SEDANG_DITANGANI':
+            return 'AKTIF';
+        case 'KONSULTASI':
+        case 'STABIL':
+            return 'RAWAT_JALAN';
+        case 'OBSERVASI':
+        case 'EMERGENCY':
+            return 'RAWAT_INAP';
+        case 'RUJUK_KELUAR':
+            return 'RUJUK_KELUAR';
+        case 'SELESAI':
+            if (notes && notes.toLowerCase().includes('pulang paksa')) {
+                return 'PULANG_PAKSA';
+            }
+            return 'PULANG';
+        case 'MENINGGAL':
+            return 'MENINGGAL';
+        default:
+            return 'AKTIF';
+    }
+}
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const handledPatient = await prisma.handledPatient.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            mrNumber: true,
+            name: true,
+            birthDate: true,
+            gender: true,
+            phone: true,
+            diabetesType: true,
+            insuranceType: true,
+            riskLevel: true,
+            status: true,
+            allergies: true
+          }
+        },
+        handler: {
+          select: {
+            name: true,
+            role: true,
+            employeeId: true
+          }
+        }
+      }
+    });
+
+    if (!handledPatient) {
+      return NextResponse.json({ error: 'Handled patient not found' }, { status: 404 });
+    }
+
+    if (userRole !== 'SUPER_ADMIN' && handledPatient.handledBy !== userId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    return NextResponse.json(handledPatient);
+  } catch (error) {
+    console.error('Error fetching handled patient:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const existingHandledPatient = await prisma.handledPatient.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: true
+      }
+    });
+
+    if (!existingHandledPatient) {
+      return NextResponse.json({ error: 'Handled patient not found' }, { status: 404 });
+    }
+
+    if (userRole !== 'SUPER_ADMIN' && existingHandledPatient.handledBy !== userId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      diagnosis,
+      treatmentPlan,
+      notes,
+      priority,
+      nextVisitDate,
+      estimatedDuration,
+      specialInstructions,
+      status
+    } = body;
+
+    const lastHandledPatient = await prisma.handledPatient.findFirst({
+      where: {
+        patientId: existingHandledPatient.patientId,
+        id: { not: params.id }
+      },
+      orderBy: { handledDate: 'desc' }
+    });
+
+    let finalStatus = status;
+    if (status === undefined) {
+      if (lastHandledPatient) {
+        finalStatus = lastHandledPatient.status;
+        console.log(`Restoring previous handled status for edit: ${finalStatus}`);
+      } else {
+        finalStatus = existingHandledPatient.status;
+      }
+    }
+
+    const finalNotes = notes !== undefined ? notes : existingHandledPatient.notes;
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const updatedHandledPatient = await tx.handledPatient.update({
+          where: { id: params.id },
+          data: {
+            diagnosis: diagnosis !== undefined ? diagnosis : existingHandledPatient.diagnosis,
+            treatmentPlan: treatmentPlan !== undefined ? treatmentPlan : existingHandledPatient.treatmentPlan,
+            notes: finalNotes,
+            status: finalStatus as any,
+            priority: priority !== undefined ? (priority as any) : existingHandledPatient.priority,
+            estimatedDuration: estimatedDuration !== undefined ? estimatedDuration : existingHandledPatient.estimatedDuration,
+            specialInstructions: specialInstructions !== undefined ? specialInstructions : existingHandledPatient.specialInstructions,
+            nextVisitDate: nextVisitDate !== undefined ? (nextVisitDate ? new Date(nextVisitDate) : null) : existingHandledPatient.nextVisitDate,
+          },
+          include: {
+            patient: {
+              select: {
+                id: true,
+                mrNumber: true,
+                name: true,
+                birthDate: true,
+                gender: true,
+                diabetesType: true,
+                insuranceType: true,
+                riskLevel: true,
+                status: true
+              }
+            },
+            handler: {
+              select: {
+                name: true,
+                role: true
+              }
+            }
+          }
+        });
+
+        const newPatientStatus = mapHandledStatusToPatientStatus(finalStatus, finalNotes);
+
+        await tx.patient.update({
+          where: { id: existingHandledPatient.patientId },
+          data: {
+            status: newPatientStatus as any,
+            lastVisit: new Date()
+          }
+        });
+
+        console.log(`Patient global status updated to: ${newPatientStatus} (from edit mode)`);
+
+        return updatedHandledPatient;
+      });
+
+      return NextResponse.json(result);
+    } catch (error) {
+      console.error('Error updating handled patient:', error);
+      return NextResponse.json({
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('Error updating handled patient:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const existingHandledPatient = await prisma.handledPatient.findUnique({
+      where: { id: params.id },
+      include: {
+        patient: true
+      }
+    });
+
+    if (!existingHandledPatient) {
+      return NextResponse.json({ error: 'Handled patient not found' }, { status: 404 });
+    }
+
+    if (userRole !== 'SUPER_ADMIN' && existingHandledPatient.handledBy !== userId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.handledPatient.delete({
+        where: { id: params.id }
+      });
+
+      await tx.patient.update({
+        where: { id: existingHandledPatient.patientId },
+        data: {
+          status: 'AKTIF' as any
+        }
+      });
+    });
+
+    return NextResponse.json({ message: 'Handled patient deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting handled patient:', error);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
+  }
+}
 
 // src/app/api/handled-patients/route.ts 
 import { NextResponse } from 'next/server';
@@ -327,10 +2989,10 @@ function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string):
         case 'SEDANG_DITANGANI':
             return 'AKTIF';
         case 'KONSULTASI':
+        case 'STABIL':
             return 'RAWAT_JALAN';
         case 'OBSERVASI':
         case 'EMERGENCY':
-        case 'STABIL':
             return 'RAWAT_INAP';
         case 'RUJUK_KELUAR':
             return 'RUJUK_KELUAR';
@@ -373,7 +3035,9 @@ export async function POST(request: Request) {
             priority,
             nextVisitDate,
             estimatedDuration,
-            specialInstructions
+            specialInstructions,
+            requestLabTests,
+            labTestsRequested
         } = body;
 
         if (!patientId) {
@@ -391,6 +3055,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
         }
 
+        const lastHandledPatient = await prisma.handledPatient.findFirst({
+            where: { patientId },
+            orderBy: { handledDate: 'desc' },
+            include: {
+                patient: true
+            }
+        });
+
+        let finalStatus = status || 'SEDANG_DITANGANI';
+        let finalPatientStatus = patient.status;
+
+        if (lastHandledPatient) {
+            if (!status) {
+                finalStatus = lastHandledPatient.status;
+                console.log(`Restoring previous handled status: ${finalStatus}`);
+            }
+            finalPatientStatus = lastHandledPatient.patient.status;
+            console.log(`Previous patient status: ${finalPatientStatus}`);
+        }
+
         const handledPatient = await prisma.handledPatient.create({
             data: {
                 patientId,
@@ -399,7 +3083,7 @@ export async function POST(request: Request) {
                 diagnosis: diagnosis || null,
                 treatmentPlan: treatmentPlan || null,
                 notes: notes || null,
-                status: status || 'ANTRIAN',
+                status: finalStatus as any,
                 priority: priority || 'NORMAL',
                 nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
                 estimatedDuration: estimatedDuration || null,
@@ -416,6 +3100,49 @@ export async function POST(request: Request) {
                 }
             }
         });
+
+        const newPatientStatus = mapHandledStatusToPatientStatus(
+            handledPatient.status,
+            handledPatient.notes
+        );
+
+        await prisma.patient.update({
+            where: { id: patientId },
+            data: {
+                status: newPatientStatus as any,
+                lastVisit: new Date()
+            }
+        });
+
+        console.log(`Patient global status updated to: ${newPatientStatus}`);
+
+        if (requestLabTests && labTestsRequested && Array.isArray(labTestsRequested) && labTestsRequested.length > 0) {
+            const existingAlerts = await prisma.alert.findMany({
+                where: {
+                    patientId: patient.id,
+                    category: 'LAB_RESULT',
+                    targetRole: 'PERAWAT_POLI',
+                    isRead: false,
+                    message: {
+                        contains: 'Permintaan pemeriksaan lab ulang'
+                    }
+                }
+            });
+
+            if (existingAlerts.length === 0) {
+                await prisma.alert.create({
+                    data: {
+                        type: 'INFO',
+                        message: `Permintaan pemeriksaan lab ulang untuk ${patient.name} (${patient.mrNumber}).\n\nPemeriksaan yang diminta:\n${labTestsRequested.map((test: string) => `- ${test}`).join('\n')}\n\nSegera lakukan pemeriksaan lab.`,
+                        patientId: patient.id,
+                        category: 'LAB_RESULT',
+                        priority: 'HIGH',
+                        targetRole: 'PERAWAT_POLI',
+                        isRead: false
+                    }
+                });
+            }
+        }
 
         return NextResponse.json(handledPatient, { status: 201 });
     } catch (error) {
@@ -439,7 +3166,6 @@ export async function POST(request: Request) {
         }, { status: 500 });
     }
 }
-
 export async function GET(request: Request) {
     try {
         const session = await getServerSession(authOptions);
@@ -449,7 +3175,7 @@ export async function GET(request: Request) {
 
         const userRole = (session.user as any).role;
         const userId = (session.user as any).id;
-        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
         if (!allowedRoles.includes(userRole)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -458,15 +3184,13 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
         const handledBy = searchParams.get('handledBy');
-        const patientId = searchParams.get('patientId'); // TAMBAH INI
+        const patientId = searchParams.get('patientId');
 
         let whereClause: any = {};
 
-        // TAMBAH: Jika ada patientId, ambil semua riwayat pasien tersebut
         if (patientId) {
             whereClause.patientId = patientId;
         } else {
-            // Logic normal untuk filter berdasarkan role
             if (userRole === 'DOKTER_SPESIALIS') {
                 whereClause.OR = [
                     { status: 'ANTRIAN' },
@@ -513,7 +3237,7 @@ export async function GET(request: Request) {
                 }
             },
             orderBy: [
-                { handledDate: 'desc' } // Urutkan dari terbaru
+                { handledDate: 'desc' }
             ]
         });
 
@@ -523,7 +3247,6 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
-
 
 // src/app/api/lab-results/route.ts
 import { NextResponse } from 'next/server';
@@ -620,7 +3343,7 @@ export async function POST(request: Request) {
     }
 
     // 🔧 FIX: Remove technician verification, not all users have employee records
-    console.log('  Creating lab result for user:', userId);
+    console.log('✅ Creating lab result for user:', userId);
 
     // Create lab result - langsung tanpa verify user lagi
     const labResult = await prismaClient.labResult.create({
@@ -637,7 +3360,7 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log('  Lab result created successfully:', labResult.id);
+    console.log('✅ Lab result created successfully:', labResult.id);
 
     return NextResponse.json(labResult, { status: 201 });
   } catch (error: any) {
@@ -668,7 +3391,6 @@ export async function POST(request: Request) {
     await prismaClient.$disconnect();
   }
 }
-
 
 // src/app/api/medical-reports/route.ts
 import { NextResponse } from 'next/server';
@@ -767,6 +3489,136 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating medical report:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/patient-records/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'ADMINISTRASI'];
+
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { metadata, content, title } = body;
+
+    const existingRecord = await prisma.patientRecord.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!existingRecord) {
+      return NextResponse.json({ error: 'Patient record not found' }, { status: 404 });
+    }
+
+    const updatedRecord = await prisma.patientRecord.update({
+      where: { id: params.id },
+      data: {
+        metadata: metadata || existingRecord.metadata,
+        content: content || existingRecord.content,
+        title: title || existingRecord.title,
+        updatedAt: new Date()
+      }
+    });
+
+    return NextResponse.json(updatedRecord);
+  } catch (error) {
+    console.error('Error updating patient record:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// src/app/api/dashboard/nurse-poli-stats/route.ts
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'PERAWAT_POLI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const totalPatientsToday = await prisma.patient.count({
+      where: {
+        status: {
+          in: ['AKTIF', 'RAWAT_JALAN']
+        }
+      }
+    });
+
+    const examinationsToday = await prisma.patientRecord.count({
+      where: {
+        recordType: 'VITAL_SIGNS',
+        createdAt: {
+          gte: today,
+          lt: tomorrow
+        }
+      }
+    });
+
+    const waitingForDoctor = await prisma.handledPatient.count({
+      where: {
+        status: 'ANTRIAN'
+      }
+    });
+
+    const abnormalResults = await prisma.labResult.count({
+      where: {
+        testDate: {
+          gte: today,
+          lt: tomorrow
+        },
+        status: {
+          in: ['HIGH', 'CRITICAL', 'LOW']
+        }
+      }
+    });
+
+    const stats = {
+      totalPatientsToday,
+      examinationsToday,
+      waitingForDoctor,
+      abnormalResults
+    };
+
+    return NextResponse.json(stats);
+  } catch (error) {
+    console.error('Error fetching nurse poli stats:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -898,7 +3750,6 @@ export async function GET(request: Request) {
   }
 }
 
-
 // src/app/api/nutrition-records/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -907,54 +3758,52 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-// ============= TAMBAH METHOD GET =============
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
 
-    const where: any = {};
+    const whereClause: any = {};
     if (patientId) {
-      where.patientId = patientId;
+      whereClause.patientId = patientId;
     }
 
-    const nutritionRecords = await prisma.nutritionRecord.findMany({
-      where,
+    const records = await prisma.nutritionRecord.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc'
+      },
       include: {
         patient: {
           select: {
-            id: true,
             name: true,
             mrNumber: true
           }
         },
         nutritionist: {
           select: {
-            id: true,
             name: true
           }
         }
-      },
-      orderBy: {
-        createdAt: 'desc'
       }
     });
 
-    return NextResponse.json(nutritionRecords);
+    return NextResponse.json(records);
   } catch (error) {
     console.error('Error fetching nutrition records:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch nutrition records' },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }
-// ============================================
 
 export async function POST(request: Request) {
   try {
@@ -963,11 +3812,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
 
-    if (userRole !== 'AHLI_GIZI' && userRole !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Only nutritionists can create nutrition records' }, { status: 403 });
+    const allowedRoles = ['AHLI_GIZI', 'SUPER_ADMIN'];
+    
+    if (!allowedRoles.includes(userRole)) {
+      console.error('Forbidden: User role', userRole, 'not in', allowedRoles);
+      return NextResponse.json({ 
+        error: 'Only nutritionists can create nutrition records',
+        userRole: userRole
+      }, { status: 403 });
     }
 
     const body = await request.json();
@@ -975,90 +3830,104 @@ export async function POST(request: Request) {
       patientId,
       targetCalories,
       dietPlan,
+      mealDistribution,
       complianceScore,
       weightChange,
       recommendations,
-      nutritionGoals,
-      foodRecall,
-      dietaryPattern,
-      foodAllergies,
-      carbLimit,
-      proteinGoal,
-      fatLimit,
-      mealDistribution
+      foodRecall
     } = body;
 
-    if (!patientId || !targetCalories) {
-      return NextResponse.json({ error: 'patientId and targetCalories are required' }, { status: 400 });
+    if (!patientId) {
+      return NextResponse.json(
+        { error: 'Missing required field: patientId' },
+        { status: 400 }
+      );
     }
 
-    // Verify patient exists and is in appropriate status
-    const patient = await prisma.patient.findFirst({
-      where: {
-        id: patientId,
-        status: {
-          in: ['RAWAT_INAP', 'RAWAT_JALAN']
-        }
-      }
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
     });
 
     if (!patient) {
-      return NextResponse.json({ error: 'Patient not found or not eligible for nutrition monitoring' }, { status: 404 });
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    const nutritionRecord = await prisma.nutritionRecord.create({
-      data: {
-        patientId,
-        nutritionistId: userId,
-        foodRecall: foodRecall || {},
-        dietaryPattern: dietaryPattern || null,
-        foodAllergies: foodAllergies || [],
-        targetCalories: parseInt(targetCalories),
-        carbLimit: carbLimit ? parseInt(carbLimit) : null,
-        proteinGoal: proteinGoal ? parseInt(proteinGoal) : null,
-        fatLimit: fatLimit ? parseInt(fatLimit) : null,
-        mealDistribution: mealDistribution ? {
-          breakfast: mealDistribution.breakfast || [],
-          morningSnack: mealDistribution.morningSnack || [],
-          lunch: mealDistribution.lunch || [],
-          afternoonSnack: mealDistribution.afternoonSnack || [],
-          dinner: mealDistribution.dinner || []
-        } : null,
-        dietPlan: dietPlan || null,
-        complianceScore: complianceScore ? parseInt(complianceScore) : null,
-        weightChange: weightChange ? parseFloat(weightChange) : null,
-        nutritionGoals: nutritionGoals || [],
-        recommendations: recommendations || []
-      },
-      include: {
-        patient: {
-          select: {
-            name: true,
-            mrNumber: true
-          }
-        },
-        nutritionist: {
-          select: {
-            name: true
-          }
-        }
-      }
-    });
-
-    if (dietPlan) {
-      await prisma.patient.update({
-        where: { id: patientId },
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create nutrition record
+      const nutritionRecord = await tx.nutritionRecord.create({
         data: {
-          dietPlan: dietPlan,
-          calorieRequirement: parseInt(targetCalories)
+          patientId,
+          nutritionistId: userId,
+          targetCalories: targetCalories || null,
+          dietPlan: dietPlan || null,
+          mealDistribution: mealDistribution || null,
+          complianceScore: complianceScore || null,
+          weightChange: weightChange || null,
+          recommendations: recommendations || [],
+          foodRecall: foodRecall || null
+        },
+        include: {
+          patient: {
+            select: {
+              name: true,
+              mrNumber: true
+            }
+          },
+          nutritionist: {
+            select: {
+              name: true
+            }
+          }
         }
       });
-    }
 
-    return NextResponse.json(nutritionRecord, { status: 201 });
+      const patientUpdateData: any = {};
+      
+      if (dietPlan) {
+        patientUpdateData.dietPlan = dietPlan;
+      }
+      
+      if (targetCalories) {
+        patientUpdateData.calorieRequirement = targetCalories;
+      }
+      
+      if (complianceScore !== null && complianceScore !== undefined) {
+        patientUpdateData.dietCompliance = parseInt(complianceScore.toString());
+      }
+
+      // Update patient jika ada data yang perlu diupdate
+      if (Object.keys(patientUpdateData).length > 0) {
+        await tx.patient.update({
+          where: { id: patientId },
+          data: patientUpdateData
+        });
+        
+        console.log('Patient updated with:', patientUpdateData);
+      }
+
+      return nutritionRecord;
+    });
+
+    console.log('Nutrition record created successfully:', result.id);
+
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Error creating nutrition record:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json({ error: 'Duplicate entry detected' }, { status: 400 });
+    }
+    
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({ error: 'Foreign key constraint failed' }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -1236,7 +4105,7 @@ export async function GET(request: Request) {
       }
     });
 
-    console.log(`  Fetched ${records.length} patient records`);
+    console.log(`✅ Fetched ${records.length} patient records`);
 
     return NextResponse.json(records);
   } catch (error) {
@@ -1307,17 +4176,17 @@ export async function POST(request: Request) {
     
     if (bloodPressure !== undefined && bloodPressure !== null) {
       recordData.bloodPressure = String(bloodPressure);
-      console.log('  Saving Blood Pressure:', bloodPressure);
+      console.log('✅ Saving Blood Pressure:', bloodPressure);
     }
     
     if (temperature !== undefined && temperature !== null) {
       recordData.temperature = parseFloat(temperature);
-      console.log('  Saving Temperature:', temperature);
+      console.log('✅ Saving Temperature:', temperature);
     }
     
     if (heartRate !== undefined && heartRate !== null) {
       recordData.heartRate = parseInt(heartRate);
-      console.log('  Saving Heart Rate:', heartRate);
+      console.log('✅ Saving Heart Rate:', heartRate);
     }
     
     if (weight !== undefined && weight !== null) {
@@ -1339,7 +4208,7 @@ export async function POST(request: Request) {
       data: recordData
     });
 
-    console.log('  Patient record created successfully:', patientRecord.id);
+    console.log('✅ Patient record created successfully:', patientRecord.id);
     console.log('   - Blood Pressure:', patientRecord.bloodPressure);
     console.log('   - Heart Rate:', patientRecord.heartRate);
     console.log('   - Temperature:', patientRecord.temperature);
@@ -1406,6 +4275,300 @@ export async function PATCH(request: Request) {
   }
 }
 
+// src/app/api/patients/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { prisma } from '@/lib/prisma';
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER', 'AHLI_GIZI'];
+    
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const patient = await prisma.patient.findUnique({
+      where: { id: params.id },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true
+          }
+        },
+        handledBy: {
+          include: {
+            handler: {
+              select: {
+                id: true,
+                name: true,
+                role: true
+              }
+            }
+          },
+          orderBy: {
+            handledDate: 'desc'
+          }
+        },
+        drugTransactions: {
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 10
+        },
+        alerts: {
+          where: {
+            isRead: false
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      }
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(patient);
+  } catch (error) {
+    console.error('Error fetching patient:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can update patients.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      name,
+      birthDate,
+      gender,
+      phone,
+      address,
+      height,
+      weight,
+      bloodType,
+      diabetesType,
+      diagnosisDate,
+      insuranceType,
+      insuranceNumber,
+      smokingStatus,
+      allergies,
+      medicalHistory,
+      comorbidities,
+      status,
+      riskLevel,
+      calorieNeeds,
+      calorieRequirement,
+      dietPlan,
+      dietCompliance,
+      complaints
+    } = body;
+
+    if (!name || !birthDate || !gender || !insuranceType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
+        { status: 400 }
+      );
+    }
+
+    let bmi = null;
+    if (height && weight) {
+      const heightInMeters = parseFloat(height) / 100;
+      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
+      bmi = Math.round(bmi * 100) / 100;
+    }
+
+    const patient = await prisma.patient.update({
+      where: { id: params.id },
+      data: {
+        name,
+        birthDate: new Date(birthDate),
+        gender,
+        phone: phone || null,
+        address: address || null,
+        height: height ? parseFloat(height) : null,
+        weight: weight ? parseFloat(weight) : null,
+        bmi: bmi,
+        bloodType: bloodType || null,
+        diabetesType: diabetesType || null,
+        diagnosisDate: diagnosisDate ? new Date(diagnosisDate) : null,
+        insuranceType,
+        insuranceNumber: insuranceNumber || null,
+        smokingStatus: smokingStatus || 'TIDAK_MEROKOK',
+        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
+        medicalHistory: medicalHistory || null,
+        comorbidities: comorbidities && Array.isArray(comorbidities) && comorbidities.length > 0 ? comorbidities : [],
+        status: status || 'AKTIF',
+        riskLevel: riskLevel || null,
+        calorieNeeds: calorieNeeds ? parseInt(calorieNeeds) : null,
+        calorieRequirement: calorieRequirement ? parseInt(calorieRequirement) : null,
+        dietPlan: dietPlan || null,
+        dietCompliance: dietCompliance ? parseInt(dietCompliance) : null,
+      }
+    });
+
+    if (complaints && Array.isArray(complaints)) {
+      for (const complaint of complaints) {
+        if (!complaint.content || !complaint.content.trim()) {
+          continue;
+        }
+
+        const complaintData = {
+          patientId: params.id,
+          recordType: 'COMPLAINTS' as const,
+          title: 'Keluhan Pasien',
+          content: complaint.content.trim(),
+          metadata: {
+            severity: complaint.metadata?.severity || 'RINGAN',
+            status: complaint.metadata?.status || 'BARU',
+            notes: complaint.metadata?.notes || ''
+          }
+        };
+
+        if (complaint.id && !complaint.id.startsWith('temp_')) {
+          await prisma.patientRecord.update({
+            where: { id: complaint.id },
+            data: complaintData
+          });
+        } else {
+          await prisma.patientRecord.create({
+            data: complaintData
+          });
+        }
+      }
+    }
+
+    return NextResponse.json(patient);
+  } catch (error) {
+    console.error('Error updating patient:', error);
+    
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+    
+    if ((error as any).code === 'P2002') {
+      return NextResponse.json({ error: 'Duplicate data constraint violation' }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userRole = (session.user as any).role;
+    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
+    }
+
+    // Query dengan include yang sesuai dengan schema (REMOVED: appointments)
+    const existingPatient = await prisma.patient.findUnique({
+      where: { id: params.id },
+      include: {
+        handledBy: true,
+        drugTransactions: true,
+        patientRecords: true,
+        labResults: true,
+        visitationLogs: true,
+        nutritionRecords: true,
+        pharmacyRecords: true,
+        medicalReports: true,
+        alerts: true
+      }
+    });
+
+    if (!existingPatient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    // Check for related data (REMOVED: appointments check)
+    const hasRelatedData = 
+      existingPatient.handledBy.length > 0 ||
+      existingPatient.drugTransactions.length > 0 ||
+      existingPatient.patientRecords.length > 0 ||
+      existingPatient.labResults.length > 0 ||
+      existingPatient.visitationLogs.length > 0 ||
+      existingPatient.nutritionRecords.length > 0 ||
+      existingPatient.pharmacyRecords.length > 0 ||
+      existingPatient.medicalReports.length > 0;
+
+    if (hasRelatedData) {
+      return NextResponse.json({ 
+        error: 'Cannot delete patient with existing medical data. Please archive the patient by setting status to inactive instead.' 
+      }, { status: 400 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (existingPatient.alerts.length > 0) {
+        await tx.alert.deleteMany({
+          where: { patientId: params.id }
+        });
+      }
+
+      await tx.patient.delete({
+        where: { id: params.id }
+      });
+    });
+
+    return NextResponse.json({ message: 'Patient deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting patient:', error);
+    
+    if ((error as any).code === 'P2025') {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+    
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Cannot delete patient due to existing related data. Please remove or archive related records first.' 
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }, { status: 500 });
+  }
+}
+
 // src/app/api/patients/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
@@ -1422,17 +4585,15 @@ export async function GET(request: Request) {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // Get query parameters untuk filter
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('activeOnly') === 'true';
 
-    // Filter pasien berdasarkan status AKTIF untuk farmasi
     const whereClause: any = {};
 
     if (activeOnly) {
@@ -1462,7 +4623,6 @@ export async function GET(request: Request) {
   }
 }
 
-// POST method tetap sama...
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -1553,23 +4713,26 @@ export async function POST(request: Request) {
         - Alergi: ${patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(', ') : 'Tidak ada'}`,
         patientId: patient.id,
         priority: 'MEDIUM',
+        targetRole: 'PERAWAT_POLI',
         isRead: false
       }
     });
 
-    return NextResponse.json(patient, { status: 201 });
-
-    // if (complaint && complaint.trim()) {
-    //   await prisma.patientComplaint.create({
-    //     data: {
-    //       patientId: patient.id,
-    //       complaint: complaint.trim(),
-    //       severity: complaintSeverity || 'RINGAN',
-    //       status: 'BARU',
-    //       date: new Date()
-    //     }
-    //   });
-    // }
+    if (complaint && complaint.trim()) {
+      await prisma.patientRecord.create({
+        data: {
+          patientId: patient.id,
+          recordType: 'COMPLAINTS',
+          title: 'Keluhan Pasien',
+          content: complaint.trim(),
+          metadata: {
+            severity: complaintSeverity || 'RINGAN',
+            status: 'BARU',
+            notes: ''
+          }
+        }
+      });
+    }
 
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {
@@ -1590,17 +4753,388 @@ export async function POST(request: Request) {
   }
 }
 
-// src/app/api/visitations/route.ts
-import { NextResponse } from 'next/server';
+// src/app/api/staff/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-export async function POST(request: Request) {
-  const prismaLocal = new PrismaClient();
+// GET - Fetch single staff
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const staff = await prisma.user.findUnique({
+      where: {
+        id: params.id,
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
 
+    if (!staff) {
+      return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(staff);
+  } catch (error) {
+    console.error('Error fetching staff:', error);
+    return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 });
+  }
+}
+
+// PUT - Update staff
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, email, username, password, role, employeeId } = body;
+
+    // Check if staff exists
+    const existingStaff = await prisma.user.findUnique({
+      where: {
+        id: params.id,
+        isActive: true
+      }
+    });
+
+    if (!existingStaff) {
+      return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+    }
+
+    // Check for duplicate username/email/employeeId (excluding current user)
+    const duplicateUser = await prisma.user.findFirst({
+      where: {
+        AND: [
+          { id: { not: params.id } },
+          {
+            OR: [
+              { username: username },
+              { email: email },
+              { employeeId: employeeId }
+            ]
+          }
+        ]
+      }
+    });
+
+    if (duplicateUser) {
+      return NextResponse.json({
+        error: 'Username, email, or employee ID already exists'
+      }, { status: 400 });
+    }
+
+ 
+
+    // Prepare update data
+    const updateData: any = {
+      name,
+      email,
+      username,
+      role,
+      employeeId
+    };
+
+    // Only hash and update password if provided
+    if (password && password.trim() !== '') {
+      updateData.password = await bcrypt.hash(password, 12);
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: params.id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        updatedAt: true,
+      }
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating staff:', error);
+    return NextResponse.json({ error: 'Failed to update staff' }, { status: 500 });
+  }
+}
+
+// DELETE - Hard delete staff from database
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if staff exists first
+    const existingStaff = await prisma.user.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!existingStaff) {
+      return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+    }
+
+    // Check if staff has related records that might cause issues
+    // You might want to add checks for related records here
+    // For example, check if this user has created patients, medications, etc.
+
+    try {
+      // Hard delete the user from database
+      await prisma.user.delete({
+        where: { id: params.id }
+      });
+
+      return NextResponse.json({
+        message: 'Staff deleted permanently from database',
+        deletedStaff: {
+          id: existingStaff.id,
+          name: existingStaff.name,
+          employeeId: existingStaff.employeeId
+        }
+      });
+    } catch (deleteError: any) {
+      // If foreign key constraint error, provide meaningful message
+      if (deleteError.code === 'P2003') {
+        return NextResponse.json({
+          error: 'Cannot delete staff because they have associated records (patients, medications, etc.). Please remove related records first or contact system administrator.'
+        }, { status: 400 });
+      }
+
+      // Re-throw other errors
+      throw deleteError;
+    }
+
+  } catch (error) {
+    console.error('Error deleting staff:', error);
+    return NextResponse.json({ error: 'Failed to delete staff' }, { status: 500 });
+  }
+}
+
+// src/app/api/staff/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+const prisma = new PrismaClient();
+
+// GET - Fetch all staff
+export async function GET() {
+  try {
+    console.log('🔍 Fetching staff...');
+    
+    // First, let's check the session for debugging
+    const session = await getServerSession(authOptions);
+    console.log('🔐 Session:', session?.user?.role);
+    
+    // Temporarily remove authentication check for debugging
+    // if (!session || (session.user as any).role !== 'SUPER_ADMIN') {
+    //   console.log('❌ Unauthorized - Role:', (session?.user as any)?.role);
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // }
+
+    // Check total user count first
+    const totalUsers = await prisma.user.count();
+    console.log('👥 Total users in database:', totalUsers);
+
+    // Check active users count
+    const activeUsers = await prisma.user.count({
+      where: { isActive: true }
+    });
+    console.log('✅ Active users in database:', activeUsers);
+
+    // Get all users for debugging
+    const allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    console.log('📊 All users:', allUsers.map(u => ({
+      name: u.name,
+      role: u.role,
+      isActive: u.isActive,
+      employeeId: u.employeeId
+    })));
+
+    // Filter out non-staff roles
+    const staff = allUsers.filter(user => user.isActive === true);
+    
+    console.log('👨‍💼 Filtered staff:', staff.length);
+
+    return NextResponse.json(staff);
+  } catch (error) {
+    console.error('❌ Error fetching staff:', error);
+    return NextResponse.json({ 
+      error: 'Failed to fetch staff',
+      details: error.message
+    }, { status: 500 });
+  }
+}
+
+// POST - Create new staff (keep existing code but add debugging)
+export async function POST(request: NextRequest) {
+  try {
+    console.log('📝 Creating new staff...');
+    
+    const session = await getServerSession(authOptions);
+    
+    if (!session || (session.user as any).role !== 'SUPER_ADMIN') {
+      console.log('❌ Unauthorized for staff creation');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    console.log('📋 Request body:', { ...body, password: '***' });
+
+    const { name, email, username, password, role, employeeId } = body;
+
+    // Validate required fields - more explicit check
+    const missingFields = [];
+    if (!name || name.trim() === '') missingFields.push('name');
+    if (!email || email.trim() === '') missingFields.push('email');
+    if (!username || username.trim() === '') missingFields.push('username');
+    if (!password || password.trim() === '') missingFields.push('password');
+    if (!role || role.trim() === '') missingFields.push('role');
+
+    if (missingFields.length > 0) {
+      console.log('❌ Missing fields:', missingFields);
+      return NextResponse.json({ 
+        error: `Missing required fields: ${missingFields.join(', ')}` 
+      }, { status: 400 });
+    }
+
+    // Check if username, email already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username.trim() },
+          { email: email.trim() }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      console.log('❌ User already exists:', existingUser.username);
+      return NextResponse.json({ 
+        error: 'Username atau email sudah digunakan' 
+      }, { status: 400 });
+    }
+
+    // Generate sequential Employee ID based on role
+    const prefixes: { [key: string]: string } = {
+      'DOKTER_SPESIALIS': 'DOK',
+      'PERAWAT_RUANGAN': 'NUR',
+      'PERAWAT_POLI': 'NUP',
+      'FARMASI': 'PHA',
+      'ADMINISTRASI': 'AS',
+      'MANAJER': 'MN',
+      'AHLI_GIZI': 'NUT'
+    };
+
+    const prefix = prefixes[role] || 'EMP';
+    
+    // Count existing users with the same role to get next number
+    const existingCount = await prisma.user.count({
+      where: { 
+        role: role,
+        isActive: true 
+      }
+    });
+    
+    const nextNumber = (existingCount + 1).toString().padStart(3, '0');
+    const generatedEmployeeId = `${prefix}${nextNumber}`;
+
+    console.log('🏷️ Generated Employee ID:', generatedEmployeeId);
+
+  
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password.trim(), 12);
+
+    // Create user
+    const newUser = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.trim(),
+        username: username.trim(),
+        password: hashedPassword,
+        role,
+        employeeId: generatedEmployeeId,
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        employeeId: true,
+        createdAt: true,
+      }
+    });
+
+    console.log('✅ Created staff:', newUser.name, '-', newUser.role);
+
+    return NextResponse.json(newUser, { status: 201 });
+  } catch (error) {
+    console.error('❌ Error creating staff:', error);
+    return NextResponse.json({ 
+      error: 'Failed to create staff',
+      details: error.message
+    }, { status: 500 });
+  }
+}
+
+// src/app/api/visitations/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+export async function POST(request: Request) {
   try {
     console.log('=== POST VISITATION START ===');
 
@@ -1625,7 +5159,7 @@ export async function POST(request: Request) {
       }, { status: 403 });
     }
 
-    const nurse = await prismaLocal.user.findUnique({
+    const nurse = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, role: true }
     });
@@ -1681,7 +5215,7 @@ export async function POST(request: Request) {
     }
 
     console.log('Finding patient:', patientId);
-    const patient = await prismaLocal.patient.findUnique({
+    const patient = await prisma.patient.findUnique({
       where: { id: patientId },
       select: {
         id: true,
@@ -1737,7 +5271,6 @@ export async function POST(request: Request) {
       visitationData.dietIssues = dietIssues;
     }
 
-    // ENERGY CALCULATION DATA
     if (energyRequirement) {
       visitationData.energyRequirement = energyRequirement;
     }
@@ -1769,7 +5302,7 @@ export async function POST(request: Request) {
     console.log('=== CREATING VISITATION ===');
     console.log(JSON.stringify(visitationData, null, 2));
 
-    const visitation = await prismaLocal.$transaction(async (tx) => {
+    const visitation = await prisma.$transaction(async (tx) => {
       console.log('Transaction start...');
 
       const newVisitation = await tx.visitation.create({
@@ -1793,7 +5326,6 @@ export async function POST(request: Request) {
 
       console.log('Visitation created:', newVisitation.id);
 
-      // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
 
       if (visitationData.weight) {
@@ -1820,7 +5352,6 @@ export async function POST(request: Request) {
         patientUpdateData.dietCompliance = visitationData.dietCompliance;
       }
 
-      // Update patient jika ada data yang perlu diupdate
       if (Object.keys(patientUpdateData).length > 0) {
         console.log('Updating patient with:', patientUpdateData);
         await tx.patient.update({
@@ -1844,6 +5375,7 @@ export async function POST(request: Request) {
         });
       }
 
+
       if (dietIssues && dietIssues.trim()) {
         console.log('Creating diet alert...');
 
@@ -1856,7 +5388,7 @@ export async function POST(request: Request) {
           } else if (compliance >= 80) {
             alertPriority = 'MEDIUM';
           }
-        } 
+        }
 
         const alertType: 'CRITICAL' | 'WARNING' | 'INFO' =
           dietCompliance && parseInt(dietCompliance) < 50 ? 'CRITICAL' : 'WARNING';
@@ -1871,7 +5403,7 @@ export async function POST(request: Request) {
             targetRole: 'AHLI_GIZI',
             isRead: false
           }
-        }); 
+        });
       }
 
       console.log('Transaction complete');
@@ -1895,8 +5427,6 @@ export async function POST(request: Request) {
       code: error?.code,
       meta: error?.meta
     }, { status: 500 });
-  } finally {
-    await prismaLocal.$disconnect();
   }
 }
 
@@ -1908,21 +5438,19 @@ export async function GET(request: Request) {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    // TAMBAH INI: Ambil patientId dari query parameter
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
 
-    // UBAH INI: Tambahkan filter where jika ada patientId
     const whereClause = patientId ? { patientId } : {};
 
     const visitations = await prisma.visitation.findMany({
-      where: whereClause, // TAMBAH filter ini
+      where: whereClause,
       include: {
         patient: {
           select: {
@@ -1953,10 +5481,9 @@ export async function GET(request: Request) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
+
 export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -2007,7 +5534,6 @@ export async function PUT(request: Request) {
       energyCalculationDetail
     } = body;
 
-    // Check if visitation exists
     const existingVisitation = await prisma.visitation.findUnique({
       where: { id },
       include: {
@@ -2025,15 +5551,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Visitation not found' }, { status: 404 });
     }
 
-    // Use transaction for update operations
     const updatedVisitation = await prisma.$transaction(async (tx) => {
       const updated = await tx.visitation.update({
         where: { id },
         data: {
           shift: shift || existingVisitation.shift,
           complaints: complaints !== undefined ? complaints : existingVisitation.complaints,
-
-          // VITAL SIGNS - Field terpisah
           temperature: temperature !== undefined ? (temperature ? parseFloat(temperature) : null) : existingVisitation.temperature,
           bloodPressure: bloodPressure !== undefined ? bloodPressure : existingVisitation.bloodPressure,
           heartRate: heartRate !== undefined ? (heartRate ? parseInt(heartRate) : null) : existingVisitation.heartRate,
@@ -2042,7 +5565,6 @@ export async function PUT(request: Request) {
           bloodSugar: bloodSugar !== undefined ? (bloodSugar ? parseInt(bloodSugar) : null) : existingVisitation.bloodSugar,
           weight: weight !== undefined ? (weight ? parseFloat(weight) : null) : existingVisitation.weight,
           height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
-
           medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
           labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
           actions: actions !== undefined ? actions : existingVisitation.actions,
@@ -2051,8 +5573,6 @@ export async function PUT(request: Request) {
           notes: notes !== undefined ? notes : existingVisitation.notes,
           dietCompliance: dietCompliance !== undefined ? (dietCompliance ? parseInt(dietCompliance) : null) : existingVisitation.dietCompliance,
           dietIssues: dietIssues !== undefined ? dietIssues : existingVisitation.dietIssues,
-
-          // ENERGY CALCULATION
           energyRequirement: energyRequirement !== undefined ? energyRequirement : existingVisitation.energyRequirement,
           calculatedBMI: calculatedBMI !== undefined ? calculatedBMI : existingVisitation.calculatedBMI,
           calculatedBBI: calculatedBBI !== undefined ? calculatedBBI : existingVisitation.calculatedBBI,
@@ -2062,7 +5582,6 @@ export async function PUT(request: Request) {
           stressFactor: stressFactor !== undefined ? stressFactor : existingVisitation.stressFactor,
           nutritionStatus: nutritionStatus !== undefined ? nutritionStatus : existingVisitation.nutritionStatus,
           energyCalculationDetail: energyCalculationDetail !== undefined ? energyCalculationDetail : existingVisitation.energyCalculationDetail,
-
           nextVisitNeeded: complications ? true : existingVisitation.nextVisitNeeded,
           priority: complications ? 'HIGH' : existingVisitation.priority
         },
@@ -2083,10 +5602,8 @@ export async function PUT(request: Request) {
         }
       });
 
-      // UPDATE PATIENT DATA
       const patientUpdateData: any = {};
 
-      // Update weight if changed
       if (weight !== undefined && weight) {
         const newWeight = parseFloat(weight);
         if (newWeight !== existingVisitation.weight) {
@@ -2095,7 +5612,6 @@ export async function PUT(request: Request) {
         }
       }
 
-      // Update height if changed
       if (height !== undefined && height) {
         const newHeight = parseInt(height);
         if (newHeight !== existingVisitation.height) {
@@ -2104,24 +5620,20 @@ export async function PUT(request: Request) {
         }
       }
 
-      // Update BMI if changed
       if (calculatedBMI !== undefined && calculatedBMI !== existingVisitation.calculatedBMI) {
         patientUpdateData.latestBMI = calculatedBMI;
         patientUpdateData.bmi = calculatedBMI;
       }
 
-      // Update energy requirement if changed
       if (energyRequirement !== undefined && energyRequirement !== existingVisitation.energyRequirement) {
         patientUpdateData.latestEnergyRequirement = energyRequirement;
         patientUpdateData.lastEnergyCalculation = energyCalculationDetail || existingVisitation.energyCalculationDetail;
       }
 
-      // Update diet compliance if changed
       if (dietCompliance !== undefined && dietCompliance !== existingVisitation.dietCompliance) {
         patientUpdateData.dietCompliance = dietCompliance ? parseInt(dietCompliance) : null;
       }
 
-      // Update patient if there's data to update
       if (Object.keys(patientUpdateData).length > 0) {
         await tx.patient.update({
           where: { id: existingVisitation.patientId },
@@ -2129,7 +5641,6 @@ export async function PUT(request: Request) {
         });
       }
 
-      // Create new alert if complications added/changed
       if (complications && complications !== existingVisitation.complications) {
         await tx.alert.create({
           data: {
@@ -2144,7 +5655,6 @@ export async function PUT(request: Request) {
         });
       }
 
-      // Create new alert if diet issues added/changed
       if (dietIssues && dietIssues !== existingVisitation.dietIssues) {
         await tx.alert.create({
           data: {
@@ -2159,6 +5669,8 @@ export async function PUT(request: Request) {
         });
       }
 
+    
+
       return updated;
     });
 
@@ -2166,8 +5678,6 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error updating visitation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -2198,7 +5708,12 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error deleting visitation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
+
+
+
+
+
+
+

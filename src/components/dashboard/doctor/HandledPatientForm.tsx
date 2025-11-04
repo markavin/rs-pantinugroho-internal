@@ -109,6 +109,7 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
   const [requestLabTests, setRequestLabTests] = useState(false);
   const [labTestsRequested, setLabTestsRequested] = useState<string[]>([]);
   const [selectAllLabs, setSelectAllLabs] = useState(false);
+  const [lastHandledStatus, setLastHandledStatus] = useState<string | null>(null);
 
   const availableLabTests = [
     'Gula Darah Sewaktu',
@@ -158,6 +159,63 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
       setLoadingHistory(false);
     }
   };
+
+  const fetchLastHandledStatus = async (patientId: string) => {
+    try {
+      const response = await fetch(`/api/handled-patients?patientId=${patientId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          const sortedData = data.sort((a: any, b: any) =>
+            new Date(b.handledDate).getTime() - new Date(a.handledDate).getTime()
+          );
+          setLastHandledStatus(sortedData[0].status);
+          return sortedData[0].status;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching last handled status:', error);
+    }
+    return null;
+  };
+
+
+  useEffect(() => {
+    const loadPatientData = async () => {
+      if (formData.patientId && availablePatients.length > 0) {
+        const patient = availablePatients.find(p => p.id === formData.patientId);
+        setSelectedPatientData(patient || null);
+
+        if (patient) {
+          fetchPatientHistory(patient.id);
+
+          if (mode === 'add' || mode === 'edit') {
+            const lastStatus = await fetchLastHandledStatus(patient.id);
+            const suggestedPriority = suggestPriority(patient);
+
+            if (mode === 'add') {
+              setFormData(prev => ({
+                ...prev,
+                priority: suggestedPriority,
+                status: lastStatus || 'SEDANG_DITANGANI'
+              }));
+            } else if (mode === 'edit' && lastStatus) {
+              setFormData(prev => ({
+                ...prev,
+                status: lastStatus
+              }));
+            }
+          }
+        }
+      } else {
+        setSelectedPatientData(null);
+        setLastHandledStatus(null);
+        setPatientHistory({ complaints: [], vitals: [], labs: [], visitations: [], handledHistory: [] });
+      }
+    };
+
+    loadPatientData();
+  }, [formData.patientId, availablePatients, mode]);
 
   const handleSelectAllLabs = () => {
     if (selectAllLabs) {
@@ -293,24 +351,6 @@ const HandledPatientForm: React.FC<HandledPatientFormProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (formData.patientId && availablePatients.length > 0) {
-      const patient = availablePatients.find(p => p.id === formData.patientId);
-      setSelectedPatientData(patient || null);
-
-      if (patient) {
-        fetchPatientHistory(patient.id);
-      }
-
-      if (patient && mode === 'add') {
-        const suggestedPriority = suggestPriority(patient);
-        setFormData(prev => ({ ...prev, priority: suggestedPriority }));
-      }
-    } else {
-      setSelectedPatientData(null);
-      setPatientHistory({ complaints: [], vitals: [], labs: [], visitations: [], handledHistory: [] });
-    }
-  }, [formData.patientId, availablePatients, mode]);
 
   useEffect(() => {
     if (formData.estimatedDuration && formData.autoCalculateNextVisit) {

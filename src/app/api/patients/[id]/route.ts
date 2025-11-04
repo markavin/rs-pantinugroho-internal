@@ -1,10 +1,8 @@
 // src/app/api/patients/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: Request,
@@ -49,12 +47,6 @@ export async function GET(
         drugTransactions: {
           orderBy: {
             createdAt: 'desc'
-          },
-          take: 10
-        },
-        appointments: {
-          orderBy: {
-            appointmentDate: 'desc'
           },
           take: 10
         },
@@ -230,6 +222,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
+    // Query dengan include yang sesuai dengan schema (REMOVED: appointments)
     const existingPatient = await prisma.patient.findUnique({
       where: { id: params.id },
       include: {
@@ -241,8 +234,7 @@ export async function DELETE(
         nutritionRecords: true,
         pharmacyRecords: true,
         medicalReports: true,
-        alerts: true,
-        appointments: true
+        alerts: true
       }
     });
 
@@ -250,6 +242,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
+    // Check for related data (REMOVED: appointments check)
     const hasRelatedData = 
       existingPatient.handledBy.length > 0 ||
       existingPatient.drugTransactions.length > 0 ||
@@ -258,8 +251,7 @@ export async function DELETE(
       existingPatient.visitationLogs.length > 0 ||
       existingPatient.nutritionRecords.length > 0 ||
       existingPatient.pharmacyRecords.length > 0 ||
-      existingPatient.medicalReports.length > 0 ||
-      existingPatient.appointments.length > 0;
+      existingPatient.medicalReports.length > 0;
 
     if (hasRelatedData) {
       return NextResponse.json({ 

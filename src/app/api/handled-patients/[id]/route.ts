@@ -7,30 +7,29 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 const prisma = new PrismaClient();
 
 function mapHandledStatusToPatientStatus(handledStatus: string, notes?: string): string {
-  switch (handledStatus) {
-    case 'ANTRIAN':
-    case 'SEDANG_DITANGANI':
-      return 'AKTIF';
-    case 'KONSULTASI':
-      return 'RAWAT_JALAN';
-    case 'OBSERVASI':
-    case 'EMERGENCY':
-    case 'STABIL':
-      return 'RAWAT_INAP';
-    case 'RUJUK_KELUAR':
-      return 'RUJUK_KELUAR';
-    case 'SELESAI':
-      if (notes && notes.toLowerCase().includes('pulang paksa')) {
-        return 'PULANG_PAKSA';
-      }
-      return 'PULANG';
-    case 'MENINGGAL':
-      return 'MENINGGAL';
-    default:
-      return 'AKTIF';
-  }
+    switch (handledStatus) {
+        case 'ANTRIAN':
+        case 'SEDANG_DITANGANI':
+            return 'AKTIF';
+        case 'KONSULTASI':
+        case 'STABIL':
+            return 'RAWAT_JALAN';
+        case 'OBSERVASI':
+        case 'EMERGENCY':
+            return 'RAWAT_INAP';
+        case 'RUJUK_KELUAR':
+            return 'RUJUK_KELUAR';
+        case 'SELESAI':
+            if (notes && notes.toLowerCase().includes('pulang paksa')) {
+                return 'PULANG_PAKSA';
+            }
+            return 'PULANG';
+        case 'MENINGGAL':
+            return 'MENINGGAL';
+        default:
+            return 'AKTIF';
+    }
 }
-
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -43,7 +42,7 @@ export async function GET(
 
     const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -104,7 +103,7 @@ export async function PUT(
 
     const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -137,12 +136,28 @@ export async function PUT(
       status
     } = body;
 
+    const lastHandledPatient = await prisma.handledPatient.findFirst({
+      where: {
+        patientId: existingHandledPatient.patientId,
+        id: { not: params.id }
+      },
+      orderBy: { handledDate: 'desc' }
+    });
+
+    let finalStatus = status;
+    if (status === undefined) {
+      if (lastHandledPatient) {
+        finalStatus = lastHandledPatient.status;
+        console.log(`Restoring previous handled status for edit: ${finalStatus}`);
+      } else {
+        finalStatus = existingHandledPatient.status;
+      }
+    }
+
+    const finalNotes = notes !== undefined ? notes : existingHandledPatient.notes;
+
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // Tentukan status yang akan digunakan (baru atau lama)
-        const finalStatus = status !== undefined ? status : existingHandledPatient.status;
-        const finalNotes = notes !== undefined ? notes : existingHandledPatient.notes;
-
         const updatedHandledPatient = await tx.handledPatient.update({
           where: { id: params.id },
           data: {
@@ -178,7 +193,6 @@ export async function PUT(
           }
         });
 
-        // PERBAIKAN: SELALU update patient status berdasarkan handled status
         const newPatientStatus = mapHandledStatusToPatientStatus(finalStatus, finalNotes);
 
         await tx.patient.update({
@@ -188,6 +202,8 @@ export async function PUT(
             lastVisit: new Date()
           }
         });
+
+        console.log(`Patient global status updated to: ${newPatientStatus} (from edit mode)`);
 
         return updatedHandledPatient;
       });
@@ -218,7 +234,7 @@ export async function DELETE(
 
     const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });

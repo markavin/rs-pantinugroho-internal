@@ -1,3 +1,4 @@
+//src\app\api\auth\login-tracking\route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('📊 Admin stats requested by:', (session.user as any).username);
+    console.log('Admin stats requested by:', (session.user as any).username);
 
     const now = new Date();
     const { start, end } = getStartAndEndOfDay(now);
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('❌ Error fetching admin stats:', error);
+    console.error('Error fetching admin stats:', error);
     return NextResponse.json(
       { error: 'Failed to fetch stats', details: error.message },
       { status: 500 },

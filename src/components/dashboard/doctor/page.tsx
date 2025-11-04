@@ -516,22 +516,34 @@ const DoctorDashboard = () => {
 
           const isInpatient = ['OBSERVASI', 'EMERGENCY'].includes(formData.status);
           if (isInpatient) {
-            const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
-            let patientName = 'Pasien';
-            let patientMRNumber = '';
-
-            if (patientResponse.ok) {
-              const patientData = await patientResponse.json();
-              patientName = patientData.name;
-              patientMRNumber = patientData.mrNumber;
-            }
             try {
-              await fetch('/api/alerts', {
+              let patientName = 'Pasien';
+              let patientMRNumber = '';
+
+              const localPatient = patients.find(p => p.id === savedPatientId);
+              if (localPatient) {
+                patientName = localPatient.name;
+                patientMRNumber = localPatient.mrNumber;
+                console.log('Patient data from local state:', { patientName, patientMRNumber });
+              } else {
+                const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+
+                if (patientResponse.ok) {
+                  const patientData = await patientResponse.json();
+                  patientName = patientData.name || 'Pasien';
+                  patientMRNumber = patientData.mrNumber || '';
+                  console.log('Patient data fetched from API:', { patientName, patientMRNumber });
+                } else {
+                  console.error('Failed to fetch patient data:', patientResponse.status);
+                }
+              }
+
+              const alertResponse = await fetch('/api/alerts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   type: 'INFO',
-                  message: `Pasien rawat inap baru: ${patientName} (${patientMRNumber})\n\nStatus: ${formData.status}\nDiagnosis: ${formData.diagnosis || '-'}\n\n${formData.treatmentPlan ? `Rencana Pengobatan:\n${formData.treatmentPlan}\n\n` : ''}${formData.specialInstructions ? `Instruksi Khusus:\n${formData.specialInstructions}\n\n` : ''}Segera lakukan monitoring dan visitasi rutin.`,
+                  message: `Pasien rawat inap baru: ${patientName} (${patientMRNumber})\n\nStatus: ${getHandledStatusLabel(formData.status)}\nDiagnosis: ${formData.diagnosis || '-'}\n\n${formData.treatmentPlan ? `Rencana Pengobatan:\n${formData.treatmentPlan}\n\n` : ''}${formData.specialInstructions ? `Instruksi Khusus:\n${formData.specialInstructions}\n\n` : ''}Segera lakukan monitoring dan visitasi rutin.`,
                   patientId: savedPatientId,
                   category: 'SYSTEM',
                   priority: formData.status === 'EMERGENCY' ? 'URGENT' : 'HIGH',
@@ -539,26 +551,30 @@ const DoctorDashboard = () => {
                 })
               });
 
-              console.log('Notification sent to PERAWAT_RUANGAN for inpatient');
-            } catch (alertError) {
-              console.error('Error sending alert to room nurse:', alertError);
-            }
+              if (alertResponse.ok) {
+                const alertResult = await alertResponse.json();
+                console.log('Notification sent successfully:', alertResult);
+              } else {
+                const errorText = await alertResponse.text();
+                console.error('Failed to send notification:', errorText);
+              }
 
-            // Update patient status ke RAWAT_INAP
-            try {
-              await fetch(`/api/patients/${savedPatientId}`, {
+              const updateResponse = await fetch(`/api/patients/${savedPatientId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   status: 'RAWAT_INAP'
                 })
               });
-              console.log('Patient status updated to RAWAT_INAP');
-            } catch (err) {
-              console.error('Error updating patient status:', err);
+
+              if (updateResponse.ok) {
+                console.log('Patient status updated to RAWAT_INAP');
+                await fetchPatients();
+              }
+            } catch (alertError) {
+              console.error('Error in inpatient notification flow:', alertError);
             }
           }
-
         }
       } else if (handledPatientFormMode === 'edit') {
         const response = await fetch(`/api/handled-patients/${selectedHandledPatient.id}`, {
@@ -614,14 +630,24 @@ const DoctorDashboard = () => {
           ? formData.treatmentPlan.substring(0, 100) + '...'
           : formData.treatmentPlan;
 
-        const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
         let patientName = 'Pasien';
         let patientMRNumber = '';
 
-        if (patientResponse.ok) {
-          const patientData = await patientResponse.json();
-          patientName = patientData.name;
-          patientMRNumber = patientData.mrNumber;
+        const localPatient = patients.find(p => p.id === savedPatientId);
+        if (localPatient) {
+          patientName = localPatient.name;
+          patientMRNumber = localPatient.mrNumber;
+        } else {
+          try {
+            const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+            if (patientResponse.ok) {
+              const patientData = await patientResponse.json();
+              patientName = patientData.name;
+              patientMRNumber = patientData.mrNumber;
+            }
+          } catch (err) {
+            console.error('Error fetching patient for medication alert:', err);
+          }
         }
 
         try {
@@ -645,14 +671,24 @@ const DoctorDashboard = () => {
       }
 
       if (savedPatientId && formData.requestLabTests && formData.labTestsRequested?.length > 0) {
-        const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
         let patientName = 'Pasien';
         let patientMRNumber = '';
 
-        if (patientResponse.ok) {
-          const patientData = await patientResponse.json();
-          patientName = patientData.name;
-          patientMRNumber = patientData.mrNumber;
+        const localPatient = patients.find(p => p.id === savedPatientId);
+        if (localPatient) {
+          patientName = localPatient.name;
+          patientMRNumber = localPatient.mrNumber;
+        } else {
+          try {
+            const patientResponse = await fetch(`/api/patients/${savedPatientId}`);
+            if (patientResponse.ok) {
+              const patientData = await patientResponse.json();
+              patientName = patientData.name;
+              patientMRNumber = patientData.mrNumber;
+            }
+          } catch (err) {
+            console.error('Error fetching patient for lab alert:', err);
+          }
         }
 
         const labTestsList = formData.labTestsRequested.map((test: string) => `- ${test}`).join('\n');
@@ -691,7 +727,6 @@ const DoctorDashboard = () => {
       alert('Error submitting form');
     }
   };
-
 
   const handleDeleteHandledPatient = async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus pasien dari daftar yang ditangani?')) return;

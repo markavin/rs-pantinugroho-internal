@@ -78,6 +78,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
         }
 
+        const lastHandledPatient = await prisma.handledPatient.findFirst({
+            where: { patientId },
+            orderBy: { handledDate: 'desc' },
+            include: {
+                patient: true
+            }
+        });
+
+        let finalStatus = status || 'SEDANG_DITANGANI';
+        let finalPatientStatus = patient.status;
+
+        if (lastHandledPatient) {
+            if (!status) {
+                finalStatus = lastHandledPatient.status;
+                console.log(`Restoring previous handled status: ${finalStatus}`);
+            }
+            finalPatientStatus = lastHandledPatient.patient.status;
+            console.log(`Previous patient status: ${finalPatientStatus}`);
+        }
+
         const handledPatient = await prisma.handledPatient.create({
             data: {
                 patientId,
@@ -86,7 +106,7 @@ export async function POST(request: Request) {
                 diagnosis: diagnosis || null,
                 treatmentPlan: treatmentPlan || null,
                 notes: notes || null,
-                status: status || 'ANTRIAN',
+                status: finalStatus as any,
                 priority: priority || 'NORMAL',
                 nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
                 estimatedDuration: estimatedDuration || null,
@@ -104,10 +124,22 @@ export async function POST(request: Request) {
             }
         });
 
+        const newPatientStatus = mapHandledStatusToPatientStatus(
+            handledPatient.status,
+            handledPatient.notes
+        );
+
+        await prisma.patient.update({
+            where: { id: patientId },
+            data: {
+                status: newPatientStatus as any,
+                lastVisit: new Date()
+            }
+        });
+
+        console.log(`Patient global status updated to: ${newPatientStatus}`);
 
         if (requestLabTests && labTestsRequested && Array.isArray(labTestsRequested) && labTestsRequested.length > 0) {
-            console.log('Checking for existing lab request alerts...');
-
             const existingAlerts = await prisma.alert.findMany({
                 where: {
                     patientId: patient.id,
@@ -121,34 +153,17 @@ export async function POST(request: Request) {
             });
 
             if (existingAlerts.length === 0) {
-                console.log('No existing unread lab request found, creating new alert...');
-                console.log('Lab tests requested:', labTestsRequested);
-
-                try {
-                    const labRequestAlert = await prisma.alert.create({
-                        data: {
-                            type: 'INFO',
-                            message: `Permintaan pemeriksaan lab ulang untuk ${patient.name} (${patient.mrNumber}).\n\nPemeriksaan yang diminta:\n${labTestsRequested.map((test: string) => `- ${test}`).join('\n')}\n\nSegera lakukan pemeriksaan lab.`,
-                            patientId: patient.id,
-                            category: 'LAB_RESULT',
-                            priority: 'HIGH',
-                            targetRole: 'PERAWAT_POLI',
-                            isRead: false
-                        }
-                    });
-
-                    console.log('Lab request notification created:', {
-                        alertId: labRequestAlert.id,
-                        patientName: patient.name,
-                        mrNumber: patient.mrNumber,
-                        testsCount: labTestsRequested.length,
-                        targetRole: 'PERAWAT_POLI'
-                    });
-                } catch (alertError) {
-                    console.error('Failed to create lab request alert:', alertError);
-                }
-            } else {
-                console.log(`Skipped creating duplicate alert. Found ${existingAlerts.length} existing unread lab request(s)`);
+                await prisma.alert.create({
+                    data: {
+                        type: 'INFO',
+                        message: `Permintaan pemeriksaan lab ulang untuk ${patient.name} (${patient.mrNumber}).\n\nPemeriksaan yang diminta:\n${labTestsRequested.map((test: string) => `- ${test}`).join('\n')}\n\nSegera lakukan pemeriksaan lab.`,
+                        patientId: patient.id,
+                        category: 'LAB_RESULT',
+                        priority: 'HIGH',
+                        targetRole: 'PERAWAT_POLI',
+                        isRead: false
+                    }
+                });
             }
         }
 
@@ -174,7 +189,6 @@ export async function POST(request: Request) {
         }, { status: 500 });
     }
 }
-
 export async function GET(request: Request) {
     try {
         const session = await getServerSession(authOptions);
@@ -184,7 +198,7 @@ export async function GET(request: Request) {
 
         const userRole = (session.user as any).role;
         const userId = (session.user as any).id;
-        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'AHLI_GIZI', 'FARMASI'];
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
 
         if (!allowedRoles.includes(userRole)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
