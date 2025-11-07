@@ -22,11 +22,14 @@ const AdminDashboard = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
 
-  // Fetch real-time statistics
   useEffect(() => {
     const fetchRealTimeStats = async () => {
       try {
+        setStatsLoading(true);
         const response = await fetch('/api/admin/stats');
         if (response.ok) {
           const data = await response.json();
@@ -34,18 +37,17 @@ const AdminDashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching real-time stats:', error);
+      } finally {
+        setStatsLoading(false);
       }
     };
 
-    // Initial fetch
     fetchRealTimeStats();
 
-    // Update every 30 seconds for real-time data
-    const interval = setInterval(fetchRealTimeStats, 30000);
+    const interval = setInterval(fetchRealTimeStats, 60000);
 
     return () => clearInterval(interval);
   }, []);
-
 
   const getRoleDisplayName = (role: string) => {
     const roleNames: { [key: string]: string } = {
@@ -76,13 +78,22 @@ const AdminDashboard = () => {
   const refreshData = async () => {
     setShowRefreshSplash(true);
     try {
-      const staffResponse = await fetch('api/dashboard?type=staff');
+      const [staffResponse, statsResponse] = await Promise.all([
+        fetch('/api/staff'),
+        fetch('/api/admin/stats')
+      ]);
+
       if (staffResponse.ok) {
         const staffData = await staffResponse.json();
         setStaff(staffData);
       }
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setRealTimeStats(statsData);
+      }
     } catch (error) {
-      console.error('Error Refreshing data:', error)
+      console.error('Error refreshing data:', error);
     }
   };
 
@@ -90,10 +101,6 @@ const AdminDashboard = () => {
     setShowRefreshSplash(false);
     setIsRefreshing(false);
   };
-
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showRefreshSplash, setShowRefreshSplash] = useState(false);
 
   const filteredStaff = staff.filter(person =>
     person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -189,11 +196,11 @@ const AdminDashboard = () => {
 
   const handleTabChange = (tab: 'dashboard' | 'staff' | 'system') => {
     setActiveTab(tab);
-    setIsMobileSidebarOpen(false); // Close sidebar when tab is selected
+    setIsMobileSidebarOpen(false);
   };
 
   const maxLogins = Math.max(...realTimeStats.weeklyActivity.map(d => d.logins || 0), 1);
-  // Navigation items
+
   const navigationItems = [
     { key: 'dashboard', label: 'Dashboard', icon: Activity },
     { key: 'staff', label: 'Data Staff', icon: Users },
@@ -201,7 +208,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -209,10 +215,8 @@ const AdminDashboard = () => {
         />
       )}
 
-      {/* Mobile Sidebar */}
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
-        {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-m font-semibold text-gray-900">Menu Admin</h2>
           <button
@@ -223,7 +227,6 @@ const AdminDashboard = () => {
           </button>
         </div>
 
-        {/* Sidebar Navigation */}
         <nav className="p-4 space-y-2">
           {navigationItems.map(item => {
             const IconComponent = item.icon;
@@ -245,7 +248,6 @@ const AdminDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Mobile Header with Menu Button */}
         <div className="flex items-center justify-between mb-4 lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -276,7 +278,6 @@ const AdminDashboard = () => {
           </button>
         </div>
 
-        {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-end mb-6">
           <div className="flex items-center justify-center md:justify-end space-x-2 md:space-x-3">
             <button
@@ -303,7 +304,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Navigation Tabs - Desktop Only */}
         <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-125 px-3 sm:px-6 justify-center overflow-x-auto">
@@ -327,202 +327,191 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
-            {/* Real-time Stats Cards */}
-
-            <div className="grid grid-cols-2 gap-3 sm:gap-6">
-              <div className="bg-gradient-to-br from-white to-green-50 p-3 sm:p-6 rounded-xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div className="mb-2 sm:mb-0">
-                    <p className="text-xs sm:text-sm font-medium text-green-600">Total Staff</p>
-                    <div className="text-center sm:text-left">
-                      <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2 text-center">{realTimeStats.totalStaff}</p>
-                    </div>
-                  </div>
-                  <div className="bg-green-100 p-2 sm:p-3 rounded-full w-fit">
-                    <Users className="h-5 w-5 sm:h-8 sm:w-8 text-green-600" />
-                  </div>
-                </div>
+            {statsLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
               </div>
-
-              <div className="bg-gradient-to-br from-white to-blue-50 p-3 sm:p-6 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-shadow">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div className="mb-2 sm:mb-0">
-                    <p className="text-xs sm:text-sm font-medium text-blue-600">Login Hari Ini</p>
-                    <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2 text-center">{realTimeStats.dailyLogins}</p>
-                  </div>
-                  <div className="bg-blue-100 p-2 sm:p-3 rounded-full w-fit">
-                    <Activity className="h-5 w-5 sm:h-8 sm:w-8 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Enhanced Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-              {/* Modern Staff Distribution Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Distribusi Staff by Role</h3>
-                  <div className="flex items-center space-x-2 bg-green-50 px-2 sm:px-3 py-1 rounded-full w-fit">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-green-600 font-medium">Live</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 sm:space-y-4">
-                  {realTimeStats.distribution.length > 0 ? realTimeStats.distribution.map((item, index) => {
-                    const percentage = (item.count / realTimeStats.totalStaff) * 100;
-                    return (
-                      <div key={index} className="group">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2 sm:space-x-3">
-                            <div className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full ${item.color} shadow-lg`}></div>
-                            <span className="text-xs sm:text-sm font-medium text-gray-700">{item.role}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 sm:space-x-2">
-                            <span className="text-xs sm:text-sm text-gray-500">{percentage.toFixed(1)}%</span>
-                            <span className="text-xs sm:text-sm font-bold text-gray-900">{item.count}</span>
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
-                          <div
-                            className={`h-2 sm:h-3 rounded-full transition-all duration-1000 ease-out group-hover:shadow-lg ${item.color}`}
-                            style={{ width: `${percentage}%` }}
-                          ></div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                  <div className="bg-gradient-to-br from-white to-green-50 p-3 sm:p-6 rounded-xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                      <div className="mb-2 sm:mb-0">
+                        <p className="text-xs sm:text-sm font-medium text-green-600">Total Staff</p>
+                        <div className="text-center sm:text-left">
+                          <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2 text-center">{realTimeStats.totalStaff}</p>
                         </div>
                       </div>
-                    );
-                  }) : (
-                    <div className="text-center py-6 sm:py-8 text-gray-500">
-                      <Users className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Memuat distribusi staff...</p>
+                      <div className="bg-green-100 p-2 sm:p-3 rounded-full w-fit">
+                        <Users className="h-5 w-5 sm:h-8 sm:w-8 text-green-600" />
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              {/* Ultra Modern Weekly Activity Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 hover:shadow-md transition-shadow">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6 space-y-2 sm:space-y-0">
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900">Aktivitas Login 7 Hari</h3>
-                  <div className="flex items-center space-x-2 bg-blue-50 px-2 md:px-3 py-1 rounded-full self-start sm:self-auto">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-blue-600 font-medium">Real-time</span>
+                  <div className="bg-gradient-to-br from-white to-blue-50 p-3 sm:p-6 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                      <div className="mb-2 sm:mb-0">
+                        <p className="text-xs sm:text-sm font-medium text-blue-600">Login Hari Ini</p>
+                        <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2 text-center">{realTimeStats.dailyLogins}</p>
+                      </div>
+                      <div className="bg-blue-100 p-2 sm:p-3 rounded-full w-fit">
+                        <Activity className="h-5 w-5 sm:h-8 sm:w-8 text-blue-600" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="relative">
-                  {/* Modern Chart Container */}
-                  <div className="flex items-end justify-between space-x-1 sm:space-x-2 md:space-x-3 h-32 sm:h-40 md:h-48 mb-4 md:mb-6 bg-gradient-to-t from-gray-50 to-transparent rounded-lg p-2 md:p-4">
-                    {realTimeStats.weeklyActivity.length > 0 ? realTimeStats.weeklyActivity.map((day, index) => {
-                      const height = Math.max((day.logins / maxLogins) * (window.innerWidth < 768 ? 80 : 120), 6);
-                      const isToday = day.isToday;
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Distribusi Staff by Role</h3>
+                      <div className="flex items-center space-x-2 bg-green-50 px-2 sm:px-3 py-1 rounded-full w-fit">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-green-600 font-medium">Live</span>
+                      </div>
+                    </div>
 
-                      return (
-                        <div key={index} className="flex-1 flex flex-col items-center group relative">
-                          {/* Animated Tooltip - Hidden on mobile */}
-                          <div className="hidden md:block absolute -top-16 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                            <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
-                              <div className="text-center">
-                                <div className="font-semibold">{day.logins} login{day.logins !== 1 ? 's' : ''}</div>
-                                <div className="text-gray-300">{day.day}</div>
+                    <div className="space-y-3 sm:space-y-4">
+                      {realTimeStats.distribution.length > 0 ? realTimeStats.distribution.map((item, index) => {
+                        const percentage = (item.count / realTimeStats.totalStaff) * 100;
+                        return (
+                          <div key={index} className="group">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2 sm:space-x-3">
+                                <div className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full ${item.color} shadow-lg`}></div>
+                                <span className="text-xs sm:text-sm font-medium text-gray-700">{item.role}</span>
                               </div>
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                              <div className="flex items-center space-x-1 sm:space-x-2">
+                                <span className="text-xs sm:text-sm text-gray-500">{percentage.toFixed(1)}%</span>
+                                <span className="text-xs sm:text-sm font-bold text-gray-900">{item.count}</span>
+                              </div>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
+                              <div
+                                className={`h-2 sm:h-3 rounded-full transition-all duration-1000 ease-out group-hover:shadow-lg ${item.color}`}
+                                style={{ width: `${percentage}%` }}
+                              ></div>
                             </div>
                           </div>
-
-                          {/* Modern Bar with Gradient */}
-                          <div className="relative w-full max-w-4 sm:max-w-6 md:max-w-8 mb-2 md:mb-3">
-                            <div
-                              className={`w-full rounded-full transition-all duration-700 ease-out transform group-hover:scale-110 ${isToday
-                                ? 'bg-gradient-to-t from-green-600 via-green-500 to-green-400 shadow-lg shadow-green-200'
-                                : 'bg-gradient-to-t from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 shadow-lg shadow-blue-200'
-                                }`}
-                              style={{ height: `${height}px` }}
-                            >
-                              {/* Glossy effect */}
-                              <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white to-transparent opacity-30 rounded-full"></div>
-
-                              {/* Today's pulse effect */}
-                              {isToday && (
-                                <div className="absolute inset-0 rounded-full animate-pulse bg-gradient-to-t from-green-400 to-transparent opacity-50"></div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Day Label */}
-                          <div className="text-center">
-                            <div className={`text-xs sm:text-sm font-bold transition-colors ${isToday ? 'text-green-600' : 'text-gray-900 group-hover:text-blue-600'
-                              }`}>
-                              {day.logins}
-                            </div>
-                            <div className={`text-xs mt-1 transition-colors ${isToday ? 'text-green-600 font-semibold' : 'text-gray-500 group-hover:text-blue-500'
-                              }`}>
-                              {window.innerWidth < 640 ? day.day.substring(0, 3) : day.day}
-                            </div>
-                            {isToday && (
-                              <div className="w-1 h-1 bg-green-400 rounded-full mx-auto mt-1 animate-pulse"></div>
-                            )}
-                          </div>
+                        );
+                      }) : (
+                        <div className="text-center py-6 sm:py-8 text-gray-500">
+                          <Users className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Memuat distribusi staff...</p>
                         </div>
-                      );
-                    }) : (
-                      <div className="w-full flex items-center justify-center h-full text-gray-500">
-                        <div className="text-center">
-                          <TrendingUp className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm md:text-base">Memuat data aktivitas...</p>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
-                  {/* Enhanced Summary Stats */}
-                  <div className="bg-gray-50 rounded-lg p-3 md:p-4 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs md:text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total 7 hari:</span>
-                        <span className="font-semibold text-gray-900">
-                          {realTimeStats.weeklyActivity.reduce((sum, day) => sum + (day.logins || 0), 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Rata-rata:</span>
-                        <span className="font-semibold text-gray-900">
-                          {Math.round(realTimeStats.weeklyActivity.reduce((sum, day) => sum + (day.logins || 0), 0) / 7)} /hari
-                        </span>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6 space-y-2 sm:space-y-0">
+                      <h3 className="text-base md:text-lg font-semibold text-gray-900">Aktivitas Login 7 Hari</h3>
+                      <div className="flex items-center space-x-2 bg-blue-50 px-2 md:px-3 py-1 rounded-full self-start sm:self-auto">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-blue-600 font-medium">Real-time</span>
                       </div>
                     </div>
 
-                    {/* Trend indicator */}
-                    <div className="pt-2 border-t border-gray-200">
-                      <div className="flex items-center justify-center space-x-2 text-xs">
-                        <TrendingUp className="h-3 w-3 md:h-4 md:w-4 text-green-500" />
-                        <span className="text-gray-600">Data diperbarui setiap 30 detik</span>
+                    <div className="relative">
+                      <div className="flex items-end justify-between space-x-1 sm:space-x-2 md:space-x-3 h-32 sm:h-40 md:h-48 mb-4 md:mb-6 bg-gradient-to-t from-gray-50 to-transparent rounded-lg p-2 md:p-4">
+                        {realTimeStats.weeklyActivity.length > 0 ? realTimeStats.weeklyActivity.map((day, index) => {
+                          const height = Math.max((day.logins / maxLogins) * (window.innerWidth < 768 ? 80 : 120), 6);
+                          const isToday = day.isToday;
+
+                          return (
+                            <div key={index} className="flex-1 flex flex-col items-center group relative">
+                              <div className="hidden md:block absolute -top-16 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                                <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
+                                  <div className="text-center">
+                                    <div className="font-semibold">{day.logins} login{day.logins !== 1 ? 's' : ''}</div>
+                                    <div className="text-gray-300">{day.day}</div>
+                                  </div>
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                </div>
+                              </div>
+
+                              <div className="relative w-full max-w-4 sm:max-w-6 md:max-w-8 mb-2 md:mb-3">
+                                <div
+                                  className={`w-full rounded-full transition-all duration-700 ease-out transform group-hover:scale-110 ${isToday
+                                    ? 'bg-gradient-to-t from-green-600 via-green-500 to-green-400 shadow-lg shadow-green-200'
+                                    : 'bg-gradient-to-t from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 shadow-lg shadow-blue-200'
+                                    }`}
+                                  style={{ height: `${height}px` }}
+                                >
+                                  <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white to-transparent opacity-30 rounded-full"></div>
+
+                                  {isToday && (
+                                    <div className="absolute inset-0 rounded-full animate-pulse bg-gradient-to-t from-green-400 to-transparent opacity-50"></div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="text-center">
+                                <div className={`text-xs sm:text-sm font-bold transition-colors ${isToday ? 'text-green-600' : 'text-gray-900 group-hover:text-blue-600'
+                                  }`}>
+                                  {day.logins}
+                                </div>
+                                <div className={`text-xs mt-1 transition-colors ${isToday ? 'text-green-600 font-semibold' : 'text-gray-500 group-hover:text-blue-500'
+                                  }`}>
+                                  {window.innerWidth < 640 ? day.day.substring(0, 3) : day.day}
+                                </div>
+                                {isToday && (
+                                  <div className="w-1 h-1 bg-green-400 rounded-full mx-auto mt-1 animate-pulse"></div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }) : (
+                          <div className="w-full flex items-center justify-center h-full text-gray-500">
+                            <div className="text-center">
+                              <TrendingUp className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm md:text-base">Memuat data aktivitas...</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-gray-50 rounded-lg p-3 md:p-4 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs md:text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total 7 hari:</span>
+                            <span className="font-semibold text-gray-900">
+                              {realTimeStats.weeklyActivity.reduce((sum, day) => sum + (day.logins || 0), 0)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Rata-rata:</span>
+                            <span className="font-semibold text-gray-900">
+                              {Math.round(realTimeStats.weeklyActivity.reduce((sum, day) => sum + (day.logins || 0), 0) / 7)} /hari
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-200">
+                          <div className="flex items-center justify-center space-x-2 text-xs">
+                            <TrendingUp className="h-3 w-3 md:h-4 md:w-4 text-green-500" />
+                            <span className="text-gray-600">Data diperbarui setiap 60 detik</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Staff Management Tab */}
         {activeTab === "staff" && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Header */}
               <div className="p-6 border-b border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  {/* Title */}
                   <h3 className="text-lg font-semibold text-gray-900">Daftar Staff</h3>
 
-                  {/* Search + Button */}
                   <div className="flex items-center gap-3 w-full sm:w-auto">
-                    {/* Search Input */}
                     <div className="relative flex-1">
                       <input
                         type="text"
@@ -534,7 +523,6 @@ const AdminDashboard = () => {
                       <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                     </div>
 
-                    {/* Add Staff Button */}
                     <button
                       onClick={handleAddStaff}
                       className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
