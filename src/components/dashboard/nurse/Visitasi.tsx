@@ -170,8 +170,8 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                 <div className="px-6 py-4 border-b border-gray-200">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         <h3 className="text-lg font-semibold text-gray-900">Daftar Visitasi</h3>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <div className="relative flex-1 sm:flex-initial">
+                        <div className="flex flex-row gap-3">
+                            <div className="relative flex-1">
                                 <input
                                     type="text"
                                     placeholder="Cari Pasien..."
@@ -190,6 +190,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                             </button>
                         </div>
                     </div>
+
 
                     <div className="flex flex-wrap gap-3 mt-4">
                         <div className="flex items-center gap-2">
@@ -311,7 +312,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                                             className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
-                                                            <span>Delete</span>
+                                                            <span>Hapus</span>
                                                         </button>
                                                     </div>
                                                 </td>
@@ -434,7 +435,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                                 className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
                                             >
                                                 <Trash2 className="h-4 w-4" />
-                                                <span>Delete</span>
+                                                <span>Hapus</span>
                                             </button>
                                         </div>
                                     </div>

@@ -244,7 +244,7 @@ const NurseDashboard = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
+                                    <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100 sm:col-span-2 lg:col-span-1">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-sm font-medium text-red-600">Risiko Tinggi</p>

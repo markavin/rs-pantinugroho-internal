@@ -37,7 +37,7 @@ export default function HomePage() {
 
   // Show login splash after successful authentication
   if (showLoginSplash) {
-    return <SplashScreen onFinish={handleLoginSplashFinish} message="Mengalihkan ke dashboard..." />;
+    return <SplashScreen onFinish={handleLoginSplashFinish} message="Memuat dashboard..." />;
   }
 
   // Show loading while checking session

@@ -258,15 +258,15 @@ const DaftarPasien = () => {
                                         {getRiskBadge(patient.riskLevel)}
                                     </div>
                                     <div className="space-y-2 mb-4">
-                                        <p className="text-sm"><span className="text-gray-600">Status:</span> <span className="font-medium">RAWAT INAP</span></p>
-                                        <p className="text-sm"><span className="text-gray-600">Diagnosis:</span> <span className="font-medium">{patient.diabetesType || '-'}</span></p>
+                                        <p className="text-sm"><span className="text-gray-600">Status:</span> <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">RAWAT INAP</span></p>
+                                        <p className="text-sm"><span className="text-gray-600">Diagnosis:</span> <span className="font-medium text-gray-800">{patient.diabetesType || '-'}</span></p>
                                         {patient.allergies.length > 0 && (
                                             <p className="text-sm text-red-600 font-medium">Alergi: {patient.allergies.join(', ')}</p>
                                         )}
                                     </div>
                                     <button
                                         onClick={() => setSelectedPatient(patient)}
-                                        className="w-full bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
+                                        className="w-full bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                                     >
                                         <Eye className="h-4 w-4" />
                                         <span>Lihat Detail</span>

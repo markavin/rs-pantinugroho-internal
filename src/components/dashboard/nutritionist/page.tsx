@@ -468,7 +468,7 @@ const NutritionistDashboard = () => {
     <div className="space-y-8">
 
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-white to-green-50 p-4 sm:p-6 rounded-xl shadow-sm border border-green-100">
           <p className="text-xs sm:text-sm font-medium text-green-600">Total Pasien Rawat Inap</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.totalPatients}</p>
@@ -477,7 +477,7 @@ const NutritionistDashboard = () => {
           <p className="text-xs sm:text-sm font-medium text-blue-600">Rencana Diet Aktif</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.activeDietPlans}</p>
         </div>
-        <div className="bg-gradient-to-br from-white to-purple-50 p-4 sm:p-6 rounded-xl shadow-sm border border-purple-100">
+        <div className="bg-gradient-to-br from-white to-purple-50 p-4 sm:p-6 rounded-xl shadow-sm border border-purple-100 sm:col-span-2 lg:col-span-1">
           <p className="text-xs sm:text-sm font-medium text-purple-600">Rata-rata Kepatuhan</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.avgCompliance}%</p>
         </div>

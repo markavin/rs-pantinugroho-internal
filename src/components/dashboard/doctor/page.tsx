@@ -1174,7 +1174,7 @@ const DoctorDashboard = () => {
 
                   <button
                     onClick={() => handleViewPatient(patient)}
-                    className="w-full bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
+                    className="w-full bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                   >
                     <Eye className="h-4 w-4" />
                     <span>Lihat Detail</span>
@@ -1561,8 +1561,8 @@ const DoctorDashboard = () => {
               </div>
             </div>
 
-            <div className="border-b border-gray-200 px-6">
-              <div className="flex space-x-8 py-3">
+            <div className="border-b border-gray-200 px-4 sm:px-6">
+              <div className="flex space-x-4 py-3 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <button
                   onClick={() => setStatusFilter('ALL')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${statusFilter === 'ALL'
@@ -1610,6 +1610,7 @@ const DoctorDashboard = () => {
                 </button>
               </div>
             </div>
+
 
             <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -1786,14 +1787,14 @@ const DoctorDashboard = () => {
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => handleViewHandledPatientHistory(handledPatient)}
-                      className="bg-purple-100 text-purple-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-purple-200 transition-colors flex items-center justify-center space-x-1"
+                      className="bg-gray-100 text-gray-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-1"
                     >
-                      <ClipboardList className="h-4 w-4" />
+                      <ClipboardList className="h-8 w-4" />
                       <span>Riwayat</span>
                     </button>
                     <button
                       onClick={() => handleEditHandledPatient(handledPatient)}
-                      className="bg-green-100 text-green-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center space-x-1"
+                      className="bg-blue-100 text-blue-700 py-2 px-3 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
                     >
                       <Edit className="h-4 w-4" />
                       <span>Edit</span>

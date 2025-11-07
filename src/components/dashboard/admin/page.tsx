@@ -629,7 +629,7 @@ const AdminDashboard = () => {
                                 className="text-red-600 hover:text-red-900 font-medium inline-flex items-center space-x-1"
                               >
                                 <Trash2 className="h-4 w-4" />
-                                <span>Delete</span>
+                                <span>Hapus</span>
                               </button>
                             </td>
                           </tr>
