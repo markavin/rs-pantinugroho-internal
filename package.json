@@ -16,7 +16,7 @@
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.541.0",
     "next-auth": "^4.24.11",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^7.0.10",
     "recharts": "^3.3.0",
     "resend": "^6.3.0"
   },
