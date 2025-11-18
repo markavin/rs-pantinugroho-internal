@@ -616,7 +616,7 @@ const PharmacyDashboard = () => {
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                <div className="bg-linear-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-blue-600">Total Obat</p>
@@ -628,7 +628,7 @@ const PharmacyDashboard = () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
+                <div className="bg-linear-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-red-600">Stok Rendah</p>
@@ -640,7 +640,7 @@ const PharmacyDashboard = () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+                <div className="bg-linear-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-green-600">Transaksi Selesai</p>

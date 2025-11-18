@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -69,23 +69,22 @@ export async function POST(request: Request) {
       name,
       birthDate,
       gender,
+      idNumber,
+      nationality,
+      bloodType,
+      language,
+      motherName,
       phone,
       address,
-      height,
-      weight,
-      diabetesType,
+      intendedDoctor,
       insuranceType,
-      smokingStatus,
-      allergies,
-      medicalHistory,
-      status,
-      complaint,
-      complaintSeverity
+      insuranceNumber,
+      status
     } = body;
 
-    if (!name || !birthDate || !gender || !insuranceType) {
+    if (!name || !birthDate || !gender || !insuranceType || !nationality) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
+        { error: 'Missing required fields: name, birthDate, gender, insuranceType, nationality' },
         { status: 400 }
       );
     }
@@ -102,66 +101,26 @@ export async function POST(request: Request) {
     }
     const mrNumber = `RM${nextNumber.toString().padStart(4, '0')}`;
 
-    let bmi = null;
-    if (height && weight) {
-      const heightInMeters = parseFloat(height) / 100;
-      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
-      bmi = Math.round(bmi * 100) / 100;
-    }
-
     const patient = await prisma.patient.create({
       data: {
         mrNumber,
         name,
         birthDate: new Date(birthDate),
         gender,
+        idNumber: idNumber || null,
+        nationality,
+        bloodType: bloodType || null,
+        language: language || null,
+        motherName: motherName || null,
         phone: phone || null,
         address: address || null,
-        height: height ? parseFloat(height) : null,
-        weight: weight ? parseFloat(weight) : null,
-        bmi: bmi,
-        diabetesType: diabetesType || null,
+        intendedDoctor: intendedDoctor || null,
         insuranceType,
-        smokingStatus: smokingStatus || 'TIDAK_MEROKOK',
-        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
-        medicalHistory: medicalHistory || null,
-        comorbidities: [],
+        insuranceNumber: insuranceNumber || null,
         status: status || 'AKTIF',
         createdBy: (session.user as any).id,
       }
     });
-
-    await prisma.alert.create({
-      data: {
-        type: 'INFO',
-        category: 'SYSTEM',
-        message: `Pasien baru ${patient.name} (${patient.mrNumber}) terdaftar. Segera lakukan pemeriksaan awal.
-        Detail:
-        - Diabetes Type: ${patient.diabetesType || 'Belum diketahui'}
-        - Penjamin: ${patient.insuranceType}
-        - Alergi: ${patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(', ') : 'Tidak ada'}`,
-        patientId: patient.id,
-        priority: 'MEDIUM',
-        targetRole: 'PERAWAT_POLI',
-        isRead: false
-      }
-    });
-
-    if (complaint && complaint.trim()) {
-      await prisma.patientRecord.create({
-        data: {
-          patientId: patient.id,
-          recordType: 'COMPLAINTS',
-          title: 'Keluhan Pasien',
-          content: complaint.trim(),
-          metadata: {
-            severity: complaintSeverity || 'RINGAN',
-            status: 'BARU',
-            notes: ''
-          }
-        }
-      });
-    }
 
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {

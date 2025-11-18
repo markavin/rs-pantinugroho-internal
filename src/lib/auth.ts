@@ -10,6 +10,7 @@ export type UserRole =
   | 'PERAWAT_POLI'
   | 'AHLI_GIZI'
   | 'ADMINISTRASI'
+  | 'LABORATORIUM'
   | 'MANAJER'
   | 'FARMASI';
 
@@ -19,6 +20,7 @@ export const ROLE_NAMES: Record<UserRole, string> = {
   DOKTER_SPESIALIS: 'Dokter Spesialis Penyakit Dalam',
   PERAWAT_RUANGAN: 'Perawat Ruangan',
   PERAWAT_POLI: 'Perawat Poli',
+  LABORATORIUM: 'Laboratorium',
   AHLI_GIZI: 'Ahli Gizi',
   ADMINISTRASI: 'Administrasi Pasien',
   MANAJER: 'Manajer',
@@ -30,6 +32,7 @@ export const ROLE_PERMISSIONS = {
   DOKTER_SPESIALIS: ['patients', 'appointments', 'prescriptions', 'medical_records', 'education'],
   PERAWAT_RUANGAN: ['patients', 'medications', 'vital_signs', 'lab_results', 'education'],
   PERAWAT_POLI: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
+  LABORATORIUM: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
   AHLI_GIZI: ['nutrition', 'diet_monitoring', 'food_recall', 'patient_metrics', 'allergies'],
   ADMINISTRASI: ['patients', 'blood_sugar_trends', 'education', 'reminders', 'appointments'],
   MANAJER: ['all'],
@@ -88,6 +91,7 @@ export function getDashboardPath(role: UserRole): string {
     case 'DOKTER_SPESIALIS': return '/dashboard/doctor';
     case 'PERAWAT_RUANGAN': return '/dashboard/nurse';
     case 'PERAWAT_POLI': return '/dashboard/nurse-poli';
+    case "LABORATORIUM": return '/dashboard/laboratory'
     case 'AHLI_GIZI': return '/dashboard/nutritionist';
     case 'FARMASI': return '/dashboard/pharmacy';
     case 'ADMINISTRASI': return '/dashboard/administrasi';
@@ -97,54 +101,60 @@ export function getDashboardPath(role: UserRole): string {
 }
 
 // Helper to get role-based color theme
-export function getRoleTheme(role: UserRole): { primary: string; gradient: string; icon: string } {
+export function getRoleTheme(role: UserRole): { primary: string; linear: string; icon: string } {
   switch (role) {
     case 'SUPER_ADMIN':
       return {
         primary: 'purple',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🔧'
       };
     case 'DOKTER_SPESIALIS':
       return {
         primary: 'blue',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🩺'
       };
     case 'PERAWAT_RUANGAN':
       return {
         primary: 'teal',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '👩‍⚕️'
       };
     case 'PERAWAT_POLI':
       return {
         primary: 'cyan',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
+        icon: '💉'
+      };
+    case 'LABORATORIUM':
+      return {
+        primary: 'cyan',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '💉'
       };
     case 'AHLI_GIZI':
       return {
         primary: 'green',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '🥗'
       };
     case 'FARMASI':
       return {
         primary: 'emerald',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '💊'
       };
     case 'ADMINISTRASI':
       return {
         primary: 'gray',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '👩‍⚕️'
       };
     case 'MANAJER':
       return {
         primary: 'amber',
-        gradient: 'from-green-50 via-emerald-50 to-teal-50',
+        linear: 'from-green-50 via-emerald-50 to-teal-50',
         icon: '📊'
       };
 

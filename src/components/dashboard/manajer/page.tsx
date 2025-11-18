@@ -1221,7 +1221,7 @@ const ManajerDashboard = () => {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                    <div className="bg-linear-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-blue-600">Total Pasien</p>
@@ -1233,7 +1233,7 @@ const ManajerDashboard = () => {
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+                    <div className="bg-linear-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-green-600">Total Staff</p>
@@ -1246,7 +1246,7 @@ const ManajerDashboard = () => {
                     </div>
 
                     {/* CARD TOTAL OBAT */}
-                    <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100 sm:col-span-2 lg:col-span-1">
+                    <div className="bg-linear-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100 sm:col-span-2 lg:col-span-1">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-purple-600">Total Obat</p>
@@ -1790,7 +1790,7 @@ const ManajerDashboard = () => {
                           const patientInfo = activities[0];
                           return (
                             <div key={patientId} className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
-                              <div className="bg-gradient-to-r from-blue-50 to-green-50 px-6 py-4 border-b-2 border-gray-300">
+                              <div className="bg-linear-to-r from-blue-50 to-green-50 px-6 py-4 border-b-2 border-gray-300">
                                 <div className="flex items-center gap-3">
                                   <User className="h-5 w-5 text-green-600" />
                                   <div>

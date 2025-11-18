@@ -127,14 +127,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const recentAlerts = alerts.slice(0, 5);
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${roleTheme.gradient}`}>
+    <div className={`min-h-screen bg-linear-to-br ${roleTheme.linear}`}>
       <header className="bg-white/90 backdrop-blur-md shadow-sm border-b border-white/20 sticky top-0 z-30">
         <div className="w-full max-w-none px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-16">
           <div className="flex items-center justify-between h-14 sm:h-16 lg:h-18">
 
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
               <div className="flex items-center space-x-2 sm:space-x-3">
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 shadow-md flex items-center justify-center">
+                <div className="bg-linear-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 shadow-md flex items-center justify-center">
                   <span className="text-white font-bold text-xs sm:text-sm">KD</span>
                 </div>
                 <div className="min-w-0">
@@ -190,7 +190,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
                 {showNotificationPreview && (
                   <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden flex flex-col" style={{ maxHeight: '500px' }}>
-                    <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50 flex-shrink-0">
+                    <div className="p-4 border-b border-gray-100 bg-linear-to-r from-green-50 to-emerald-50 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-gray-900">Notifikasi Terbaru</h3>
                         <div className="flex items-center gap-3">
@@ -354,7 +354,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       )}
 
       <div className={`fixed top-0 right-0 h-full bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 lg:hidden w-full max-w-sm sm:max-w-md md:max-w-lg ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-green-500 to-green-600 text-white">
+        <div className="p-4 sm:p-6 bg-linear-to-r from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <div className="bg-white/20 rounded-lg p-2">
@@ -472,7 +472,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </div>
       </main>
 
-      <footer className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-6 sm:py-8 mt-8 sm:mt-12 lg:mt-16">
+      <footer className="bg-linear-to-r from-green-600 to-emerald-600 text-white py-6 sm:py-8 mt-8 sm:mt-12 lg:mt-16">
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-16">
           <div className="text-center space-y-3 sm:space-y-4">
             <div className="flex items-center justify-center space-x-2 sm:space-x-3">

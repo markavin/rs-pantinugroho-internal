@@ -19,11 +19,11 @@ export async function GET(request: Request) {
     const limit = searchParams.get('limit');
 
     const whereClause: any = {};
-    
+
     if (patientId) {
       whereClause.patientId = patientId;
     }
-    
+
     if (recordType) {
       whereClause.recordType = recordType;
     }
@@ -35,12 +35,7 @@ export async function GET(request: Request) {
       },
       take: limit ? parseInt(limit) : undefined,
       include: {
-        patient: {
-          select: {
-            name: true,
-            mrNumber: true
-          }
-        }
+        patient: true 
       }
     });
 
@@ -57,7 +52,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   let prismaClient = new PrismaClient();
-  
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -112,30 +107,30 @@ export async function POST(request: Request) {
     if (bloodSugar !== undefined && bloodSugar !== null) {
       recordData.bloodSugar = parseFloat(bloodSugar);
     }
-    
+
     if (bloodPressure !== undefined && bloodPressure !== null) {
       recordData.bloodPressure = String(bloodPressure);
       console.log('✅ Saving Blood Pressure:', bloodPressure);
     }
-    
+
     if (temperature !== undefined && temperature !== null) {
       recordData.temperature = parseFloat(temperature);
       console.log('✅ Saving Temperature:', temperature);
     }
-    
+
     if (heartRate !== undefined && heartRate !== null) {
       recordData.heartRate = parseInt(heartRate);
       console.log('✅ Saving Heart Rate:', heartRate);
     }
-    
+
     if (weight !== undefined && weight !== null) {
       recordData.weight = parseFloat(weight);
     }
-    
+
     if (medicationCompliance !== undefined && medicationCompliance !== null) {
       recordData.medicationCompliance = parseInt(medicationCompliance);
     }
-    
+
     if (dietCompliance !== undefined && dietCompliance !== null) {
       recordData.dietCompliance = parseInt(dietCompliance);
     }
@@ -161,20 +156,20 @@ export async function POST(request: Request) {
     });
 
     if (error.code === 'P2002') {
-      return NextResponse.json({ 
-        error: 'Duplicate entry detected' 
+      return NextResponse.json({
+        error: 'Duplicate entry detected'
       }, { status: 400 });
     }
 
     if (error.code === 'P2003') {
-      return NextResponse.json({ 
-        error: 'Foreign key constraint failed. Patient may not exist.' 
+      return NextResponse.json({
+        error: 'Foreign key constraint failed. Patient may not exist.'
       }, { status: 400 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     }, { status: 500 });
   } finally {
     await prismaClient.$disconnect();
@@ -183,7 +178,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   let prismaClient = new PrismaClient();
-  
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

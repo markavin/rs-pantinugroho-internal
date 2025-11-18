@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
 
-    const allowedRoles = ['AHLI_GIZI', 'SUPER_ADMIN'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
     
     if (!allowedRoles.includes(userRole)) {
       console.error('Forbidden: User role', userRole, 'not in', allowedRoles);

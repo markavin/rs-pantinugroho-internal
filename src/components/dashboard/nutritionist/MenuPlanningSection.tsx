@@ -381,7 +381,7 @@ const MenuPlanningSection: React.FC<MenuPlanningSectionProps> = ({
       </div>
 
       {/* Summary Total */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg">
+      <div className="mt-6 p-4 bg-linear-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
             <p className="text-xs text-gray-600">Total Kalori</p>

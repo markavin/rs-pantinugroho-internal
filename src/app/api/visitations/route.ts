@@ -73,7 +73,9 @@ export async function POST(request: Request) {
       stressLevel,
       stressFactor,
       nutritionStatus,
-      energyCalculationDetail
+      energyCalculationDetail,
+      labResults,      // ✅ TAMBAHKAN INI
+      labNotes         // ✅ TAMBAHKAN INI
     } = body;
 
     if (!patientId || !shift) {
@@ -169,6 +171,17 @@ export async function POST(request: Request) {
       visitationData.energyCalculationDetail = energyCalculationDetail;
     }
 
+    // ✅ TAMBAHKAN INI: Simpan lab results dan notes
+    if (labResults !== null && labResults !== undefined) {
+      visitationData.labResults = labResults;
+      console.log('📋 Saving lab results:', JSON.stringify(labResults, null, 2));
+    }
+
+    if (labNotes !== null && labNotes !== undefined) {
+      visitationData.labNotes = labNotes;
+      console.log('📝 Saving lab notes:', labNotes);
+    }
+
     console.log('=== CREATING VISITATION ===');
     console.log(JSON.stringify(visitationData, null, 2));
 
@@ -194,8 +207,10 @@ export async function POST(request: Request) {
         }
       });
 
-      console.log('Visitation created:', newVisitation.id);
+      console.log('✅ Visitation created:', newVisitation.id);
+      console.log('📋 Lab results saved:', newVisitation.labResults ? 'YES' : 'NO');
 
+      // ... rest of transaction code (patient update, alerts, etc.)
       const patientUpdateData: any = {};
 
       if (visitationData.weight) {
@@ -245,10 +260,8 @@ export async function POST(request: Request) {
         });
       }
 
-
       if (dietIssues && dietIssues.trim()) {
         console.log('Creating diet alert...');
-
         let alertPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' = 'HIGH';
 
         if (dietCompliance !== null) {
@@ -308,7 +321,7 @@ export async function GET(request: Request) {
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -387,6 +400,7 @@ export async function PUT(request: Request) {
       height,
       medicationsGiven,
       labResults,
+      labNotes,
       actions,
       complications,
       education,
@@ -437,6 +451,7 @@ export async function PUT(request: Request) {
           height: height !== undefined ? (height ? parseInt(height) : null) : existingVisitation.height,
           medicationsGiven: medicationsGiven || existingVisitation.medicationsGiven,
           labResults: labResults !== undefined ? labResults : existingVisitation.labResults,
+          labNotes: labNotes !== undefined ? labNotes : existingVisitation.labNotes,
           actions: actions !== undefined ? actions : existingVisitation.actions,
           complications: complications !== undefined ? complications : existingVisitation.complications,
           education: education !== undefined ? education : existingVisitation.education,
@@ -539,7 +554,7 @@ export async function PUT(request: Request) {
         });
       }
 
-    
+
 
       return updated;
     });

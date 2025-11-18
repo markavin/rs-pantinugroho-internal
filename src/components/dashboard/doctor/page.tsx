@@ -890,7 +890,7 @@ const DoctorDashboard = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+              <div className="bg-linear-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-green-600">Total Pasien Ditangani</p>
@@ -902,7 +902,7 @@ const DoctorDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
+              <div className="bg-linear-to-br from-white to-orange-50 p-6 rounded-xl shadow-sm border border-orange-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-orange-600">Prioritas Tinggi</p>
@@ -916,7 +916,7 @@ const DoctorDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+              <div className="bg-linear-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-blue-600">Pasien Aktif</p>
@@ -928,7 +928,7 @@ const DoctorDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white to-yellow-50 p-6 rounded-xl shadow-sm border border-blue-100">
+              <div className="bg-linear-to-br from-white to-yellow-50 p-6 rounded-xl shadow-sm border border-blue-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-yellow-600">Antrian Pasien</p>

@@ -33,7 +33,7 @@ interface SystemHistoryViewProps {
     onPatientSelect: (patient: Patient | null) => void;
 }
 
-type ActivityType = 'all' | 'complaints' | 'vitals' | 'labs' | 'handled' | 'visitations' | 'nutrition' | 'pharmacy' | 'medical-reports';
+type ActivityType = 'all' | 'complaints' | 'vitals' | 'labs' | 'handled' | 'visitations' | 'nutrition' | 'pharmacy' | 'medical-reports' | 'searb';
 
 const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
     patients,
@@ -58,6 +58,16 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
         try {
             console.log('Fetching system history for patient:', patientId);
 
+            // Helper function untuk safe fetch
+            const safeFetch = async (url: string): Promise<Response | null> => {
+                try {
+                    return await fetch(url);
+                } catch (error) {
+                    console.error(`Failed to fetch ${url}:`, error);
+                    return null;
+                }
+            };
+
             const [
                 complaintsRes,
                 vitalsRes,
@@ -68,24 +78,35 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                 pharmacyRes,
                 medicalReportsRes
             ] = await Promise.all([
-                fetch(`/api/patient-records?patientId=${patientId}&type=COMPLAINTS`).catch(() => null),
-                fetch(`/api/patient-records?patientId=${patientId}&type=VITAL_SIGNS`).catch(() => null),
-                fetch(`/api/lab-results?patientId=${patientId}`).catch(() => null),
-                fetch(`/api/handled-patients?patientId=${patientId}`).catch(() => null),
-                fetch(`/api/visitations?patientId=${patientId}`).catch(() => null),
-                fetch(`/api/nutrition-records?patientId=${patientId}`).catch(() => null),
-                fetch(`/api/drug-transactions?patientId=${patientId}`).catch(() => null),
-                fetch(`/api/medical-reports?patientId=${patientId}`).catch(() => null)
+                safeFetch(`/api/patient-records?patientId=${patientId}&type=COMPLAINTS`),
+                safeFetch(`/api/patient-records?patientId=${patientId}&type=VITAL_SIGNS`),
+                safeFetch(`/api/lab-results?patientId=${patientId}`),
+                safeFetch(`/api/handled-patients?patientId=${patientId}`),
+                safeFetch(`/api/visitations?patientId=${patientId}`),
+                safeFetch(`/api/nutrition-records?patientId=${patientId}`),
+                safeFetch(`/api/drug-transactions?patientId=${patientId}`),
+                safeFetch(`/api/medical-reports?patientId=${patientId}`)
             ]);
 
-            const complaints = complaintsRes?.ok ? await complaintsRes.json() : [];
-            const vitalsFromRecords = vitalsRes?.ok ? await vitalsRes.json() : [];
-            const labs = labsRes?.ok ? await labsRes.json() : [];
-            const handled = handledRes?.ok ? await handledRes.json() : [];
-            const visitations = visitationsRes?.ok ? await visitationsRes.json() : [];
-            const nutrition = nutritionRes?.ok ? await nutritionRes.json() : [];
-            const pharmacy = pharmacyRes?.ok ? await pharmacyRes.json() : [];
-            const medicalReports = medicalReportsRes?.ok ? await medicalReportsRes.json() : [];
+            // Safe JSON parsing
+            const safeJson = async (response: Response | null): Promise<any[]> => {
+                if (!response || !response.ok) return [];
+                try {
+                    return await response.json();
+                } catch (error) {
+                    console.error('JSON parse error:', error);
+                    return [];
+                }
+            };
+
+            const complaints = await safeJson(complaintsRes);
+            const vitalsFromRecords = await safeJson(vitalsRes);
+            const labs = await safeJson(labsRes);
+            const handled = await safeJson(handledRes);
+            const visitations = await safeJson(visitationsRes);
+            const nutrition = await safeJson(nutritionRes);
+            const pharmacy = await safeJson(pharmacyRes);
+            const medicalReports = await safeJson(medicalReportsRes);
 
             console.log('Data fetched:', {
                 complaints: complaints.length,
@@ -98,64 +119,104 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                 medicalReports: medicalReports.length
             });
 
+            // Extract SEAR B data
+            const vitalsWithSearB = vitalsFromRecords
+                .filter((v: any) => v.metadata?.searB && v.metadata.searB.percentage)
+                .map((v: any) => {
+                    const timestamp = v.createdAt ? new Date(v.createdAt) : new Date();
+                    return {
+                        ...v,
+                        activityType: 'searb',
+                        timestamp: timestamp,
+                        role: 'SEARB',
+                        searBData: v.metadata.searB
+                    };
+                });
+
+            // Helper function to safely create timestamp
+            const safeTimestamp = (dateValue: any): Date => {
+                if (!dateValue) return new Date();
+                try {
+                    const date = new Date(dateValue);
+                    return isNaN(date.getTime()) ? new Date() : date;
+                } catch {
+                    return new Date();
+                }
+            };
+
             const combined = [
                 ...complaints.map((c: any) => ({
                     ...c,
                     activityType: 'complaint',
-                    timestamp: new Date(c.createdAt),
+                    timestamp: safeTimestamp(c.createdAt),
                     role: 'ADMINISTRASI'
                 })),
-                ...vitalsFromRecords.map((v: any) => ({
-                    ...v,
-                    activityType: 'vital',
-                    timestamp: new Date(v.createdAt),
-                    role: 'PERAWAT_POLI'
-                })),
+                ...vitalsFromRecords
+                    .filter((v: any) => !v.metadata?.searB)
+                    .map((v: any) => ({
+                        ...v,
+                        activityType: 'vital',
+                        timestamp: safeTimestamp(v.createdAt),
+                        role: v.title?.includes('(Lab)') || v.title?.includes('Laboratorium')
+                            ? 'LABORATORIUM'
+                            : 'PERAWAT_POLI'
+                    })),
                 ...labs.map((l: any) => ({
                     ...l,
                     activityType: 'lab',
-                    timestamp: new Date(l.testDate || l.createdAt),
-                    role: 'PERAWAT_POLI'
+                    timestamp: safeTimestamp(l.testDate || l.createdAt),
+                    role: l.technician?.role || 'LABORATORIUM'
                 })),
+                ...vitalsWithSearB,
                 ...handled.map((h: any) => ({
                     ...h,
                     activityType: 'handled',
-                    timestamp: new Date(h.handledDate),
+                    timestamp: safeTimestamp(h.handledDate || h.createdAt),
                     role: h.handler?.role || 'DOKTER_SPESIALIS'
                 })),
                 ...visitations.map((v: any) => ({
                     ...v,
                     activityType: 'visitation',
-                    timestamp: new Date(v.createdAt),
+                    timestamp: safeTimestamp(v.visitDate || v.createdAt),
                     role: 'PERAWAT_RUANGAN'
                 })),
                 ...nutrition.map((n: any) => ({
                     ...n,
                     activityType: 'nutrition',
-                    timestamp: new Date(n.createdAt),
+                    timestamp: safeTimestamp(n.createdAt),
                     role: 'AHLI_GIZI'
                 })),
                 ...pharmacy.map((p: any) => ({
                     ...p,
                     activityType: 'pharmacy',
-                    timestamp: new Date(p.createdAt),
+                    timestamp: safeTimestamp(p.createdAt),
                     role: 'FARMASI'
                 })),
                 ...medicalReports.map((m: any) => ({
                     ...m,
                     activityType: 'medical-report',
-                    timestamp: new Date(m.createdAt),
+                    timestamp: safeTimestamp(m.createdAt),
                     role: 'DOKTER_SPESIALIS'
                 }))
             ];
 
-            combined.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            // Safe sort with validation
+            combined.sort((a, b) => {
+                try {
+                    const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : 0;
+                    const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : 0;
+                    return timeB - timeA;
+                } catch (error) {
+                    console.error('Sort error:', error);
+                    return 0;
+                }
+            });
 
             console.log('Total combined activities:', combined.length);
-
             setAllActivities(combined);
         } catch (error) {
             console.error('Error fetching system history:', error);
+            setAllActivities([]);
         } finally {
             setLoading(false);
         }
@@ -180,6 +241,13 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                 }
                 if (roleFilter === 'PERAWAT') {
                     return a.role === 'PERAWAT_RUANGAN' || a.role === 'PERAWAT_POLI' || a.role === 'PERAWAT';
+                }
+                if (roleFilter === 'PERAWAT_POLI') {
+                    return a.role === 'PERAWAT_POLI' ||
+                        (a.activityType === 'lab' && a.technician?.role === 'PERAWAT_POLI');
+                }
+                if (roleFilter === 'SEARB') {
+                    return a.activityType === 'searb';
                 }
                 return a.role === roleFilter;
             });
@@ -246,6 +314,7 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
             'PERAWAT': 'bg-green-500 text-white',
             'AHLI_GIZI': 'text-green-700 bg-green-50 border-green-200',
             'FARMASI': 'text-emerald-700 bg-emerald-50 border-emerald-200',
+            'LABORATORIUM': 'text-purple-700 bg-purple-50 border-purple-200',
             'ADMINISTRASI': 'text-gray-700 bg-gray-50 border-gray-200'
         };
         return roleMap[role] || 'bg-gray-600 text-white';
@@ -296,6 +365,18 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                                                 <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Normal</th>
                                                 <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Status</th>
                                                 <th className="px-3 py-2 text-left text-xs font-bold text-gray-700">Catatan</th>
+                                            </>
+                                        )}
+
+                                        {type === 'searb' && (
+                                            <>
+                                                <th className="px-3 py-2 text-left text-xs font-bold text-gray-700">Risiko 10 Tahun</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Level</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Umur</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">TD Sistolik</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Kolesterol</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Merokok</th>
+                                                <th className="px-3 py-2 text-center text-xs font-bold text-gray-700">Diabetes</th>
                                             </>
                                         )}
 
@@ -420,6 +501,46 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                                                         {activity.notes || '-'}
                                                     </td>
                                                 </>
+                                            )}
+
+                                            {type === 'searb' && (
+                                                <>
+                                                    <td className="px-3 py-2 text-sm font-bold text-gray-900">
+                                                        {activity.searBData?.range || '-'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${activity.searBData?.level === 'Sangat Tinggi' ? 'bg-red-900 text-white' :
+                                                            activity.searBData?.level === 'Tinggi' ? 'bg-red-600 text-white' :
+                                                                activity.searBData?.level === 'Sedang' ? 'bg-orange-600 text-white' :
+                                                                    activity.searBData?.level === 'Rendah' ? 'bg-yellow-600 text-white' :
+                                                                        'bg-green-600 text-white'
+                                                            }`}>
+                                                            {activity.searBData?.level || '-'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center text-sm font-bold text-gray-900">
+                                                        {activity.searBData?.age || '-'} tahun
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center text-sm font-bold text-gray-900">
+                                                        {activity.bloodPressure?.split('/')[0] || '-'} mmHg
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center text-sm font-bold text-gray-900">
+                                                        {activity.searBData?.cholesterolMmol || '-'} mmol/L
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${activity.searBData?.isSmoker ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+                                                            }`}>
+                                                            {activity.searBData?.isSmoker ? 'Ya' : 'Tidak'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${activity.searBData?.hasDiabetes ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+                                                            }`}>
+                                                            {activity.searBData?.hasDiabetes ? 'Ya' : 'Tidak'}
+                                                        </span>
+                                                    </td>
+                                                </>
+
                                             )}
 
                                             {type === 'handled' && (
@@ -566,6 +687,60 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                                 </tbody>
                             </table>
                         </div>
+
+                        {type === 'searb' && (
+                            <div className="mt-4 bg-linear-to-br from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200 p-4">
+                                <details className="cursor-pointer">
+                                    <summary className="font-semibold text-gray-900 text-sm flex items-center gap-2 hover:text-blue-600 transition-colors">
+                                        <TrendingUp className="h-4 w-4 text-blue-600" />
+                                        Panduan Membaca Chart WHO SEAR B
+                                        <span className="text-xs text-gray-500 ml-auto">(klik untuk lihat)</span>
+                                    </summary>
+                                    <div className="mt-4 space-y-3">
+                                        <div className="bg-white rounded-lg border border-blue-200 overflow-hidden">
+                                            <img
+                                                src="/sear-b-chart.png"
+                                                alt="WHO SEAR B Risk Assessment Chart"
+                                                className="w-full"
+                                            />
+                                        </div>
+                                        <div className="bg-white rounded-lg border border-blue-200 p-3">
+                                            <h4 className="font-semibold text-gray-900 text-sm mb-2">Cara Membaca Chart:</h4>
+                                            <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
+                                                <li><strong>Pilih Chart yang sesuai:</strong> Chart berbeda untuk pasien dengan/tanpa diabetes</li>
+                                                <li><strong>Tentukan Gender:</strong> Kolom kiri untuk laki-laki, kanan untuk perempuan</li>
+                                                <li><strong>Cari Usia:</strong> Pilih kelompok usia pasien (40, 50, 60, atau 70 tahun)</li>
+                                                <li><strong>Kolesterol (Sumbu X):</strong> Cari nilai kolesterol total dalam mmol/L</li>
+                                                <li><strong>Tekanan Darah (Sumbu Y):</strong> Cari nilai tekanan darah sistolik dalam mmHg</li>
+                                                <li><strong>Lihat Warna Zona:</strong>
+                                                    <span className="inline-flex items-center gap-1 ml-1">
+                                                        <span className="inline-block w-3 h-3 bg-green-500 rounded"></span>
+                                                        <span className="text-[10px]">&lt;10%</span>
+                                                        <span className="inline-block w-3 h-3 bg-yellow-500 rounded ml-2"></span>
+                                                        <span className="text-[10px]">10-20%</span>
+                                                        <span className="inline-block w-3 h-3 bg-orange-500 rounded ml-2"></span>
+                                                        <span className="text-[10px]">20-30%</span>
+                                                        <span className="inline-block w-3 h-3 bg-red-500 rounded ml-2"></span>
+                                                        <span className="text-[10px]">30-40%</span>
+                                                        <span className="inline-block w-3 h-3 bg-red-900 rounded ml-2"></span>
+                                                        <span className="text-[10px]">≥40%</span>
+                                                    </span>
+                                                </li>
+                                            </ol>
+                                        </div>
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                            <div className="flex items-start gap-2">
+                                                <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                <div className="text-xs text-amber-900">
+                                                    <strong>Catatan Penting:</strong> Risiko kardiovaskular adalah estimasi probabilitas pasien mengalami serangan jantung atau stroke dalam 10 tahun ke depan. Semakin tinggi persentase, semakin tinggi risikonya.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
+                        )}
+
                     </div>
                 ))}
             </div>
@@ -663,10 +838,12 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                             { key: 'all', label: 'Semua Role' },
                             { key: 'DOKTER', label: 'Dokter' },
                             { key: 'PERAWAT_POLI', label: 'Perawat Poli' },
+                            { key: 'LABORATORIUM', label: 'Laboratorium' },
                             { key: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
                             { key: 'AHLI_GIZI', label: 'Ahli Gizi' },
                             { key: 'FARMASI', label: 'Farmasi' },
                             { key: 'ADMINISTRASI', label: 'Administrasi' },
+                            { key: 'SEARB', label: 'SEAR B Risk' },
                         ].map(({ key, label }) => (
                             <button
                                 key={key}
@@ -796,7 +973,7 @@ const SystemHistoryView: React.FC<SystemHistoryViewProps> = ({
                                         <div key={dateKey} className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
                                             <button
                                                 onClick={() => toggleDateExpansion(dateKey)}
-                                                className="w-full px-6 py-4 bg-gradient-to-r from-blue-50 to-green-50 border-b-2 border-gray-300 flex items-center justify-between hover:from-blue-100 hover:to-green-100 transition-colors"
+                                                className="w-full px-6 py-4 bg-linear-to-r from-blue-50 to-green-50 border-b-2 border-gray-300 flex items-center justify-between hover:from-blue-100 hover:to-green-100 transition-colors"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <Calendar className="h-5 w-5 text-green-600" />

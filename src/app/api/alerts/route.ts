@@ -124,6 +124,7 @@ export async function POST(request: Request) {
       'DOKTER_SPESIALIS',
       'PERAWAT_RUANGAN',
       'PERAWAT_POLI',
+      'LABORATORIUM',
       'AHLI_GIZI',
       'FARMASI',
       'MANAJER',

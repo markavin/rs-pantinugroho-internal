@@ -3,8 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, User, Activity, History, Eye, Menu, X, FlaskConical, ClipboardCheck, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import PatientExaminationForm from '@/components/dashboard/nursePoli/PatientExaminationForm';
-import LabHistoryView from '@/components/dashboard/nursePoli/LabHistoryView';
+import LabPatientExaminationForm from './LabPatientExaminationForm';
+import LabHistoryView from './LabHistoryView';
 import SplashScreen from '@/components/SplashScreen';
 import { useSession } from 'next-auth/react';
 import SystemHistoryView from '../SystemHistoryView';
@@ -97,7 +97,7 @@ const NursePoliDashboard = () => {
       const [recordsRes, labsRes, alertsRes] = await Promise.all([
         fetch('/api/patient-records'),
         fetch('/api/lab-results'),
-        fetch('/api/alerts?targetRole=PERAWAT_POLI&unreadOnly=false')  // UBAH INI
+        fetch('/api/alerts?targetRole=LABORATORIUM&unreadOnly=false')
       ]);
 
       let vitalSignsToday = 0;
@@ -171,7 +171,7 @@ const NursePoliDashboard = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
-  
+
   const calculateAge = (birthDate: Date | string) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -293,7 +293,7 @@ const NursePoliDashboard = () => {
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-900">Menu Perawat Poli</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Menu Laboratorium</h2>
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -423,7 +423,7 @@ const NursePoliDashboard = () => {
                     <div className="bg-linear-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-green-600">Pemeriksaan Hari Ini</p>
+                          <p className="text-sm font-medium text-green-600">Pemeriksaan Lab Hari Ini</p>
                           <p className="text-3xl font-bold text-gray-900 mt-2">{stats.examinationsToday}</p>
                         </div>
                         <div className="bg-green-100 p-3 rounded-full">
@@ -641,10 +641,10 @@ const NursePoliDashboard = () => {
                           onClick={() => typeof page === 'number' && handlePageChange(page)}
                           disabled={page === '...'}
                           className={`px-3 py-1 rounded-lg text-sm font-medium ${page === currentPage
-                              ? 'bg-green-600 text-white'
-                              : page === '...'
-                                ? 'cursor-default text-gray-400'
-                                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            ? 'bg-green-600 text-white'
+                            : page === '...'
+                              ? 'cursor-default text-gray-400'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
                             }`}
                         >
                           {page}</button>
@@ -682,7 +682,7 @@ const NursePoliDashboard = () => {
         </div>
       </div>
 
-      <PatientExaminationForm
+      <LabPatientExaminationForm
         isOpen={showExaminationForm}
         onClose={handleCloseExaminationForm}
         patient={selectedPatientForExam}

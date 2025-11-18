@@ -1,4 +1,4 @@
-// prisma/seed.ts
+
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -11,7 +11,6 @@ async function main() {
     return await bcrypt.hash(password, 12);
   };
 
-  // Insert Users with hashed passwords
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
@@ -90,6 +89,19 @@ async function main() {
     },
   });
 
+  const laboratory = await prisma.user.upsert({
+    where: { username: 'laboratorium' },
+    update: {},
+    create: {
+      email: 'lab@pantinugroho.com',
+      username: 'laboratorium',
+      password: await hashPassword('lab123'),
+      name: 'Siti Nurhaliza, S.Si',
+      role: 'LABORATORIUM',
+      employeeId: 'LAB001',
+    },
+  });
+
   const administrasi = await prisma.user.upsert({
     where: { username: 'administrasi' },
     update: {},
@@ -116,7 +128,6 @@ async function main() {
     },
   });
 
-  // Insert Patients
   const patient1 = await prisma.patient.upsert({
     where: { mrNumber: 'RM1001' },
     update: {},
@@ -127,15 +138,21 @@ async function main() {
       gender: 'MALE',
       phone: '08123456789',
       address: 'Jl. Merdeka No. 123, Surabaya',
+      idNumber: '3578010101690001',
+      nationality: 'Indonesia',
+      bloodType: 'O',
+      language: 'Indonesia',
+      motherName: 'Siti Aminah',
+      intendedDoctor: 'Dr. Sarah Wijayanti, Sp.PD',
       height: 168,
       weight: 75,
       bmi: 26.0,
-      bloodType: 'O',
       allergies: ['Sulfa', 'Ruam kulit'],
       medicalHistory: 'Riwayat hipertensi sejak 2018, diabetes mellitus tipe 2 sejak 2020',
       diabetesType: 'Tipe 2',
       diagnosisDate: new Date('2020-01-01'),
       comorbidities: ['Neuropati', 'Retinopati'],
+      smokingStatus: 'MANTAN_PEROKOK',
       insuranceType: 'BPJS',
       insuranceNumber: 'BPJS-001-123456789',
       lastVisit: new Date('2024-08-20'),
@@ -160,15 +177,21 @@ async function main() {
       gender: 'FEMALE',
       phone: '08234567890',
       address: 'Jl. Diponegoro No. 45, Surabaya',
+      idNumber: '3578010101650002',
+      nationality: 'Indonesia',
+      bloodType: 'A',
+      language: 'Indonesia',
+      motherName: 'Fatimah',
+      intendedDoctor: 'Dr. Sarah Wijayanti, Sp.PD',
       height: 160,
       weight: 58,
       bmi: 25.4,
-      bloodType: 'A',
       allergies: ['Gluten'],
       medicalHistory: 'Diabetes mellitus tipe 2 sejak 2019, riwayat kolesterol tinggi',
       diabetesType: 'Tipe 2',
       diagnosisDate: new Date('2019-03-15'),
       comorbidities: ['Hiperkolesterolemia'],
+      smokingStatus: 'TIDAK_MEROKOK',
       insuranceType: 'PRIVATE',
       insuranceNumber: 'PRV-002-987654321',
       lastVisit: new Date('2024-08-18'),
@@ -192,15 +215,21 @@ async function main() {
       gender: 'MALE',
       phone: '08345678901',
       address: 'Jl. Basuki Rahmat No. 78, Surabaya',
+      idNumber: '3578010101740003',
+      nationality: 'Indonesia',
+      bloodType: 'B',
+      language: 'Indonesia',
+      motherName: 'Aminah',
+      intendedDoctor: 'Dr. Sarah Wijayanti, Sp.PD',
       height: 172,
       weight: 82,
       bmi: 27.7,
-      bloodType: 'B',
       allergies: [],
       medicalHistory: 'Diabetes mellitus tipe 2 sejak 2021, obesitas, hipertensi tidak terkontrol',
       diabetesType: 'Tipe 2',
       diagnosisDate: new Date('2021-06-10'),
       comorbidities: ['Hipertensi', 'Obesitas'],
+      smokingStatus: 'PEROKOK',
       insuranceType: 'BPJS',
       insuranceNumber: 'BPJS-003-456789012',
       lastVisit: new Date('2024-08-15'),
@@ -224,15 +253,21 @@ async function main() {
       gender: 'FEMALE',
       phone: '08456789012',
       address: 'Jl. Pemuda No. 234, Surabaya',
+      idNumber: '3578010101790004',
+      nationality: 'Indonesia',
+      bloodType: 'AB',
+      language: 'Indonesia',
+      motherName: 'Sri Wahyuni',
+      intendedDoctor: 'Dr. Sarah Wijayanti, Sp.PD',
       height: 160,
       weight: 55,
       bmi: 21.5,
-      bloodType: 'AB',
       allergies: [],
       medicalHistory: 'Diabetes mellitus tipe 1 sejak remaja, riwayat keluarga diabetes',
       diabetesType: 'Tipe 1',
       diagnosisDate: new Date('1995-02-20'),
       comorbidities: [],
+      smokingStatus: 'TIDAK_MEROKOK',
       insuranceType: 'CORPORATE',
       insuranceNumber: 'CORP-004-789012345',
       lastVisit: new Date('2024-08-12'),
@@ -256,15 +291,21 @@ async function main() {
       gender: 'MALE',
       phone: '08567890123',
       address: 'Jl. Pahlawan No. 56, Surabaya',
+      idNumber: '3578151503850005',
+      nationality: 'Indonesia',
+      bloodType: 'O',
+      language: 'Indonesia',
+      motherName: 'Sudjiatmi',
+      intendedDoctor: 'Dr. Sarah Wijayanti, Sp.PD',
       height: 175,
       weight: 70,
       bmi: 22.9,
-      bloodType: 'O',
       allergies: [],
       medicalHistory: 'Diabetes mellitus tipe 2 baru terdiagnosis',
       diabetesType: 'Tipe 2',
       diagnosisDate: new Date('2024-08-01'),
       comorbidities: [],
+      smokingStatus: 'TIDAK_MEROKOK',
       insuranceType: 'BPJS',
       insuranceNumber: 'BPJS-005-567890123',
       riskLevel: 'MEDIUM',
@@ -277,7 +318,6 @@ async function main() {
     },
   });
 
-  // Create Handled Patients
   const handledPatient1 = await prisma.handledPatient.create({
     data: {
       patientId: patient1.id,
@@ -308,7 +348,6 @@ async function main() {
     }
   });
 
-  // Create Staff Records
   await prisma.staffRecord.createMany({
     data: [
       {
@@ -335,7 +374,6 @@ async function main() {
     ]
   });
 
-  // Create Patient Records for monitoring vital signs and complaints
   await prisma.patientRecord.createMany({
     data: [
       {
@@ -372,12 +410,11 @@ async function main() {
     ]
   });
 
-  // Create Lab Results
   await prisma.labResult.createMany({
     data: [
       {
         patientId: patient1.id,
-        technicianId: admin.id, // Using admin as lab technician for demo
+        technicianId: laboratory.id,
         testType: 'HbA1c',
         value: '8.5%',
         normalRange: '<7%',
@@ -388,7 +425,7 @@ async function main() {
       },
       {
         patientId: patient1.id,
-        technicianId: admin.id,
+        technicianId: laboratory.id,
         testType: 'Kreatinin',
         value: '1.2 mg/dL',
         normalRange: '0.6-1.3 mg/dL',
@@ -399,7 +436,7 @@ async function main() {
       },
       {
         patientId: patient3.id,
-        technicianId: admin.id,
+        technicianId: laboratory.id,
         testType: 'HbA1c',
         value: '9.2%',
         normalRange: '<7%',
@@ -411,64 +448,6 @@ async function main() {
     ]
   });
 
-  // Create Visitation Records
-  // await prisma.visitation.createMany({
-  //   data: [
-  //     {
-  //       patientId: patient1.id,
-  //       nurseId: nurse.id,
-  //       visitDate: new Date('2024-08-29'),
-  //       shift: 'PAGI',
-  //       complaints: 'Mual setelah makan, kaki kesemutan',
-
-  //       // VITAL SIGNS - Field terpisah (bukan Json lagi)
-  //       temperature: 36.8,
-  //       bloodPressure: '140/90',
-  //       heartRate: 85,
-  //       respiratoryRate: 20,
-  //       oxygenSaturation: 98,
-  //       bloodSugar: 180,
-  //       weight: 75,
-  //       // height: null, // Opsional
-
-  //       medicationsGiven: ['Metformin 500mg', 'Glimepiride 2mg'],
-  //       labResults: 'HbA1c: 8.5%, Kreatinin: 1.2 mg/dL',
-  //       actions: 'Berikan obat anti mual, pantau intake makanan, edukasi diet diabetes',
-  //       complications: 'Neuropati ringan pada ekstremitas bawah',
-  //       education: 'Edukasi tentang pentingnya kontrol gula darah dan diet yang tepat',
-  //       notes: 'Pasien kooperatif, perlu monitoring ketat untuk mencegah komplikasi lebih lanjut',
-  //       nextVisitNeeded: true,
-  //       priority: 'HIGH'
-  //     },
-  //     {
-  //       patientId: patient3.id,
-  //       nurseId: nurse.id,
-  //       visitDate: new Date('2024-08-29'),
-  //       shift: 'SORE',
-  //       complaints: 'Penglihatan kabur, kaki kesemutan, sering haus',
-
-  //       // VITAL SIGNS - Field terpisah
-  //       temperature: 36.7,
-  //       bloodPressure: '150/95',
-  //       heartRate: 88,
-  //       respiratoryRate: 22,
-  //       oxygenSaturation: 97,
-  //       bloodSugar: 220,
-  //       weight: 82,
-  //       height: 172,
-
-  //       medicationsGiven: ['Metformin 850mg', 'Insulin Regular 10 unit'],
-  //       labResults: 'HbA1c: 9.2%',
-  //       actions: 'Konsultasi dokter mata, fisioterapi untuk neuropati, adjustment insulin',
-  //       complications: 'Retinopati diabetik, neuropati perifer',
-  //       education: 'Pentingnya kontrol gula darah yang ketat, tanda-tanda komplikasi',
-  //       notes: 'Kondisi memburuk, perlu intensifikasi terapi dan monitoring ketat',
-  //       nextVisitNeeded: true,
-  //       priority: 'URGENT'
-  //     }
-  //   ]
-  // });
-  // Create Nutrition Records
   await prisma.nutritionRecord.createMany({
     data: [
       {
@@ -488,7 +467,7 @@ async function main() {
         mealDistribution: { breakfast: 25, lunch: 35, dinner: 30, snacks: 10 },
         dietPlan: 'Ganti nasi putih dengan nasi merah, kurangi gorengan, tambah sayuran',
         complianceScore: 40,
-        weightChange: 2.0, // naik 2kg
+        weightChange: 2.0,
         bmiChange: 0.7,
         nutritionGoals: ['Turun BB 5kg dalam 3 bulan', 'Kontrol gula darah', 'Meningkatkan asupan serat'],
         recommendations: ['Konsumsi 5 porsi sayur dan buah per hari', 'Hindari makanan manis', 'Olahraga 150 menit per minggu']
@@ -510,7 +489,7 @@ async function main() {
         mealDistribution: { breakfast: 25, lunch: 35, dinner: 30, snacks: 10 },
         dietPlan: 'Pertahankan pola makan saat ini, variasi menu',
         complianceScore: 85,
-        weightChange: -1.5, // turun 1.5kg
+        weightChange: -1.5,
         bmiChange: -0.6,
         nutritionGoals: ['Pertahankan BB ideal', 'HbA1c < 7%', 'Cegah komplikasi'],
         recommendations: ['Lanjutkan pola makan sehat', 'Tambah aktivitas fisik', 'Monitor gula darah rutin']
@@ -518,7 +497,6 @@ async function main() {
     ]
   });
 
-  // Create Pharmacy Records
   await prisma.pharmacyRecord.createMany({
     data: [
       {
@@ -558,7 +536,6 @@ async function main() {
     ]
   });
 
-  // Create Medical Reports
   await prisma.medicalReport.createMany({
     data: [
       {
@@ -820,7 +797,7 @@ async function main() {
           transactionId: drugTransaction1.id,
           drugId: metformin500.id,
           quantity: 60, // 30 hari x 2 tablet
- 
+
         },
         {
           transactionId: drugTransaction1.id,
@@ -839,22 +816,22 @@ async function main() {
           transactionId: drugTransaction2.id,
           drugId: metformin500.id,
           quantity: 60,
-       
+
         },
         {
           transactionId: drugTransaction2.id,
           drugId: insulin.id,
           quantity: 2, // 2 vial
-       
+
         }
       ]
     });
   }
 
 
-  
-  console.log('  Seeding finished!');
-  console.log(`Created users: Admin, Doctor, Nurse (Ruangan & Poli), Nutritionist, Pharmacist, Administration, Manager`);
+
+  console.log('✅ Seeding finished!');
+  console.log(`Created users: Admin, Doctor, Nurse (Ruangan & Poli), Nutritionist, Pharmacist, Laboratory, Administration, Manager`);
   console.log(`Created patients: ${patient1.name}, ${patient2.name}, ${patient3.name}, ${patient4.name}, ${patient5.name}`);
   console.log(`Created ${await prisma.handledPatient.count()} handled patients`);
   console.log(`Created ${await prisma.staffRecord.count()} staff records`);

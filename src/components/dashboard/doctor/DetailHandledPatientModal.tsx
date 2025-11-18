@@ -181,7 +181,7 @@ const DetailHandledPatientModal: React.FC<DetailHandledPatientModalProps> = ({
         {/* Date Header */}
         <button
           onClick={() => toggleDateExpansion(dateKey)}
-          className="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-indigo-50 border-b border-green-200 flex items-center justify-between hover:from-green-100 hover:to-indigo-100 transition-colors"
+          className="w-full px-6 py-4 bg-linear-to-r from-green-50 to-indigo-50 border-b border-green-200 flex items-center justify-between hover:from-green-100 hover:to-indigo-100 transition-colors"
         >
           <div className="flex items-center gap-3">
             <Calendar className="h-5 w-5 text-green-600" />

@@ -131,7 +131,7 @@ export function generateResetPasswordEmail(resetUrl: string, userName: string) {
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { 
-            background: linear-gradient(135deg, #10b981, #059669); 
+            background: linear-linear(135deg, #10b981, #059669); 
             padding: 30px; 
             text-align: center; 
             color: white; 

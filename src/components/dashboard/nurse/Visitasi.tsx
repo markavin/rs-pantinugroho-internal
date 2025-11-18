@@ -25,7 +25,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
     const [visitations, setVisitations] = useState<VisitationWithRelations[]>([]);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState<'all' | 'vital' | 'medication' | 'education'>('all');
+    const [filterType, setFilterType] = useState<'all' | 'vital' | 'medication' | 'education' | 'lab'>('all');
     const [filterDate, setFilterDate] = useState<'today' | 'all'>('today');
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -104,7 +104,8 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
             filterType === 'all' ||
             (filterType === 'vital' && hasVitalSigns) ||
             (filterType === 'medication' && visit.medicationsGiven && visit.medicationsGiven.length > 0) ||
-            (filterType === 'education' && visit.education);
+            (filterType === 'education' && visit.education) ||
+            (filterType === 'lab' && visit.labResults);
 
         const today = new Date().toDateString();
         const matchesDate =
@@ -213,6 +214,7 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                             <option value="all">Semua Jenis</option>
                             <option value="vital">Vital Signs</option>
                             <option value="medication">Pemberian Obat</option>
+                            <option value="lab">Pemeriksaan Lab</option>
                             <option value="education">Edukasi</option>
                         </select>
                     </div>
@@ -271,6 +273,9 @@ const Visitasi: React.FC<VisitasiProps> = ({ currentShift }) => {
                                                         )}
                                                         {visit.medicationsGiven && visit.medicationsGiven.length > 0 && (
                                                             <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Obat</span>
+                                                        )}
+                                                        {visit.labResults && (
+                                                            <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-medium">Lab</span>
                                                         )}
                                                         {visit.education && (
                                                             <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">Edukasi</span>

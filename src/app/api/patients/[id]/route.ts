@@ -15,7 +15,7 @@ export async function GET(
     }
 
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER', 'AHLI_GIZI'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER', 'LABORATORIUM'];
     
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -83,8 +83,10 @@ export async function PUT(
     }
 
     const userRole = (session.user as any).role;
-    if (userRole !== 'ADMINISTRASI' && userRole !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Insufficient permissions. Only Administration can update patients.' }, { status: 403 });
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'AHLI_GIZI', 'MANAJER', 'LABORATORIUM'];
+    
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -92,101 +94,63 @@ export async function PUT(
       name,
       birthDate,
       gender,
+      idNumber,
+      nationality,
+      bloodType,
+      language,
+      motherName,
       phone,
       address,
+      intendedDoctor,
       height,
       weight,
-      bloodType,
+      bmi,
       diabetesType,
-      diagnosisDate,
       insuranceType,
       insuranceNumber,
       smokingStatus,
       allergies,
       medicalHistory,
-      comorbidities,
-      status,
-      riskLevel,
-      calorieNeeds,
-      calorieRequirement,
-      dietPlan,
-      dietCompliance,
-      complaints
+      status
     } = body;
 
-    if (!name || !birthDate || !gender || !insuranceType) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, birthDate, gender, insuranceType' },
-        { status: 400 }
-      );
+    const updateData: any = {};
+
+    if (userRole === 'ADMINISTRASI' || userRole === 'SUPER_ADMIN') {
+      if (name !== undefined) updateData.name = name;
+      if (birthDate !== undefined) updateData.birthDate = new Date(birthDate);
+      if (gender !== undefined) updateData.gender = gender;
+      if (idNumber !== undefined) updateData.idNumber = idNumber || null;
+      if (nationality !== undefined) updateData.nationality = nationality;
+      if (bloodType !== undefined) updateData.bloodType = bloodType || null;
+      if (language !== undefined) updateData.language = language || null;
+      if (motherName !== undefined) updateData.motherName = motherName || null;
+      if (phone !== undefined) updateData.phone = phone || null;
+      if (address !== undefined) updateData.address = address || null;
+      if (intendedDoctor !== undefined) updateData.intendedDoctor = intendedDoctor || null;
+      if (insuranceType !== undefined) updateData.insuranceType = insuranceType;
+      if (insuranceNumber !== undefined) updateData.insuranceNumber = insuranceNumber || null;
+      if (status !== undefined) updateData.status = status || 'AKTIF';
     }
 
-    let bmi = null;
-    if (height && weight) {
-      const heightInMeters = parseFloat(height) / 100;
-      bmi = parseFloat(weight) / (heightInMeters * heightInMeters);
-      bmi = Math.round(bmi * 100) / 100;
+    if (userRole === 'PERAWAT_POLI' || userRole === 'LABORATORIUM' || userRole === 'SUPER_ADMIN') {
+      if (height !== undefined) updateData.height = height ? parseFloat(height) : null;
+      if (weight !== undefined) updateData.weight = weight ? parseFloat(weight) : null;
+      if (bmi !== undefined) updateData.bmi = bmi;
+      if (smokingStatus !== undefined) updateData.smokingStatus = smokingStatus;
+      if (diabetesType !== undefined) updateData.diabetesType = diabetesType || null;
+      if (allergies !== undefined) updateData.allergies = allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [];
+      if (medicalHistory !== undefined) updateData.medicalHistory = medicalHistory || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const patient = await prisma.patient.update({
       where: { id: params.id },
-      data: {
-        name,
-        birthDate: new Date(birthDate),
-        gender,
-        phone: phone || null,
-        address: address || null,
-        height: height ? parseFloat(height) : null,
-        weight: weight ? parseFloat(weight) : null,
-        bmi: bmi,
-        bloodType: bloodType || null,
-        diabetesType: diabetesType || null,
-        diagnosisDate: diagnosisDate ? new Date(diagnosisDate) : null,
-        insuranceType,
-        insuranceNumber: insuranceNumber || null,
-        smokingStatus: smokingStatus || 'TIDAK_MEROKOK',
-        allergies: allergies && Array.isArray(allergies) && allergies.length > 0 ? allergies : [],
-        medicalHistory: medicalHistory || null,
-        comorbidities: comorbidities && Array.isArray(comorbidities) && comorbidities.length > 0 ? comorbidities : [],
-        status: status || 'AKTIF',
-        riskLevel: riskLevel || null,
-        calorieNeeds: calorieNeeds ? parseInt(calorieNeeds) : null,
-        calorieRequirement: calorieRequirement ? parseInt(calorieRequirement) : null,
-        dietPlan: dietPlan || null,
-        dietCompliance: dietCompliance ? parseInt(dietCompliance) : null,
-      }
+      data: updateData
     });
-
-    if (complaints && Array.isArray(complaints)) {
-      for (const complaint of complaints) {
-        if (!complaint.content || !complaint.content.trim()) {
-          continue;
-        }
-
-        const complaintData = {
-          patientId: params.id,
-          recordType: 'COMPLAINTS' as const,
-          title: 'Keluhan Pasien',
-          content: complaint.content.trim(),
-          metadata: {
-            severity: complaint.metadata?.severity || 'RINGAN',
-            status: complaint.metadata?.status || 'BARU',
-            notes: complaint.metadata?.notes || ''
-          }
-        };
-
-        if (complaint.id && !complaint.id.startsWith('temp_')) {
-          await prisma.patientRecord.update({
-            where: { id: complaint.id },
-            data: complaintData
-          });
-        } else {
-          await prisma.patientRecord.create({
-            data: complaintData
-          });
-        }
-      }
-    }
 
     return NextResponse.json(patient);
   } catch (error) {
@@ -222,7 +186,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions. Only Administration can delete patients.' }, { status: 403 });
     }
 
-    // Query dengan include yang sesuai dengan schema (REMOVED: appointments)
     const existingPatient = await prisma.patient.findUnique({
       where: { id: params.id },
       include: {
@@ -242,7 +205,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Check for related data (REMOVED: appointments check)
     const hasRelatedData = 
       existingPatient.handledBy.length > 0 ||
       existingPatient.drugTransactions.length > 0 ||

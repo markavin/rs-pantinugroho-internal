@@ -19,17 +19,21 @@ export async function GET(request: Request) {
     const limit = searchParams.get('limit');
 
     const whereClause: any = {};
-    
+
     if (patientId) {
       whereClause.patientId = patientId;
     }
-    
+
     if (testType) {
       whereClause.testType = testType;
     }
 
     const labResults = await prisma.labResult.findMany({
       where: whereClause,
+      include: {
+        technician: true,
+        patient: true
+      },
       orderBy: {
         testDate: 'desc'
       },
@@ -47,7 +51,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   let prismaClient = new PrismaClient();
-  
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -56,7 +60,7 @@ export async function POST(request: Request) {
 
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
-    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN'];
+    const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
 
     if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -122,20 +126,20 @@ export async function POST(request: Request) {
     });
 
     if (error.code === 'P2002') {
-      return NextResponse.json({ 
-        error: 'Duplicate entry detected' 
+      return NextResponse.json({
+        error: 'Duplicate entry detected'
       }, { status: 400 });
     }
 
     if (error.code === 'P2003') {
-      return NextResponse.json({ 
-        error: 'Foreign key constraint failed. Patient or user may not exist.' 
+      return NextResponse.json({
+        error: 'Foreign key constraint failed. Patient or user may not exist.'
       }, { status: 400 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     }, { status: 500 });
   } finally {
     await prismaClient.$disconnect();

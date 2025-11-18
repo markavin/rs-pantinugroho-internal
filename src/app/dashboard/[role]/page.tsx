@@ -13,6 +13,7 @@ import AdminDashboard from '@/components/dashboard/admin/page';
 import DoctorDashboard from '@/components/dashboard/doctor/page';
 import NurseDashboard from '@/components/dashboard/nurse/page';
 import NursePoliDashboard from '@/components/dashboard/nursePoli/page';
+import LaboratoryDashboard from '@/components/dashboard/laboratory/page';
 import NutritionistDashboard from '@/components/dashboard/nutritionist/page';
 import PharmacyDashboard from '@/components/dashboard/pharmacy/page';
 import ManajerDashboard from '@/components/dashboard/manajer/page';
@@ -23,6 +24,7 @@ const roleMapping = {
   'doctor': 'DOKTER_SPESIALIS', 
   'nurse': 'PERAWAT_RUANGAN',
   'nurse-poli': 'PERAWAT_POLI',
+  'laboratory': 'LABORATORIUM',
   'nutritionist': 'AHLI_GIZI',
   'pharmacy': 'FARMASI',
   'administrasi': 'ADMINISTRASI',
@@ -84,6 +86,7 @@ export default function RoleBasedDashboard() {
       case 'doctor': return <DoctorDashboard />;
       case 'nurse': return <NurseDashboard />;
       case 'nurse-poli': return <NursePoliDashboard />;
+      case 'laboratory': return <LaboratoryDashboard />;
       case 'nutritionist': return <NutritionistDashboard />;
       case 'pharmacy': return <PharmacyDashboard />;
       case 'manajer': return <ManajerDashboard/>;

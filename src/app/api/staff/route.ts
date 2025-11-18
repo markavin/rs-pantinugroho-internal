@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
       'DOKTER_SPESIALIS': 'DOK',
       'PERAWAT_RUANGAN': 'NUR',
       'PERAWAT_POLI': 'NUP',
+      'LABORATORIUM': 'LAB',
       'FARMASI': 'PHA',
       'ADMINISTRASI': 'AS',
       'MANAJER': 'MN',

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         const userId = (session.user as any).id;
         const userRole = (session.user as any).role;
 
-        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN'];
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
         if (!allowedRoles.includes(userRole)) {
             return NextResponse.json({
                 error: 'Insufficient permissions. Only nurses and doctors can handle patients.'
@@ -198,7 +198,7 @@ export async function GET(request: Request) {
 
         const userRole = (session.user as any).role;
         const userId = (session.user as any).id;
-        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI'];
+        const allowedRoles = ['PERAWAT_POLI', 'DOKTER_SPESIALIS', 'SUPER_ADMIN', 'PERAWAT_RUANGAN', 'ADMINISTRASI', 'FARMASI', 'MANAJER', 'AHLI_GIZI', 'LABORATORIUM'];
 
         if (!allowedRoles.includes(userRole)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });

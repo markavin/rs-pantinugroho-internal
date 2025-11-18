@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { XCircle, Save, Send, Stethoscope, ClipboardList, Heart, FlaskConical, User, AlertCircle, TrendingUp, Activity, Plus, X as XIcon } from 'lucide-react';
+import { XCircle, Save, FlaskConical, Heart, AlertCircle, TrendingUp, Activity, Microscope, TestTube } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -22,7 +22,7 @@ interface Patient {
   createdAt: Date;
 }
 
-interface PatientExaminationFormProps {
+interface LabPatientExaminationFormProps {
   isOpen: boolean;
   onClose: () => void;
   patient: Patient | null;
@@ -37,34 +37,22 @@ interface PatientComplaint {
   content: string;
   metadata?: {
     severity?: 'RINGAN' | 'SEDANG' | 'BERAT';
-    status?: 'BARU' | 'DALAM_PROSES' | 'SELESAI';
-    notes?: string;
   };
   createdAt: Date;
 }
 
-const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
+const LabPatientExaminationForm: React.FC<LabPatientExaminationFormProps> = ({
   isOpen,
   onClose,
   patient,
   onComplete
 }) => {
   const [loading, setLoading] = useState(false);
-  const [sendToDoctor, setSendToDoctor] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [existingComplaints, setExistingComplaints] = useState<PatientComplaint[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
-  const [notifyRoomNurse, setNotifyRoomNurse] = useState(false);
-  const [allergies, setAllergies] = useState<string[]>(patient?.allergies || []);
-  const [newAllergy, setNewAllergy] = useState('');
 
   const [formData, setFormData] = useState({
-    height: patient?.height?.toString() || '',
-    weight: patient?.weight?.toString() || '',
-    smokingStatus: patient?.smokingStatus || 'TIDAK_MEROKOK',
-    diabetesType: patient?.diabetesType || '',
-    complaint: '',
-    complaintSeverity: 'RINGAN' as 'RINGAN' | 'SEDANG' | 'BERAT',
     bloodPressureSystolic: '',
     bloodPressureDiastolic: '',
     heartRate: '',
@@ -113,12 +101,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     if (isOpen && patient) {
       fetchExistingComplaints(patient.id);
       setFormData({
-        height: patient.height?.toString() || '',
-        weight: patient.weight?.toString() || '',
-        smokingStatus: patient.smokingStatus || 'TIDAK_MEROKOK',
-        diabetesType: patient.diabetesType || '',
-        complaint: '',
-        complaintSeverity: 'RINGAN',
         bloodPressureSystolic: '',
         bloodPressureDiastolic: '',
         heartRate: '',
@@ -144,8 +126,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         },
         labNotes: ''
       });
-      setAllergies(patient.allergies || []);
-      setSendToDoctor(false);
       setErrors({});
     }
   }, [isOpen, patient]);
@@ -166,31 +146,13 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     }
   };
 
-  const handleAddAllergy = () => {
-    if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
-      setAllergies([...allergies, newAllergy.trim()]);
-      setNewAllergy('');
-    }
-  };
-
-  const handleRemoveAllergy = (index: number) => {
-    setAllergies(allergies.filter((_, i) => i !== index));
-  };
-
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.complaint.trim()) {
-      newErrors.complaint = 'Keluhan wajib diisi';
-    }
-    if (!formData.bloodPressureSystolic || !formData.bloodPressureDiastolic) {
-      newErrors.bloodPressure = 'Tekanan darah wajib diisi';
-    }
-    if (!formData.heartRate) {
-      newErrors.heartRate = 'Denyut nadi wajib diisi';
-    }
-    if (!formData.temperature) {
-      newErrors.temperature = 'Suhu tubuh wajib diisi';
+    const hasAnyLabTest = Object.values(formData.labTests).some(val => val.trim() !== '');
+    
+    if (!hasAnyLabTest) {
+      newErrors.labTests = 'Minimal satu pemeriksaan lab harus diisi';
     }
 
     setErrors(newErrors);
@@ -224,14 +186,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     if (range.low && value < range.low) return 'LOW';
 
     return 'NORMAL';
-  };
-
-  const calculateBMI = (height: string, weight: string): number | null => {
-    if (!height || !weight) return null;
-    const heightInMeters = parseFloat(height) / 100;
-    const weightInKg = parseFloat(weight);
-    const bmi = weightInKg / (heightInMeters * heightInMeters);
-    return Math.round(bmi * 100) / 100;
   };
 
   const calculateAge = (birthDate: Date): number => {
@@ -321,8 +275,8 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
       }
     };
 
-    const isSmoker = formData.smokingStatus === 'PEROKOK';
-    const hasDiabetes = !!formData.diabetesType;
+    const isSmoker = patient.smokingStatus === 'PEROKOK';
+    const hasDiabetes = !!patient.diabetesType;
     const matrixKey = `${hasDiabetes}-${patient.gender}-${isSmoker}`;
 
     const ageGrp = getAgeGroup(age);
@@ -354,73 +308,49 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
     setLoading(true);
 
     try {
-      const bmi = calculateBMI(formData.height, formData.weight);
+      // Save vital signs if any are filled
+      const hasVitalSigns = formData.bloodPressureSystolic || formData.heartRate || formData.temperature;
+      
+      if (hasVitalSigns) {
+        const vitalSigns = {
+          bloodPressure: formData.bloodPressureSystolic && formData.bloodPressureDiastolic 
+            ? `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic}` 
+            : null,
+          heartRate: formData.heartRate ? parseInt(formData.heartRate) : null,
+          temperature: formData.temperature ? parseFloat(formData.temperature) : null,
+          respiratoryRate: formData.respiratoryRate ? parseInt(formData.respiratoryRate) : null,
+          oxygenSaturation: formData.oxygenSaturation ? parseInt(formData.oxygenSaturation) : null,
+          recordedAt: new Date().toISOString(),
+          searB: searBResult ? {
+            range: searBResult.range,
+            level: searBResult.level,
+            percentage: searBResult.percentage,
+            cholesterol: formData.labTests.cholesterol ? parseFloat(formData.labTests.cholesterol) : null,
+            cholesterolMmol: formData.labTests.cholesterol ? convertCholesterolToMmol(parseFloat(formData.labTests.cholesterol)) : null,
+            age: calculateAge(patient.birthDate),
+            isSmoker: patient.smokingStatus === 'PEROKOK',
+            hasDiabetes: !!patient.diabetesType
+          } : null
+        };
 
-      await fetch(`/api/patients/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          height: formData.height ? parseFloat(formData.height) : null,
-          weight: formData.weight ? parseFloat(formData.weight) : null,
-          bmi: bmi,
-          smokingStatus: formData.smokingStatus,
-          diabetesType: formData.diabetesType || null,
-          allergies: allergies.length > 0 ? allergies : []
-        })
-      });
+        await fetch('/api/patient-records', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: patient.id,
+            recordType: 'VITAL_SIGNS',
+            title: 'Pemeriksaan Tanda Vital (Lab)',
+            content: JSON.stringify(vitalSigns),
+            bloodPressure: vitalSigns.bloodPressure,
+            heartRate: vitalSigns.heartRate,
+            temperature: vitalSigns.temperature,
+            metadata: vitalSigns
+          })
+        });
+      }
 
-      await fetch('/api/patient-records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: patient.id,
-          recordType: 'COMPLAINTS',
-          title: 'Keluhan Pasien',
-          content: formData.complaint,
-          metadata: {
-            severity: formData.complaintSeverity,
-            recordedAt: new Date().toISOString()
-          }
-        })
-      });
-
-      const vitalSigns = {
-        bloodPressure: `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic}`,
-        heartRate: parseInt(formData.heartRate),
-        temperature: parseFloat(formData.temperature),
-        respiratoryRate: formData.respiratoryRate ? parseInt(formData.respiratoryRate) : null,
-        oxygenSaturation: formData.oxygenSaturation ? parseInt(formData.oxygenSaturation) : null,
-        recordedAt: new Date().toISOString(),
-        searB: searBResult ? {
-          range: searBResult.range,
-          level: searBResult.level,
-          percentage: searBResult.percentage,
-          cholesterol: formData.labTests.cholesterol ? parseFloat(formData.labTests.cholesterol) : null,
-          cholesterolMmol: formData.labTests.cholesterol ? convertCholesterolToMmol(parseFloat(formData.labTests.cholesterol)) : null,
-          age: calculateAge(patient.birthDate),
-          isSmoker: formData.smokingStatus === 'PEROKOK',
-          hasDiabetes: !!formData.diabetesType
-        } : null
-      };
-
-      await fetch('/api/patient-records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: patient.id,
-          recordType: 'VITAL_SIGNS',
-          title: 'Pemeriksaan Tanda Vital',
-          content: JSON.stringify(vitalSigns),
-          bloodPressure: vitalSigns.bloodPressure,
-          heartRate: vitalSigns.heartRate,
-          temperature: vitalSigns.temperature,
-          metadata: vitalSigns
-        })
-      });
-
+      // Save SEAR B risk if calculated
       if (searBResult) {
-        console.log('Menyimpan SEARB Risk ke database:', searBResult);
-
         await fetch(`/api/patients/${patient.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -430,8 +360,6 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
             searBLastCalculated: new Date()
           })
         });
-
-        console.log('SEARB Risk berhasil disimpan');
 
         if (searBResult.percentage >= 30) {
           await fetch('/api/alerts', {
@@ -449,6 +377,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         }
       }
 
+      // Save lab results
       const labPromises: Promise<any>[] = [];
       let hasAbnormal = false;
       const abnormalTests: string[] = [];
@@ -484,6 +413,7 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
 
       await Promise.all(labPromises);
 
+      // Send alert if abnormal results found
       if (hasAbnormal) {
         await fetch('/api/alerts', {
           method: 'POST',
@@ -499,54 +429,15 @@ const PatientExaminationForm: React.FC<PatientExaminationFormProps> = ({
         });
       }
 
-      if (sendToDoctor) {
-        await fetch('/api/alerts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'INFO',
-            message: `Pasien ${patient.name} (${patient.mrNumber}) siap diperiksa.\n\nKeluhan: ${formData.complaint.substring(0, 100)}...${hasAbnormal ? '\n\nCatatan: Ada hasil lab abnormal' : '\n\nPemeriksaan awal sudah lengkap'}`,
-            patientId: patient.id,
-            category: 'SYSTEM',
-            priority: hasAbnormal ? 'HIGH' : 'MEDIUM',
-            targetRole: 'DOKTER_SPESIALIS'
-          })
-        });
-      }
-
-      if (notifyRoomNurse && patient.status === 'RAWAT_INAP') {
-        const vitalSummary = `- TD: ${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic} mmHg
-- Nadi: ${formData.heartRate} bpm
-- Suhu: ${formData.temperature} °C
-${formData.respiratoryRate ? `- RR: ${formData.respiratoryRate} x/mnt` : ''}
-${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
-
-        await fetch('/api/alerts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'INFO',
-            message: `Data pemeriksaan baru untuk pasien rawat inap ${patient.name} (${patient.mrNumber}).\n\nKeluhan: ${formData.complaint.substring(0, 100)}...\n\nTanda Vital:\n${vitalSummary}\n\nSegera lakukan monitoring lanjutan.`,
-            patientId: patient.id,
-            category: 'SYSTEM',
-            priority: 'MEDIUM',
-            targetRole: 'PERAWAT_RUANGAN'
-          })
-        });
-      }
-
       alert(
-        `Pemeriksaan berhasil disimpan!${labPromises.length > 0 ? `\n${labPromises.length} hasil lab tersimpan.` : ''
-        }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim ke dokter.' : ''
-        }${sendToDoctor ? '\n\nNotifikasi telah dikirim ke dokter.' : ''
-        }${notifyRoomNurse ? '\n\nNotifikasi telah dikirim ke perawat ruangan.' : ''
-        }`
+        `Pemeriksaan laboratorium berhasil disimpan!${labPromises.length > 0 ? `\n${labPromises.length} hasil lab tersimpan.` : ''
+        }${hasAbnormal ? '\nAda hasil abnormal, notifikasi telah dikirim ke dokter.' : ''}`
       );
 
       onComplete();
       onClose();
     } catch (error) {
-      console.error('Error saving examination:', error);
+      console.error('Error saving lab examination:', error);
       alert('Gagal menyimpan pemeriksaan. Silakan coba lagi.');
     } finally {
       setLoading(false);
@@ -577,14 +468,14 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-y-auto my-4">
-        <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-green-50 to-emerald-50 sticky top-0 z-10">
+        <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-green-50 to-purple-50 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-green-100 p-2 rounded-lg">
-                <Stethoscope className="h-6 w-6 text-green-600" />
+                <Microscope className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Pemeriksaan Pasien</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Pemeriksaan Laboratorium</h3>
                 <p className="text-sm text-gray-600">{patient.name} - RM: {patient.mrNumber}</p>
               </div>
             </div>
@@ -600,9 +491,10 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
 
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-6">
+            {/* Patient Info - Read Only */}
             <div className="bg-white border border-green-300 rounded-lg p-4">
               <div className="flex items-start space-x-3">
-                <User className="h-5 w-5 text-green-600 mt-1" />
+                <TestTube className="h-5 w-5 text-green-600 mt-1" />
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-y-2 text-sm">
                   <div>
                     <span className="text-gray-600">RM:</span>{' '}
@@ -624,191 +516,114 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
               </div>
             </div>
 
+            {/* Patient Medical Data - Read Only */}
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                  <User className="h-5 w-5 text-green-600" />
-                  <span>1. Data Medis Pasien</span>
+                  <TestTube className="h-5 w-5 text-green-600" />
+                  <span>Data Medis Pasien (Informasi)</span>
                 </h4>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tinggi Badan (cm)
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                    placeholder="165"
-                    value={formData.height}
-                    onChange={(e) => setFormData(prev => ({ ...prev, height: e.target.value }))}
-                    min="100"
-                    max="250"
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-1">Tinggi Badan</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.height ? `${patient.height} cm` : '-'}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Berat Badan (kg)
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                    placeholder="65"
-                    value={formData.weight}
-                    onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                    min="20"
-                    max="300"
-                  />
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-1">Berat Badan</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.weight ? `${patient.weight} kg` : '-'}
+                  </p>
                 </div>
 
-                {formData.height && formData.weight && (
-                  <div className="md:col-span-2">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-900">
-                        <span className="font-semibold">BMI:</span> {calculateBMI(formData.height, formData.weight)}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status Merokok
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                    value={formData.smokingStatus}
-                    onChange={(e) => setFormData(prev => ({ ...prev, smokingStatus: e.target.value as any }))}
-                  >
-                    <option value="TIDAK_MEROKOK">Tidak Merokok</option>
-                    <option value="PEROKOK">Perokok</option>
-                    <option value="MANTAN_PEROKOK">Mantan Perokok</option>
-                  </select>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-1">BMI</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.bmi || '-'}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipe Diabetes
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                    value={formData.diabetesType}
-                    onChange={(e) => setFormData(prev => ({ ...prev, diabetesType: e.target.value }))}
-                  >
-                    <option value="">Tidak ada / Tidak diketahui</option>
-                    <option value="Tipe 1">Tipe 1</option>
-                    <option value="Tipe 2">Tipe 2</option>
-                    <option value="Gestational">Gestational</option>
-                    <option value="Prediabetes">Prediabetes</option>
-                  </select>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-1">Status Merokok</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.smokingStatus === 'PEROKOK' ? 'Perokok' :
+                      patient.smokingStatus === 'MANTAN_PEROKOK' ? 'Mantan Perokok' : 
+                      'Tidak Merokok'}
+                  </p>
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Alergi
-                  </label>
-                  <div className="space-y-3">
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                        placeholder="Tambah alergi (contoh: Sulfa, Penisilin)"
-                        value={newAllergy}
-                        onChange={(e) => setNewAllergy(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddAllergy())}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddAllergy}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-1">Diabetes</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.diabetesType || 'Tidak ada'}
+                  </p>
+                </div>
 
-                    {allergies.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {allergies.map((allergy, index) => (
-                          <span key={index} className="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
-                            {allergy}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAllergy(index)}
-                              className="ml-2 text-red-600 hover:text-red-800"
-                            >
-                              <XIcon className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="bg-gray-50 rounded-lg p-3 md:col-span-2 lg:col-span-3">
+                  <p className="text-xs text-gray-600 mb-1">Alergi</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {patient.allergies && patient.allergies.length > 0
+                      ? patient.allergies.join(', ')
+                      : 'Tidak ada'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="border border-green-300 rounded-lg p-4 bg-white">
-              <div className="border-b border-gray-300 mb-4">
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                  <ClipboardList className="h-5 w-5 text-green-600" />
-                  <span>2. Keluhan Pasien</span>
-                  <span className="text-red-500">*</span>
-                </h4>
-              </div>
+            {/* Existing Complaints - Read Only */}
+            {existingComplaints.length > 0 && (
+              <div className="border border-green-300 rounded-lg p-4 bg-green-50">
+                <div className="border-b border-gray-300 mb-4">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-green-600" />
+                    <span>Keluhan Pasien (Informasi)</span>
+                  </h4>
+                </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Keluhan Utama
-                  </label>
-                  <textarea
-                    required
-                    value={formData.complaint}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, complaint: e.target.value }));
-                      if (errors.complaint) {
-                        const newErrors = { ...errors };
-                        delete newErrors.complaint;
-                        setErrors(newErrors);
-                      }
-                    }}
-                    placeholder="Contoh: Pasien mengeluh pusing, lemas, dan sering merasa haus sejak 2 hari yang lalu..."
-                    rows={3}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 ${errors.complaint ? 'border-red-300' : 'border-gray-300'}`}
-                    disabled={loading}
-                  />
-                  {errors.complaint && (
-                    <p className="mt-1 text-sm text-red-600">{errors.complaint}</p>
+                <div className="space-y-3">
+                  {loadingComplaints ? (
+                    <p className="text-sm text-gray-500">Memuat keluhan...</p>
+                  ) : (
+                    existingComplaints.slice(0, 3).map(complaint => (
+                      <div key={complaint.id} className="bg-white border border-green-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-500">
+                            {new Date(complaint.createdAt).toLocaleDateString('id-ID', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {complaint.metadata?.severity && (
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              complaint.metadata.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                              complaint.metadata.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {complaint.metadata.severity}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-900">{complaint.content}</p>
+                      </div>
+                    ))
                   )}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tingkat Keparahan
-                  </label>
-                  <select
-                    required
-                    value={formData.complaintSeverity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, complaintSeverity: e.target.value as any }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
-                    disabled={loading}
-                  >
-                    <option value="RINGAN">Ringan</option>
-                    <option value="SEDANG">Sedang</option>
-                    <option value="BERAT">Berat / Urgent</option>
-                  </select>
-                </div>
               </div>
-            </div>
+            )}
 
+            {/* Vital Signs - Editable */}
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <Heart className="h-5 w-5 text-green-600" />
-                  <span>3. Tanda Vital</span>
-                  <span className="text-red-500">*</span>
+                  <span>1. Vital Signs</span>
                 </h4>
               </div>
 
@@ -820,18 +635,10 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                   <div className="flex items-center space-x-2">
                     <input
                       type="number"
-                      required
                       placeholder="120"
                       value={formData.bloodPressureSystolic}
-                      onChange={(e) => {
-                        setFormData(prev => ({ ...prev, bloodPressureSystolic: e.target.value }));
-                        if (errors.bloodPressure) {
-                          const newErrors = { ...errors };
-                          delete newErrors.bloodPressure;
-                          setErrors(newErrors);
-                        }
-                      }}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900 ${errors.bloodPressure ? 'border-red-300' : 'border-gray-300'}`}
+                      onChange={(e) => setFormData(prev => ({ ...prev, bloodPressureSystolic: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
                       min="60"
                       max="250"
                       disabled={loading}
@@ -839,17 +646,15 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                     <span className="text-gray-500 font-bold">/</span>
                     <input
                       type="number"
-                      required
                       placeholder="80"
                       value={formData.bloodPressureDiastolic}
                       onChange={(e) => setFormData(prev => ({ ...prev, bloodPressureDiastolic: e.target.value }))}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900 ${errors.bloodPressure ? 'border-red-300' : 'border-gray-300'}`}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
                       min="40"
                       max="150"
                       disabled={loading}
                     />
                   </div>
-                  {errors.bloodPressure && <p className="mt-1 text-xs text-red-600">{errors.bloodPressure}</p>}
                 </div>
 
                 <div>
@@ -858,23 +663,14 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                   </label>
                   <input
                     type="number"
-                    required
                     value={formData.heartRate}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, heartRate: e.target.value }));
-                      if (errors.heartRate) {
-                        const newErrors = { ...errors };
-                        delete newErrors.heartRate;
-                        setErrors(newErrors);
-                      }
-                    }}
+                    onChange={(e) => setFormData(prev => ({ ...prev, heartRate: e.target.value }))}
                     placeholder="80"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900 ${errors.heartRate ? 'border-red-300' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
                     min="40"
                     max="200"
                     disabled={loading}
                   />
-                  {errors.heartRate && <p className="mt-1 text-xs text-red-600">{errors.heartRate}</p>}
                 </div>
 
                 <div>
@@ -884,23 +680,14 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                   <input
                     type="number"
                     step="0.1"
-                    required
                     value={formData.temperature}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, temperature: e.target.value }));
-                      if (errors.temperature) {
-                        const newErrors = { ...errors };
-                        delete newErrors.temperature;
-                        setErrors(newErrors);
-                      }
-                    }}
+                    onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
                     placeholder="36.5"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900 ${errors.temperature ? 'border-red-300' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
                     min="35"
                     max="42"
                     disabled={loading}
                   />
-                  {errors.temperature && <p className="mt-1 text-xs text-red-600">{errors.temperature}</p>}
                 </div>
 
                 <div>
@@ -939,11 +726,12 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
               </div>
             </div>
 
+            {/* Lab Tests - Main Section */}
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <FlaskConical className="h-5 w-5 text-green-600" />
-                  <span>4. Pemeriksaan Lab</span>
+                  <span>2. Pemeriksaan Laboratorium</span>
                 </h4>
               </div>
 
@@ -980,7 +768,11 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                 </div>
               ))}
 
-              <div>
+              {errors.labTests && (
+                <p className="mt-2 text-sm text-red-600">{errors.labTests}</p>
+              )}
+
+              <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Catatan Laboratorium
                 </label>
@@ -994,27 +786,28 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                 />
               </div>
 
-              <div className="bg-blue-50 p-3 rounded border border-blue-300 flex items-start space-x-2">
-                <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-700">
+              <div className="bg-green-50 p-3 rounded border border-green-300 flex items-start space-x-2 mt-4">
+                <AlertCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-green-700">
                   <strong>Info:</strong> Jika hasil abnormal terdeteksi, sistem akan otomatis membuat notifikasi untuk dokter.
                 </p>
               </div>
             </div>
 
+            {/* SEAR B Risk Calculation */}
             <div className="border border-green-300 rounded-lg p-4 bg-white">
               <div className="border-b border-gray-300 mb-4">
                 <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <Activity className="h-5 w-5 text-green-600" />
-                  <span>5. Prediksi Risiko Kardiovaskular (SEAR B WHO)</span>
+                  <span>3. Prediksi Risiko Kardiovaskular (SEAR B WHO)</span>
                 </h4>
               </div>
 
               <div className="p-3 space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                  <div className="bg-green-50 border border-green-200 rounded p-2">
                     <p className="text-xs text-gray-600">Umur</p>
-                    <p className="text-lg font-bold text-blue-700">{calculateAge(patient.birthDate)} tahun</p>
+                    <p className="text-lg font-bold text-green-700">{calculateAge(patient.birthDate)} tahun</p>
                   </div>
                   <div className="bg-purple-50 border border-purple-200 rounded p-2">
                     <p className="text-xs text-gray-600">Gender</p>
@@ -1023,12 +816,12 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                   <div className="bg-orange-50 border border-orange-200 rounded p-2">
                     <p className="text-xs text-gray-600">Status Merokok</p>
                     <p className="text-lg font-bold text-orange-700">
-                      {formData.smokingStatus === 'PEROKOK' ? 'Ya' : 'Tidak'}
+                      {patient.smokingStatus === 'PEROKOK' ? 'Ya' : 'Tidak'}
                     </p>
                   </div>
                   <div className="bg-pink-50 border border-pink-200 rounded p-2">
                     <p className="text-xs text-gray-600">Diabetes</p>
-                    <p className="text-lg font-bold text-pink-700">{formData.diabetesType ? 'Ya' : 'Tidak'}</p>
+                    <p className="text-lg font-bold text-pink-700">{patient.diabetesType ? 'Ya' : 'Tidak'}</p>
                   </div>
                   <div className="bg-red-50 border border-red-200 rounded p-2">
                     <p className="text-xs text-gray-600">TD Sistolik</p>
@@ -1072,67 +865,11 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
                     </p>
                   </div>
                 )}
-
-                <details className="bg-gray-50 border border-gray-200 rounded-lg">
-                  <summary className="p-3 cursor-pointer font-medium text-sm text-gray-700 hover:bg-gray-100">
-                    Panduan Membaca Chart WHO SEAR B
-                  </summary>
-                  <div className="p-3 border-t">
-                    <img src="/sear-b-chart.png" alt="WHO SEAR B Chart" className="w-full rounded border" />
-                    <p className="text-xs text-gray-600 mt-2">
-                      <strong>Cara:</strong> Pilih chart (diabetes/tanpa) - Pilih gender - Tentukan umur -
-                      Cari kolesterol (sumbu X) - Cari TD (sumbu Y) - Lihat warna zona risiko
-                    </p>
-                  </div>
-                </details>
               </div>
-            </div>
-
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <label className="flex items-start space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sendToDoctor}
-                  onChange={(e) => setSendToDoctor(e.target.checked)}
-                  className="mt-1 h-4 w-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
-                  disabled={loading}
-                />
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Send className="h-4 w-4 text-green-600" />
-                    <span className="font-medium text-gray-900">Kirim pasien ke Dokter setelah pemeriksaan</span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Pasien akan masuk antrian dokter dan notifikasi akan dikirim ke dokter.
-                  </p>
-                </div>
-              </label>
             </div>
           </div>
 
-          {patient.status === 'RAWAT_INAP' && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <label className="flex items-start space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={notifyRoomNurse}
-                  onChange={(e) => setNotifyRoomNurse(e.target.checked)}
-                  className="mt-1 h-4 w-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
-                  disabled={loading}
-                />
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Send className="h-4 w-4 text-purple-600" />
-                    <span className="font-medium text-gray-900">Kirim data ke Perawat Ruangan</span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Pasien rawat inap - teruskan data pemeriksaan ke perawat ruangan untuk monitoring.
-                  </p>
-                </div>
-              </label>
-            </div>
-          )}
-
+          {/* Submit Button */}
           <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
               type="button"
@@ -1155,13 +892,13 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  <span>{sendToDoctor ? 'Simpan & Kirim ke Dokter' : 'Simpan Pemeriksaan'}</span>
+                  <span>Simpan Hasil Lab</span>
                 </>
               )}
             </button>
           </div>
           <p className="text-xs text-gray-500 text-center mt-3">
-            * Field wajib diisi
+            * Minimal satu pemeriksaan lab harus diisi
           </p>
         </form>
       </div>
@@ -1169,4 +906,4 @@ ${formData.oxygenSaturation ? `- SpO2: ${formData.oxygenSaturation}%` : ''}`;
   );
 };
 
-export default PatientExaminationForm;
+export default LabPatientExaminationForm;

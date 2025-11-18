@@ -6,7 +6,7 @@ import ResetPasswordForm from './ResetPasswordForm';
 // Loading fallback component
 function ResetPasswordLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-md w-full mx-4">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex flex-col items-center space-y-4">

@@ -713,7 +713,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                 })}
               </h3>
               <p className="text-sm text-gray-600">
-                {data.complaints.length} Info Medis Pasien • {data.vitals.length} vital signs • {data.labs.length} hasil lab
+              {data.complaints.length} Info Media • {data.vitals.length} vital signs • {data.labs.length} hasil lab
               </p>
             </div>
           </div>

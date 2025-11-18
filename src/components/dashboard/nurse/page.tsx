@@ -220,7 +220,7 @@ const NurseDashboard = () => {
                         ) : (
                             <>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                                    <div className="bg-linear-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-sm font-medium text-blue-600">Rawat Inap</p>
@@ -232,7 +232,7 @@ const NurseDashboard = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
+                                    <div className="bg-linear-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-sm font-medium text-purple-600">Visitasi Hari Ini</p>
@@ -244,10 +244,10 @@ const NurseDashboard = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100 sm:col-span-2 lg:col-span-1">
+                                    <div className="bg-linear-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100 sm:col-span-2 lg:col-span-1">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm font-medium text-red-600">Risiko Tinggi</p>
+                                                <p className="text-sm fonat-medium text-red-600">Risiko Tinggi</p>
                                                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.highRiskPatients}</p>
                                             </div>
                                             <div className="bg-red-100 p-3 rounded-full">
@@ -308,7 +308,7 @@ const NurseDashboard = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg shadow-sm p-6 border border-green-200">
+                                <div className="bg-linear-to-r from-green-50 to-emerald-50 rounded-lg shadow-sm p-6 border border-green-200">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h3 className="text-lg font-semibold text-gray-900 mb-2">Shortcut ke Visitasi</h3>

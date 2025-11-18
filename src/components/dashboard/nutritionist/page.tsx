@@ -469,15 +469,15 @@ const NutritionistDashboard = () => {
 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-white to-green-50 p-4 sm:p-6 rounded-xl shadow-sm border border-green-100">
+        <div className="bg-linear-to-br from-white to-green-50 p-4 sm:p-6 rounded-xl shadow-sm border border-green-100">
           <p className="text-xs sm:text-sm font-medium text-green-600">Total Pasien Rawat Inap</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.totalPatients}</p>
         </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 p-4 sm:p-6 rounded-xl shadow-sm border border-blue-100">
+        <div className="bg-linear-to-br from-white to-blue-50 p-4 sm:p-6 rounded-xl shadow-sm border border-blue-100">
           <p className="text-xs sm:text-sm font-medium text-blue-600">Rencana Diet Aktif</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.activeDietPlans}</p>
         </div>
-        <div className="bg-gradient-to-br from-white to-purple-50 p-4 sm:p-6 rounded-xl shadow-sm border border-purple-100 sm:col-span-2 lg:col-span-1">
+        <div className="bg-linear-to-br from-white to-purple-50 p-4 sm:p-6 rounded-xl shadow-sm border border-purple-100 sm:col-span-2 lg:col-span-1">
           <p className="text-xs sm:text-sm font-medium text-purple-600">Rata-rata Kepatuhan</p>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">{realTimeStats.avgCompliance}%</p>
         </div>
@@ -2085,7 +2085,7 @@ const NutritionistDashboard = () => {
 
       <div className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl transform transition-transform duration-300 z-50 lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
-        <div className="p-4 bg-gradient-to-r from-green-500 to-green-600 text-white">
+        <div className="p-4 bg-linear-to-r from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Menu Ahli Gizi</h2>
             <button onClick={() => setIsMobileSidebarOpen(false)} className="text-white hover:bg-white/20 p-2 rounded">

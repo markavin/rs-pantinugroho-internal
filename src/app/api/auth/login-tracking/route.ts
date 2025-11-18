@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
       ADMINISTRASI: 'Administrasi',
       MANAJER: 'Manajer',
       AHLI_GIZI: 'Ahli Gizi',
+      
     };
 
     const roleColors = {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Activity, Pill, FileText, Utensils, Calculator, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Activity, Pill, FileText, Utensils, Calculator, TrendingUp, ChevronDown, ChevronUp, FlaskConical } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Visitation {
@@ -30,6 +30,10 @@ interface Visitation {
     stressFactor?: number | null;
     nutritionStatus?: string | null;
     energyCalculationDetail?: any;
+
+    labResults?: any;
+    labNotes?: string | null;
+
     createdAt: Date | string;
     patient?: {
         id: string;
@@ -49,7 +53,7 @@ interface DetailVisitasiModalProps {
     visitations: Visitation[];
 }
 
-type FilterType = 'all' | 'vital' | 'medication' | 'education' | 'diet' | 'energy';
+type FilterType = 'all' | 'vital' | 'medication' | 'education' | 'diet' | 'energy' | 'lab';
 
 const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
     isOpen,
@@ -101,6 +105,13 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
 
     const hasEnergy = (visit: Visitation) => {
         return !!visit.energyRequirement;
+    };
+
+    const hasLab = (visit: Visitation) => {
+        return !!(visit.labResults &&
+            typeof visit.labResults === 'object' &&
+            Array.isArray(visit.labResults) &&
+            visit.labResults.length > 0);
     };
 
     // Filter visitations by date and type
@@ -366,6 +377,128 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
                             <p className="text-xs text-gray-500 mt-1">Perawat: {visit.nurse?.name}</p>
                         </div>
                     ))}
+                </div>
+            </div>
+        );
+    };
+
+    const renderLabResultsTable = (visits: Visitation[]) => {
+        const visitsWithLab = visits.filter(v => hasLab(v));
+        if (visitsWithLab.length === 0) return null;
+
+        return (
+            <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden mb-4">
+                <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200">
+                    <h4 className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
+                        <FlaskConical className="h-4 w-4" />
+                        Hasil Pemeriksaan Laboratorium
+                    </h4>
+                </div>
+                <div className="p-4 space-y-4">
+                    {visitsWithLab.map(visit => {
+                        const labResults = visit.labResults as any[];
+
+                        return (
+                            <div key={visit.id} className="border-l-4 border-indigo-500 pl-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-xs font-medium text-gray-900">
+                                        {new Date(visit.createdAt).toLocaleTimeString('id-ID', {
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${visit.shift === 'PAGI' ? 'bg-orange-100 text-orange-800' :
+                                        visit.shift === 'SORE' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-purple-100 text-purple-800'
+                                        }`}>
+                                        {visit.shift}
+                                    </span>
+                                </div>
+
+                                {/* Group by category */}
+                                {(() => {
+                                    const grouped: { [key: string]: any[] } = {};
+                                    labResults.forEach(result => {
+                                        const category = result.category || 'Lain-lain';
+                                        if (!grouped[category]) {
+                                            grouped[category] = [];
+                                        }
+                                        grouped[category].push(result);
+                                    });
+
+                                    return Object.entries(grouped).map(([category, results]) => (
+                                        <div key={category} className="mb-3">
+                                            <h5 className="text-xs font-bold text-gray-700 mb-2 uppercase">
+                                                {category}
+                                            </h5>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-xs">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="px-2 py-1 text-left font-medium text-gray-700">
+                                                                Pemeriksaan
+                                                            </th>
+                                                            <th className="px-2 py-1 text-center font-medium text-gray-700">
+                                                                Hasil
+                                                            </th>
+                                                            <th className="px-2 py-1 text-center font-medium text-gray-700">
+                                                                Normal
+                                                            </th>
+                                                            <th className="px-2 py-1 text-center font-medium text-gray-700">
+                                                                Status
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {results.map((result, idx) => (
+                                                            <tr key={idx} className="border-t border-gray-100">
+                                                                <td className="px-2 py-1.5 text-gray-900">
+                                                                    {result.testType}
+                                                                </td>
+                                                                <td className="px-2 py-1.5 text-center font-semibold text-gray-900">
+                                                                    {result.value}
+                                                                </td>
+                                                                <td className="px-2 py-1.5 text-center text-gray-600">
+                                                                    {result.normalRange}
+                                                                </td>
+                                                                <td className="px-2 py-1.5 text-center">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${result.status === 'NORMAL'
+                                                                        ? 'bg-green-100 text-green-800' :
+                                                                        result.status === 'HIGH'
+                                                                            ? 'bg-orange-100 text-orange-800' :
+                                                                            result.status === 'LOW'
+                                                                                ? 'bg-yellow-100 text-yellow-800' :
+                                                                                result.status === 'CRITICAL'
+                                                                                    ? 'bg-red-100 text-red-800' :
+                                                                                    'bg-gray-100 text-gray-800'
+                                                                        }`}>
+                                                                        {result.status}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+
+                                {/* Lab Notes */}
+                                {visit.labNotes && (
+                                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                                        <p className="text-xs text-blue-900">
+                                            <strong>Catatan:</strong> {visit.labNotes}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <p className="text-xs text-gray-500 mt-2">
+                                    Perawat: {visit.nurse?.name}
+                                </p>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );
@@ -818,7 +951,7 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
                 {/* Date Header */}
                 <button
                     onClick={() => toggleDateExpansion(dateKey)}
-                    className="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-200 flex items-center justify-between hover:from-green-100 hover:to-blue-100 transition-colors"
+                    className="w-full px-6 py-4 bg-linear-to-r from-green-50 to-blue-50 border-b border-gray-200 flex items-center justify-between hover:from-green-100 hover:to-blue-100 transition-colors"
                 >
                     <div className="flex items-center gap-3">
                         <div className="text-left">
@@ -850,6 +983,7 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
                             <>
                                 {renderVitalSignsTable(visits)}
                                 {renderMedicationsTable(visits)}
+                                {renderLabResultsTable(visits)}
                                 {renderEducationSection(visits)}
                                 {renderDietTable(visits)}
                                 {renderEnergyTable(visits)}
@@ -887,6 +1021,7 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
 
                         {filterType === 'vital' && renderVitalSignsTable(visits)}
                         {filterType === 'medication' && renderMedicationsTable(visits)}
+                        {filterType === 'lab' && renderLabResultsTable(visits)}
                         {filterType === 'education' && renderEducationSection(visits)}
                         {filterType === 'diet' && renderDietTable(visits)}
                         {filterType === 'energy' && renderEnergyTable(visits)}
@@ -944,6 +1079,7 @@ const DetailVisitasiModal: React.FC<DetailVisitasiModalProps> = ({
                                 { key: 'all', label: 'Semua' },
                                 { key: 'vital', label: 'Vital Signs', icon: Activity },
                                 { key: 'medication', label: 'Obat', icon: Pill },
+                                { key: 'lab', label: 'Lab', icon: FlaskConical },
                                 { key: 'education', label: 'Edukasi', icon: FileText },
                                 { key: 'diet', label: 'Diet', icon: Utensils },
                                 { key: 'energy', label: 'Energi', icon: Calculator },

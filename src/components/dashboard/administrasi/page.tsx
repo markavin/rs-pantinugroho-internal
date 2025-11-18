@@ -541,7 +541,7 @@ const AdministrasiDashboard = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
+                  <div className="bg-linear-to-br from-white to-blue-50 p-6 rounded-xl shadow-sm border border-blue-100">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-blue-600">Total Pasien</p>
@@ -553,7 +553,7 @@ const AdministrasiDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
+                  <div className="bg-linear-to-br from-white to-green-50 p-6 rounded-xl shadow-sm border border-green-100">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-green-600">Pasien Aktif</p>
@@ -564,7 +564,7 @@ const AdministrasiDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
+                  <div className="bg-linear-to-br from-white to-purple-50 p-6 rounded-xl shadow-sm border border-purple-100">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-purple-600">Rujuk Keluar</p>
@@ -716,9 +716,9 @@ const AdministrasiDashboard = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Umur/Gender
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         BMI
-                      </th>
+                      </th> */}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Penjamin
                       </th>
@@ -745,7 +745,7 @@ const AdministrasiDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {calculateAge(patient.birthDate)} / {patient.gender === 'MALE' ? 'L' : 'P'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        {/* <td className="px-6 py-4 whitespace-nowrap">
                           {patient.bmi ? (
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-gray-900">{patient.bmi.toFixed(1)}</span>
@@ -756,7 +756,7 @@ const AdministrasiDashboard = () => {
                           ) : (
                             <span className="text-sm text-gray-500">-</span>
                           )}
-                        </td>
+                        </td> */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {patient.insuranceType}
                         </td>

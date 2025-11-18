@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, Activity, Pill, FileText, BookOpen, AlertTriangle, ChevronDown, Clock, Utensils, Calculator, Info, CheckCircle, Package } from 'lucide-react';
+import { X, Save, User, Activity, Pill, FileText, BookOpen, AlertTriangle, ChevronDown, Clock, Utensils, Calculator, Info, CheckCircle, Package, FlaskConical, AlertCircle } from 'lucide-react';
 import { Patient, Visitation } from '@prisma/client';
 
 interface TambahVisitasiFormProps {
@@ -38,7 +38,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
     editData
 }) => {
     const [selectedPatient, setSelectedPatient] = useState('');
-    const [visitationType, setVisitationType] = useState<'vital' | 'medication' | 'education'>('vital');
+    const [visitationType, setVisitationType] = useState<'vital' | 'medication' | 'lab' | 'education'>('vital');
     const [vitalSigns, setVitalSigns] = useState({
         temperature: '',
         bloodPressure: '',
@@ -49,6 +49,24 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
         weight: '',
         height: ''
     });
+    const [labTests, setLabTests] = useState({
+        gulaDarahSewaktu: '',
+        gulaDarahPuasa: '',
+        glukosa2JamPP: '',
+        hba1c: '',
+        cholesterol: '',
+        ldl: '',
+        hdl: '',
+        trigliseride: '',
+        urea: '',
+        creatinine: '',
+        albumin: '',
+        sgot: '',
+        sgpt: '',
+        hemoglobin: '',
+        leukosit: ''
+    });
+    const [labNotes, setLabNotes] = useState('');
     const [medications, setMedications] = useState<string[]>(['']);
     const [education, setEducation] = useState('');
     const [complications, setComplications] = useState('');
@@ -129,6 +147,69 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
             age--;
         }
         return age;
+    };
+
+    const labTestDefinitions: Record<string, { name: string; normalRange: string; unit: string; category: string }> = {
+        gulaDarahSewaktu: { name: 'Gula Darah Sewaktu', normalRange: '<200', unit: 'mg/dL', category: 'Gula Darah' },
+        gulaDarahPuasa: { name: 'Gula Darah Puasa', normalRange: '70-100', unit: 'mg/dL', category: 'Gula Darah' },
+        glukosa2JamPP: { name: 'Glukosa 2 Jam PP', normalRange: '<140', unit: 'mg/dL', category: 'Gula Darah' },
+        hba1c: { name: 'HbA1c', normalRange: '<5.7', unit: '%', category: 'Gula Darah' },
+        cholesterol: { name: 'Kolesterol Total', normalRange: '<200', unit: 'mg/dL', category: 'Lipid' },
+        ldl: { name: 'LDL', normalRange: '<100', unit: 'mg/dL', category: 'Lipid' },
+        hdl: { name: 'HDL', normalRange: '>40 (L), >50 (P)', unit: 'mg/dL', category: 'Lipid' },
+        trigliseride: { name: 'Trigliserida', normalRange: '<150', unit: 'mg/dL', category: 'Lipid' },
+        urea: { name: 'Urea', normalRange: '10-50', unit: 'mg/dL', category: 'Fungsi Ginjal' },
+        creatinine: { name: 'Kreatinin', normalRange: '0.6-1.3', unit: 'mg/dL', category: 'Fungsi Ginjal' },
+        albumin: { name: 'Albumin', normalRange: '3.5-5.0', unit: 'g/dL', category: 'Protein' },
+        sgot: { name: 'SGOT (AST)', normalRange: '<40', unit: 'U/L', category: 'Fungsi Hati' },
+        sgpt: { name: 'SGPT (ALT)', normalRange: '<41', unit: 'U/L', category: 'Fungsi Hati' },
+        hemoglobin: { name: 'Hemoglobin (Hb)', normalRange: '12-16 (P), 13-17 (L)', unit: 'g/dL', category: 'Darah Lengkap' },
+        leukosit: { name: 'Leukosit (AL)', normalRange: '4000-11000', unit: '/µL', category: 'Darah Lengkap' }
+    };
+
+    const groupedTests: Record<string, string[]> = {
+        'Gula Darah': ['gulaDarahSewaktu', 'gulaDarahPuasa', 'glukosa2JamPP', 'hba1c'],
+        'Lipid': ['cholesterol', 'ldl', 'hdl', 'trigliseride'],
+        'Fungsi Ginjal': ['urea', 'creatinine'],
+        'Protein': ['albumin'],
+        'Fungsi Hati': ['sgot', 'sgpt'],
+        'Darah Lengkap': ['hemoglobin', 'leukosit']
+    };
+
+    const handleLabTestChange = (key: string, value: string) => {
+        setLabTests(prev => ({
+            ...prev,
+            [key]: value
+        }));
+    };
+
+    const determineLabStatus = (testKey: string, value: number): 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL' => {
+        const ranges: Record<string, { low?: number; high?: number; critical?: number }> = {
+            gulaDarahSewaktu: { high: 200, critical: 300 },
+            gulaDarahPuasa: { low: 70, high: 100, critical: 126 },
+            glukosa2JamPP: { high: 140, critical: 200 },
+            hba1c: { high: 5.7, critical: 8.0 },
+            cholesterol: { high: 200, critical: 240 },
+            ldl: { high: 100, critical: 160 },
+            hdl: { low: 40 },
+            trigliseride: { high: 150, critical: 200 },
+            urea: { low: 10, high: 50, critical: 80 },
+            creatinine: { low: 0.6, high: 1.3, critical: 2.0 },
+            albumin: { low: 3.5, high: 5.0 },
+            sgot: { high: 40, critical: 100 },
+            sgpt: { high: 41, critical: 100 },
+            hemoglobin: { low: 12, high: 17 },
+            leukosit: { low: 4000, high: 11000, critical: 20000 }
+        };
+
+        const range = ranges[testKey];
+        if (!range) return 'NORMAL';
+
+        if (range.critical && value >= range.critical) return 'CRITICAL';
+        if (range.high && value > range.high) return 'HIGH';
+        if (range.low && value < range.low) return 'LOW';
+
+        return 'NORMAL';
     };
 
     const calculateEnergy = () => {
@@ -220,6 +301,8 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
         setShowEnergyCalc(true);
     };
 
+    // Di TambahVisitasiForm.tsx, ganti bagian handleSave mulai dari baris "// ✅ TAMBAHKAN: Prepare lab results data"
+
     const handleSave = async () => {
         const newErrors: Record<string, string> = {};
 
@@ -247,7 +330,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 throw new Error('Data pasien tidak ditemukan');
             }
 
-            // Hitung BMI jika ada tinggi dan berat
+            // Hitung BMI
             let calculatedBMI: number | null = null;
             if (vitalSigns.height && vitalSigns.weight) {
                 const h = parseFloat(vitalSigns.height);
@@ -257,13 +340,34 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 }
             }
 
-            // Filter medications yang tidak kosong
             const filteredMedications = medications.filter(m => m && m.trim() !== '');
+
+            // ✅ PREPARE LAB RESULTS DATA
+            const labResultsData: any[] = [];
+            let hasLabData = false;
+
+            Object.entries(labTests).forEach(([key, value]) => {
+                if (value && value.trim()) {
+                    hasLabData = true;
+                    const testDef = labTestDefinitions[key];
+                    const numValue = parseFloat(value);
+                    const status = determineLabStatus(key, numValue);
+
+                    labResultsData.push({
+                        testType: testDef.name,
+                        value: `${value} ${testDef.unit}`,
+                        normalRange: testDef.normalRange,
+                        status: status,
+                        category: testDef.category
+                    });
+                }
+            });
+
+            console.log('📋 Lab Results to Save:', labResultsData);
 
             const payload: any = {
                 patientId: selectedPatient,
                 shift: currentShift,
-
                 temperature: vitalSigns.temperature && vitalSigns.temperature.trim()
                     ? parseFloat(vitalSigns.temperature)
                     : null,
@@ -286,15 +390,12 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 height: vitalSigns.height && vitalSigns.height.trim()
                     ? parseInt(vitalSigns.height)
                     : null,
-
                 medicationsGiven: filteredMedications,
                 education: education?.trim() || null,
                 complications: complications?.trim() || null,
                 notes: notes?.trim() || null,
-
                 dietCompliance: dietCompliance?.trim() ? parseInt(dietCompliance) : null,
                 dietIssues: dietIssues?.trim() || null,
-
                 energyRequirement: energyCalculation?.totalEnergy || null,
                 calculatedBMI: calculatedBMI ? parseFloat(calculatedBMI.toFixed(2)) : null,
                 calculatedBBI: energyCalculation?.bbi || null,
@@ -314,7 +415,11 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                     breakdown: energyCalculation.breakdown,
                     calculatedAt: new Date().toISOString(),
                     calculatedBy: 'nurse'
-                } : null
+                } : null,
+
+                // ✅ SIMPAN LAB RESULTS SEBAGAI JSON
+                labResults: hasLabData ? labResultsData : null,
+                labNotes: labNotes?.trim() || null
             };
 
             console.log('=== PAYLOAD TO API ===');
@@ -344,23 +449,73 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 throw new Error(responseData.error || responseData.details || `Server error: ${response.status}`);
             }
 
-            // Kirim alert untuk laporan perbaikan kondisi ke dokter
-            if (reportToDoctor && improvementNotes.trim()) {
-                const vitalSignsInfo = [
-                    vitalSigns.bloodPressure ? `- TD: ${vitalSigns.bloodPressure}` : null,
-                    vitalSigns.temperature ? `- Suhu: ${vitalSigns.temperature}°C` : null,
-                    vitalSigns.heartRate ? `- Nadi: ${vitalSigns.heartRate} bpm` : null,
-                    vitalSigns.respiratoryRate ? `- Pernapasan: ${vitalSigns.respiratoryRate} x/mnt` : null,
-                    vitalSigns.oxygenSaturation ? `- SpO2: ${vitalSigns.oxygenSaturation}%` : null,
-                    vitalSigns.bloodSugar ? `- GDS: ${vitalSigns.bloodSugar} mg/dL` : null
-                ].filter(Boolean).join('\n');
+            console.log('✅ Visitasi berhasil disimpan:', responseData);
 
+            // ✅ SIMPAN LAB RESULTS KE TABEL TERPISAH (opsional untuk record keeping)
+            if (hasLabData && labResultsData.length > 0) {
+                console.log('💉 Menyimpan lab results ke tabel terpisah...');
+
+                const labPromises: Promise<any>[] = [];
+                let hasAbnormal = false;
+                const abnormalTests: string[] = [];
+
+                labResultsData.forEach((result) => {
+                    if (result.status === 'HIGH' || result.status === 'CRITICAL' || result.status === 'LOW') {
+                        hasAbnormal = true;
+                        abnormalTests.push(`${result.testType}: ${result.value} (${result.status})`);
+                    }
+
+                    labPromises.push(
+                        fetch('/api/lab-results', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                patientId: selectedPatient,
+                                testType: result.testType,
+                                value: result.value,
+                                normalRange: result.normalRange,
+                                status: result.status,
+                                notes: labNotes || null,
+                                testDate: new Date().toISOString()
+                            })
+                        }).then(res => {
+                            if (!res.ok) {
+                                console.error('Failed to save lab result:', result.testType);
+                            }
+                            return res;
+                        })
+                    );
+                });
+
+                await Promise.all(labPromises);
+                console.log(`✅ ${labPromises.length} hasil lab tersimpan ke tabel terpisah`);
+
+                // Kirim alert jika ada hasil lab abnormal
+                if (hasAbnormal) {
+                    console.log('⚠️ Mengirim alert untuk hasil lab abnormal...');
+                    await fetch('/api/alerts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: abnormalTests.some(t => t.includes('CRITICAL')) ? 'CRITICAL' : 'WARNING',
+                            message: `Hasil lab abnormal untuk ${selectedPatientData.name} (${selectedPatientData.mrNumber}):\n\n${abnormalTests.join('\n')}`,
+                            patientId: selectedPatient,
+                            category: 'LAB_RESULT',
+                            priority: abnormalTests.some(t => t.includes('CRITICAL')) ? 'URGENT' : 'HIGH',
+                            targetRole: 'DOKTER_SPESIALIS'
+                        })
+                    });
+                }
+            }
+
+            // Lanjutkan dengan alert untuk dokter dan farmasi...
+            if (reportToDoctor && improvementNotes.trim()) {
                 await fetch('/api/alerts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         type: 'INFO',
-                        message: `Laporan perbaikan kondisi pasien ${selectedPatientData.name} (${selectedPatientData.mrNumber}):\n\n${improvementNotes}\n\n${vitalSignsInfo ? `Vital Signs Terbaru:\n${vitalSignsInfo}\n\n` : ''}Dimohon evaluasi untuk kemungkinan perubahan status perawatan.`,
+                        message: `Laporan perbaikan kondisi dari ${selectedPatientData.name} (${selectedPatientData.mrNumber}):\n\n${improvementNotes}`,
                         patientId: selectedPatient,
                         category: 'VITAL_SIGNS',
                         priority: 'MEDIUM',
@@ -369,14 +524,13 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                 });
             }
 
-            // Kirim alert untuk request obat ke farmasi
             if (requestMedication && medicationRequest.trim()) {
                 await fetch('/api/alerts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: 'INFO',
-                        message: `Pasien rawat inap ${selectedPatientData.name} (${selectedPatientData.mrNumber}) memerlukan obat tambahan:\n\n${medicationRequest}\n\nSegera disiapkan dan koordinasikan dengan perawat ruangan.`,
+                        type: 'WARNING',
+                        message: `Request obat dari perawat untuk ${selectedPatientData.name} (${selectedPatientData.mrNumber}):\n\n${medicationRequest}`,
                         patientId: selectedPatient,
                         category: 'MEDICATION',
                         priority: 'HIGH',
@@ -387,13 +541,27 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
 
             await markRelatedAlertsAsRead(selectedPatient);
 
-            alert(editData ? 'Visitasi berhasil diupdate!' : 'Visitasi berhasil disimpan!');
+            let successMessage = editData ? 'Visitasi berhasil diupdate!' : 'Visitasi berhasil disimpan!';
+
+            if (hasLabData) {
+                successMessage += `\n${labResultsData.length} hasil lab tersimpan.`;
+            }
+
+            if (reportToDoctor && improvementNotes.trim()) {
+                successMessage += '\nLaporan perbaikan kondisi telah dikirim ke dokter.';
+            }
+
+            if (requestMedication && medicationRequest.trim()) {
+                successMessage += '\nRequest obat telah dikirim ke farmasi.';
+            }
+
+            alert(successMessage);
 
             resetForm();
             onSave();
 
-        } catch (error) {
-            console.error('Error saving visitation:', error);
+        } catch (error: any) {
+            console.error('❌ Error saving visitation:', error);
             alert(`Gagal menyimpan visitasi: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsSubmitting(false);
@@ -427,6 +595,24 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
         setImprovementNotes('');
         setRequestMedication(false);
         setMedicationRequest('');
+        setLabTests({
+            gulaDarahSewaktu: '',
+            gulaDarahPuasa: '',
+            glukosa2JamPP: '',
+            hba1c: '',
+            cholesterol: '',
+            ldl: '',
+            hdl: '',
+            trigliseride: '',
+            urea: '',
+            creatinine: '',
+            albumin: '',
+            sgot: '',
+            sgpt: '',
+            hemoglobin: '',
+            leukosit: ''
+        });
+        setLabNotes('');
         setErrors({});
     };
 
@@ -584,7 +770,7 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                                 <h4 className="font-medium text-gray-900">Jenis Visitasi</h4>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setVisitationType('vital')}
@@ -606,6 +792,17 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                                 >
                                     <Pill className="h-5 w-5" />
                                     <span>Pemberian Obat</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setVisitationType('lab')}
+                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-colors ${visitationType === 'lab'
+                                        ? 'bg-green-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    <FlaskConical className="h-5 w-5" />
+                                    <span>Lab</span>
                                 </button>
                                 <button
                                     type="button"
@@ -774,6 +971,66 @@ const TambahVisitasiForm: React.FC<TambahVisitasiFormProps> = ({
                             </div>
                         )}
 
+                        {visitationType === 'lab' && (
+                            <div className="bg-white border border-gray-300 rounded-lg p-4">
+                                <div className="flex items-center mb-4">
+                                    <FlaskConical className="h-5 w-5 text-green-600 mr-2" />
+                                    <h4 className="font-medium text-gray-900">Pemeriksaan Lab</h4>
+                                </div>
+
+                                {Object.entries(groupedTests).map(([category, tests]) => (
+                                    <div key={category}>
+                                        <h5 className="font-medium text-gray-900 mb-2 mt-4 pb-2 border-b border-gray-200">
+                                            {category}
+                                        </h5>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {tests.map(testKey => {
+                                                const testDef = labTestDefinitions[testKey];
+                                                return (
+                                                    <div key={testKey}>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                            {testDef.name}
+                                                        </label>
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={labTests[testKey as keyof typeof labTests]}
+                                                                onChange={(e) => handleLabTestChange(testKey, e.target.value)}
+                                                                placeholder={testDef.normalRange}
+                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
+                                                            />
+                                                            <span className="text-xs text-gray-500 whitespace-nowrap">{testDef.unit}</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 mt-0.5">Normal: {testDef.normalRange}</p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <div className="mt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Catatan Laboratorium
+                                    </label>
+                                    <textarea
+                                        value={labNotes}
+                                        onChange={(e) => setLabNotes(e.target.value)}
+                                        placeholder="Catatan tambahan tentang pemeriksaan lab..."
+                                        rows={2}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-900"
+                                    />
+                                </div>
+
+                                <div className="bg-blue-50 p-3 rounded border border-blue-300 flex items-start space-x-2 mt-4">
+                                    <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                    <p className="text-sm text-blue-700">
+                                        <strong>Info:</strong> Jika hasil abnormal terdeteksi, sistem akan otomatis membuat notifikasi untuk dokter.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                         <div className="bg-white border rounded-lg p-4">
                             <div className="flex items-center mb-4">
                                 <Calculator className="h-5 w-5 text-green-600 mr-2" />

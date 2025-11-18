@@ -54,8 +54,9 @@ const AdminDashboard = () => {
       'DOKTER_SPESIALIS': 'Dokter Spesialis',
       'PERAWAT_RUANGAN': 'Perawat Ruangan',
       'PERAWAT_POLI': 'Perawat Poli',
+      'LABORATORIUM': 'Laboratorium',
       'FARMASI': 'Farmasi',
-      'ADMINISTRASI': 'Administrasi',
+      'ADMINISTRASI': 'Administrasi Pasien',
       'MANAJER': 'Manajer',
       'AHLI_GIZI': 'Ahli Gizi'
     };
@@ -67,6 +68,7 @@ const AdminDashboard = () => {
       'DOKTER_SPESIALIS': 'text-blue-700 bg-blue-50 border-blue-200',
       'PERAWAT_RUANGAN': 'text-teal-700 bg-teal-50 border-teal-200',
       'PERAWAT_POLI': 'text-cyan-700 bg-cyan-50 border-cyan-200',
+      'LABORATORIUM': 'text-cyan-700 bg-cyan-50 border-cyan-200',
       'FARMASI': 'text-emerald-700 bg-emerald-50 border-emerald-200',
       'ADMINISTRASI': 'text-gray-700 bg-gray-50 border-gray-200',
       'MANAJER': 'text-amber-700 bg-amber-50 border-amber-200',
@@ -336,7 +338,7 @@ const AdminDashboard = () => {
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3 sm:gap-6">
-                  <div className="bg-gradient-to-br from-white to-green-50 p-3 sm:p-6 rounded-xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
+                  <div className="bg-linear-to-br from-white to-green-50 p-3 sm:p-6 rounded-xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                       <div className="mb-2 sm:mb-0">
                         <p className="text-xs sm:text-sm font-medium text-green-600">Total Staff</p>
@@ -350,7 +352,7 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-white to-blue-50 p-3 sm:p-6 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-shadow">
+                  <div className="bg-linear-to-br from-white to-blue-50 p-3 sm:p-6 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition-shadow">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                       <div className="mb-2 sm:mb-0">
                         <p className="text-xs sm:text-sm font-medium text-blue-600">Login Hari Ini</p>
@@ -415,7 +417,7 @@ const AdminDashboard = () => {
                     </div>
 
                     <div className="relative">
-                      <div className="flex items-end justify-between space-x-1 sm:space-x-2 md:space-x-3 h-32 sm:h-40 md:h-48 mb-4 md:mb-6 bg-gradient-to-t from-gray-50 to-transparent rounded-lg p-2 md:p-4">
+                      <div className="flex items-end justify-between space-x-1 sm:space-x-2 md:space-x-3 h-32 sm:h-40 md:h-48 mb-4 md:mb-6 bg-linear-to-t from-gray-50 to-transparent rounded-lg p-2 md:p-4">
                         {realTimeStats.weeklyActivity.length > 0 ? realTimeStats.weeklyActivity.map((day, index) => {
                           const height = Math.max((day.logins / maxLogins) * (window.innerWidth < 768 ? 80 : 120), 6);
                           const isToday = day.isToday;
@@ -435,15 +437,15 @@ const AdminDashboard = () => {
                               <div className="relative w-full max-w-4 sm:max-w-6 md:max-w-8 mb-2 md:mb-3">
                                 <div
                                   className={`w-full rounded-full transition-all duration-700 ease-out transform group-hover:scale-110 ${isToday
-                                    ? 'bg-gradient-to-t from-green-600 via-green-500 to-green-400 shadow-lg shadow-green-200'
-                                    : 'bg-gradient-to-t from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 shadow-lg shadow-blue-200'
+                                    ? 'bg-linear-to-t from-green-600 via-green-500 to-green-400 shadow-lg shadow-green-200'
+                                    : 'bg-linear-to-t from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 shadow-lg shadow-blue-200'
                                     }`}
                                   style={{ height: `${height}px` }}
                                 >
-                                  <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white to-transparent opacity-30 rounded-full"></div>
+                                  <div className="absolute inset-x-0 top-0 h-1/3 bg-linear-to-b from-white to-transparent opacity-30 rounded-full"></div>
 
                                   {isToday && (
-                                    <div className="absolute inset-0 rounded-full animate-pulse bg-gradient-to-t from-green-400 to-transparent opacity-50"></div>
+                                    <div className="absolute inset-0 rounded-full animate-pulse bg-linear-to-t from-green-400 to-transparent opacity-50"></div>
                                   )}
                                 </div>
                               </div>

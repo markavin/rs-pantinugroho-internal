@@ -111,7 +111,7 @@ function generateOTPEmail(otpCode: string, userName: string) {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header { 
-            background: linear-gradient(135deg, #10b981, #059669); 
+            background: linear-linear(135deg, #10b981, #059669); 
             padding: 40px 30px; 
             text-align: center; 
             color: white; 
@@ -153,7 +153,7 @@ function generateOTPEmail(otpCode: string, userName: string) {
             margin-bottom: 15px;
           }
           .otp-box {
-            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            background: linear-linear(135deg, #ecfdf5, #d1fae5);
             border: 3px solid #10b981;
             border-radius: 12px;
             padding: 25px;
