@@ -32,6 +32,11 @@ interface LabResult {
   testDate: Date;
   status: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL';
   notes?: string;
+  technician?: {
+    role?: string;
+    name?: string;
+  };
+  source?: string;
 }
 
 interface PatientRecord {
@@ -45,6 +50,26 @@ interface PatientRecord {
   bloodPressure?: string;
   heartRate?: number;
   temperature?: number;
+  createdAt: Date;
+  source?: string;
+  recordedBy?: string;
+}
+
+interface Visitation {
+  id: string;
+  patientId: string;
+  patient?: Patient;
+  shift: string;
+  temperature?: number;
+  bloodPressure?: string;
+  heartRate?: number;
+  respiratoryRate?: number;
+  oxygenSaturation?: number;
+  bloodSugar?: number;
+  weight?: number;
+  height?: number;
+  labResults?: any;
+  labNotes?: string;
   createdAt: Date;
 }
 
@@ -63,6 +88,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
 }) => {
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
+  const [visitations, setVisitations] = useState<Visitation[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '3m' | '6m' | 'all'>('all');
   const [expandedDates, setExpandedDates] = useState<{ [key: string]: boolean }>({});
@@ -78,9 +104,10 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   const fetchAllHistory = async (patientId: string) => {
     setLoading(true);
     try {
-      const [labResponse, recordsResponse] = await Promise.all([
+      const [labResponse, recordsResponse, visitationsResponse] = await Promise.all([
         fetch(`/api/lab-results?patientId=${patientId}&_t=${Date.now()}`),
-        fetch(`/api/patient-records?patientId=${patientId}&_t=${Date.now()}&includePatient=true`)
+        fetch(`/api/patient-records?patientId=${patientId}&_t=${Date.now()}&includePatient=true`),
+        fetch(`/api/visitations?patientId=${patientId}&_t=${Date.now()}`)
       ]);
 
       if (labResponse.ok) {
@@ -93,6 +120,12 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
         const recordsData = await recordsResponse.json();
         console.log('Fetched patient records:', recordsData.length);
         setPatientRecords(recordsData);
+      }
+
+      if (visitationsResponse.ok) {
+        const visitationsData = await visitationsResponse.json();
+        console.log('Fetched visitations:', visitationsData.length);
+        setVisitations(visitationsData);
       }
 
       setLastFetch(new Date());
@@ -145,6 +178,15 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     return labels[status as keyof typeof labels] || status;
   };
 
+  const getRoleBadgeColor = (role: string) => {
+    const roleMap: { [key: string]: string } = {
+      'PERAWAT_POLI': 'text-cyan-700 bg-cyan-50 border-cyan-200',
+      'LABORATORIUM': 'text-purple-700 bg-purple-50 border-purple-200',
+      'PERAWAT_RUANGAN': 'text-teal-700 bg-teal-50 border-teal-200',
+    };
+    return roleMap[role] || 'text-gray-700 bg-gray-50 border-gray-200';
+  };
+
   const getFilteredDataByTimeRange = (data: any[]) => {
     const now = new Date();
     const ranges = {
@@ -167,8 +209,8 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     const groups: {
       [key: string]: {
         complaints: PatientRecord[];
-        vitals: PatientRecord[];
-        labs: LabResult[];
+        vitals: (PatientRecord | Visitation)[];
+        labs: (LabResult | any)[];
       }
     } = {};
 
@@ -181,7 +223,66 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
       if (record.recordType === 'COMPLAINTS') {
         groups[dateKey].complaints.push(record);
       } else if (record.recordType === 'VITAL_SIGNS') {
-        groups[dateKey].vitals.push(record);
+        const vitalWithRole = {
+          ...record,
+          role: record.title?.includes('(Lab)') || record.title?.includes('Laboratorium')
+            ? 'LABORATORIUM'
+            : 'PERAWAT_POLI'
+        };
+        groups[dateKey].vitals.push(vitalWithRole);
+      }
+    });
+
+    visitations.forEach(visitation => {
+      const dateKey = new Date(visitation.createdAt).toISOString().split('T')[0];
+      if (!groups[dateKey]) {
+        groups[dateKey] = { complaints: [], vitals: [], labs: [] };
+      }
+
+      const hasVitals = visitation.temperature || visitation.bloodPressure ||
+        visitation.heartRate || visitation.respiratoryRate ||
+        visitation.oxygenSaturation || visitation.bloodSugar;
+
+      if (hasVitals) {
+        const vitalRecord = {
+          id: visitation.id,
+          patientId: visitation.patientId,
+          patient: visitation.patient,
+          recordType: 'VITAL_SIGNS',
+          title: 'Vital Signs - Perawat Ruangan',
+          content: '',
+          bloodPressure: visitation.bloodPressure,
+          heartRate: visitation.heartRate,
+          temperature: visitation.temperature,
+          metadata: {
+            respiratoryRate: visitation.respiratoryRate,
+            oxygenSaturation: visitation.oxygenSaturation,
+            bloodSugar: visitation.bloodSugar
+          },
+          createdAt: visitation.createdAt,
+          role: 'PERAWAT_RUANGAN',
+          source: 'visitation'
+        };
+        groups[dateKey].vitals.push(vitalRecord);
+      }
+
+      if (visitation.labResults && Array.isArray(visitation.labResults)) {
+        visitation.labResults.forEach((labResult: any) => {
+          const labWithRole = {
+            id: `${visitation.id}-${labResult.testType}`,
+            patientId: visitation.patientId,
+            testType: labResult.testType,
+            value: labResult.value,
+            normalRange: labResult.normalRange,
+            status: labResult.status,
+            notes: visitation.labNotes,
+            testDate: visitation.createdAt,
+            createdAt: visitation.createdAt,
+            role: 'PERAWAT_RUANGAN',
+            source: 'visitation'
+          };
+          groups[dateKey].labs.push(labWithRole);
+        });
       }
     });
 
@@ -190,21 +291,60 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
       if (!groups[dateKey]) {
         groups[dateKey] = { complaints: [], vitals: [], labs: [] };
       }
-      groups[dateKey].labs.push(result);
+      const labWithRole = {
+        ...result,
+        role: result.technician?.role || 'LABORATORIUM',
+        source: 'lab_result'
+      };
+      groups[dateKey].labs.push(labWithRole);
     });
 
     return groups;
   };
 
-
   const prepareVitalSignsChart = () => {
-    const vitalRecords = patientRecords.filter(r => r.recordType === 'VITAL_SIGNS');
-    const filteredByTime = getFilteredDataByTimeRange(vitalRecords);
+    const allVitals: any[] = [];
+
+    patientRecords.forEach(record => {
+      if (record.recordType === 'VITAL_SIGNS') {
+        allVitals.push({
+          ...record,
+          timestamp: new Date(record.createdAt),
+          role: record.title?.includes('(Lab)') || record.title?.includes('Laboratorium')
+            ? 'LABORATORIUM'
+            : 'PERAWAT_POLI'
+        });
+      }
+    });
+
+    visitations.forEach(visitation => {
+      const hasVitals = visitation.temperature || visitation.bloodPressure ||
+        visitation.heartRate || visitation.respiratoryRate ||
+        visitation.oxygenSaturation;
+
+      if (hasVitals) {
+        allVitals.push({
+          id: visitation.id,
+          bloodPressure: visitation.bloodPressure,
+          heartRate: visitation.heartRate,
+          temperature: visitation.temperature,
+          metadata: {
+            respiratoryRate: visitation.respiratoryRate,
+            oxygenSaturation: visitation.oxygenSaturation
+          },
+          timestamp: new Date(visitation.createdAt),
+          createdAt: visitation.createdAt,
+          role: 'PERAWAT_RUANGAN'
+        });
+      }
+    });
+
+    const filteredByTime = getFilteredDataByTimeRange(allVitals);
 
     return filteredByTime
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
       .map((record, index) => {
-        const date = new Date(record.createdAt);
+        const date = record.timestamp;
         const metadata = record.metadata || {};
 
         return {
@@ -231,13 +371,36 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   };
 
   const prepareLabChart = () => {
-    const filteredByTime = getFilteredDataByTimeRange(labResults);
+    const allLabs: any[] = [];
+
+    labResults.forEach(result => {
+      allLabs.push({
+        ...result,
+        timestamp: new Date(result.testDate),
+        role: result.technician?.role || 'LABORATORIUM'
+      });
+    });
+
+    visitations.forEach(visitation => {
+      if (visitation.labResults && Array.isArray(visitation.labResults)) {
+        visitation.labResults.forEach((labResult: any) => {
+          const value = labResult.value.replace(/[^0-9.]/g, '');
+          allLabs.push({
+            testType: labResult.testType,
+            value: value,
+            timestamp: new Date(visitation.createdAt),
+            role: 'PERAWAT_RUANGAN'
+          });
+        });
+      }
+    });
+
+    const filteredByTime = getFilteredDataByTimeRange(allLabs);
 
     const groupedByDateTime: { [key: string]: { [testType: string]: number } } = {};
 
     filteredByTime.forEach(result => {
-      const date = new Date(result.testDate);
-      // Group by date + hour + minute (round to nearest 5 minutes to group similar times)
+      const date = result.timestamp;
       const roundedMinutes = Math.floor(date.getMinutes() / 5) * 5;
       const dateTimeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
 
@@ -279,7 +442,14 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
   const vitalSignsData = prepareVitalSignsChart();
   const labChartData = prepareLabChart();
 
-  const uniqueTestTypes = Array.from(new Set(labResults.map(result => result.testType)));
+  const uniqueTestTypes = Array.from(new Set([
+    ...labResults.map(result => result.testType),
+    ...visitations.flatMap(v => 
+      v.labResults && Array.isArray(v.labResults) 
+        ? v.labResults.map((lr: any) => lr.testType) 
+        : []
+    )
+  ]));
 
   useEffect(() => {
     const initialFilter: { [key: string]: boolean } = {};
@@ -287,9 +457,9 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
       initialFilter[type] = true;
     });
     setChartFilter(initialFilter);
-  }, [labResults]);
+  }, [labResults, visitations]);
 
-  const dataByDate = React.useMemo(() => groupDataByDate(), [patientRecords, labResults]);
+  const dataByDate = React.useMemo(() => groupDataByDate(), [patientRecords, labResults, visitations]);
 
   const toggleDateExpansion = (dateKey: string) => {
     setExpandedDates(prev => ({
@@ -323,11 +493,87 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     return colors[index % colors.length];
   };
 
+  const renderPatientMedicalData = (vitals: any[]) => {
+    if (vitals.length === 0) return null;
+
+    return (
+      <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+          <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Data Medis Pasien
+          </h4>
+        </div>
+        <div className="p-4">
+          {vitals.map(vital => {
+            const metadata = vital.metadata || {};
+            const patient = vital.patient || selectedPatient;
+
+            return (
+              <div key={vital.id} className="mb-3 last:mb-0 border-b border-gray-200 pb-3 last:border-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-gray-600">
+                    {formatTime(vital.createdAt)}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getRoleBadgeColor(vital.role)}`}>
+                    {vital.role === 'PERAWAT_POLI' ? 'Perawat Poli' :
+                     vital.role === 'LABORATORIUM' ? 'Laboratorium' :
+                     'Perawat Ruangan'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">Tinggi:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.height ? `${patient.height} cm` : '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Berat:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.weight ? `${patient.weight} kg` : '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">BMI:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.bmi || '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Merokok:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.smokingStatus === 'PEROKOK' ? 'Ya' :
+                        patient?.smokingStatus === 'MANTAN_PEROKOK' ? 'Mantan' : 'Tidak'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Diabetes:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.diabetesType || 'Tidak ada'}
+                    </span>
+                  </div>
+                  <div className="md:col-span-3">
+                    <span className="text-gray-600">Alergi:</span>
+                    <span className="font-semibold text-gray-900 ml-2">
+                      {patient?.allergies && patient.allergies.length > 0
+                        ? patient.allergies.join(', ')
+                        : 'Tidak ada'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderComplaintsSection = (complaints: PatientRecord[]) => {
     if (complaints.length === 0) return null;
 
     return (
-
       <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
         <div className="bg-green-50 px-4 py-2 border-b border-green-200">
           <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
@@ -343,10 +589,11 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                   {formatTime(complaint.createdAt)}
                 </span>
                 {complaint.metadata?.severity && (
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${complaint.metadata.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    complaint.metadata.severity === 'BERAT' ? 'bg-red-100 text-red-800' :
                     complaint.metadata.severity === 'SEDANG' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
+                    'bg-green-100 text-green-800'
+                  }`}>
                     {complaint.metadata.severity}
                   </span>
                 )}
@@ -359,237 +606,99 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     );
   };
 
-  const renderVitalSignsTable = (vitals: PatientRecord[]) => {
+  const renderVitalSignsTable = (vitals: any[]) => {
     if (vitals.length === 0) return null;
 
     return (
-      <>
-
-        {vitals.length > 0 && (
-          <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
-            <div className="bg-green-50 px-4 py-2 border-b border-green-200">
-              <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Data Medis Pasien
-              </h4>
-            </div>
-            <div className="p-4">
+      <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+          <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Tanda Vital
+          </h4>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Waktu</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Petugas</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Suhu</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Nadi</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">TD</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">SpO2</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">RR</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
               {vitals.map(vital => {
                 const metadata = vital.metadata || {};
-                const patient = vital.patient || selectedPatient;
-
                 return (
-                  <div key={vital.id} className="mb-3 last:mb-0 border-b border-gray-200 pb-3 last:border-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-600">
-                        {formatTime(vital.createdAt)}
+                  <tr key={vital.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-xs text-gray-900 font-medium">
+                      {formatTime(vital.createdAt)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getRoleBadgeColor(vital.role)}`}>
+                        {vital.role === 'PERAWAT_POLI' ? 'Perawat Poli' :
+                         vital.role === 'LABORATORIUM' ? 'Laboratorium' :
+                         'Perawat Ruangan'}
                       </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                      <div>
-                        <span className="text-gray-600">Tinggi:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.height ? `${patient.height} cm` : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Thermometer className="h-3 w-3 text-blue-500" />
+                        <span className="text-xs text-gray-900 font-semibold">
+                          {vital.temperature || '-'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Berat:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.weight ? `${patient.weight} kg` : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Heart className="h-3 w-3 text-red-500" />
+                        <span className="text-xs text-gray-900 font-semibold">
+                          {vital.heartRate || '-'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">BMI:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.bmi || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Activity className="h-3 w-3 text-purple-500" />
+                        <span className="text-xs text-gray-900 font-semibold">
+                          {vital.bloodPressure || '-'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Merokok:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.smokingStatus === 'PEROKOK' ? 'Ya' :
-                            patient?.smokingStatus === 'MANTAN_PEROKOK' ? 'Mantan' : 'Tidak'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Droplets className="h-3 w-3 text-emerald-500" />
+                        <span className="text-xs text-gray-900 font-semibold">
+                          {metadata.oxygenSaturation || '-'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Diabetes:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.diabetesType || 'Tidak ada'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Wind className="h-3 w-3 text-pink-500" />
+                        <span className="text-xs text-gray-900 font-semibold">
+                          {metadata.respiratoryRate || '-'}
                         </span>
                       </div>
-                      <div className="md:col-span-3">
-                        <span className="text-gray-600">Alergi:</span>
-                        <span className="font-semibold text-gray-900 ml-2">
-                          {patient?.allergies && patient.allergies.length > 0
-                            ? patient.allergies.join(', ')
-                            : 'Tidak ada'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
-          <div className="bg-green-50 px-4 py-2 border-b border-green-200">
-            <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Tanda Vital
-            </h4>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Waktu</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Suhu (°C)</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Nadi (bpm)</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">TD (mmHg)</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">SpO2 (%)</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">RR (x/mnt)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {vitals.map(vital => {
-                  const metadata = vital.metadata || {};
-                  return (
-                    <tr key={vital.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-xs text-gray-900 font-medium">
-                        {formatTime(vital.createdAt)}
-                      </td>
-
-                      {/* Suhu */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Thermometer className="h-3 w-3 text-blue-500" />
-                          <span className="text-xs text-gray-900 font-semibold">
-                            {vital.temperature || '-'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Nadi */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Heart className="h-3 w-3 text-red-500" />
-                          <span className="text-xs text-gray-900 font-semibold">
-                            {vital.heartRate || '-'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* TD Sistolik */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Activity className="h-3 w-3 text-purple-500" />
-                          <span className="text-xs text-gray-900 font-semibold">
-                            {vital.bloodPressure || '-'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* SpO2 */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Droplets className="h-3 w-3 text-emerald-500" />
-                          <span className="text-xs text-gray-900 font-semibold">
-                            {metadata.oxygenSaturation || '-'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Respiratory Rate */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Wind className="h-3 w-3 text-pink-500" />
-                          <span className="text-xs text-gray-900 font-semibold">
-                            {metadata.respiratoryRate || '-'}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            </tbody>
+          </table>
         </div>
-
-
-        {vitals.some(v => v.metadata?.searB) && (
-          <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
-            <div className="bg-green-50 px-4 py-2 border-b border-green-200">
-              <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Prediksi Risiko Kardiovaskular (SEAR B WHO)
-              </h4>
-            </div>
-            <div className="p-4">
-              {vitals.filter(v => v.metadata?.searB).map(vital => {
-                const searB = vital.metadata.searB;
-                const getColorClass = () => {
-                  if (searB.level === 'Sangat Rendah') return 'bg-green-100 text-green-800 border-green-300';
-                  if (searB.level === 'Rendah') return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-                  if (searB.level === 'Sedang') return 'bg-orange-100 text-orange-800 border-orange-300';
-                  if (searB.level === 'Tinggi') return 'bg-red-100 text-red-800 border-red-300';
-                  return 'bg-red-900 text-white border-red-900';
-                };
-
-                return (
-                  <div key={vital.id} className="mb-3 last:mb-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-600">
-                        {formatTime(vital.createdAt)}
-                      </span>
-                    </div>
-                    <div className={`rounded-lg border-2 p-3 ${getColorClass()}`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium mb-1">Risiko 10 Tahun</p>
-                          <p className="text-2xl font-bold">{searB.range}</p>
-                          <p className="text-sm font-semibold mt-1">{searB.level}</p>
-                        </div>
-                        <TrendingUp className="h-8 w-8 opacity-50" />
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <span className="opacity-75">Umur:</span>
-                            <span className="font-semibold ml-1">{searB.age} tahun</span>
-                          </div>
-                          <div>
-                            <span className="opacity-75">Kolesterol:</span>
-                            <span className="font-semibold ml-1">{searB.cholesterolMmol} mmol/L</span>
-                          </div>
-                          <div>
-                            <span className="opacity-75">Merokok:</span>
-                            <span className="font-semibold ml-1">{searB.isSmoker ? 'Ya' : 'Tidak'}</span>
-                          </div>
-                          <div>
-                            <span className="opacity-75">Diabetes:</span>
-                            <span className="font-semibold ml-1">{searB.hasDiabetes ? 'Ya' : 'Tidak'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </>
+      </div>
     );
   };
 
-  const renderLabResultsTable = (labs: LabResult[]) => {
+  const renderLabResultsTable = (labs: any[]) => {
     if (labs.length === 0) return null;
 
-    const labsByType: { [key: string]: LabResult[] } = {};
+    const labsByType: { [key: string]: any[] } = {};
     labs.forEach(lab => {
       if (!labsByType[lab.testType]) {
         labsByType[lab.testType] = [];
@@ -612,6 +721,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 sticky left-0 bg-gray-50 z-10">Waktu</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Petugas</th>
                 {testTypes.map(testType => (
                   <th key={testType} className="px-3 py-2 text-center text-xs font-medium text-gray-700 min-w-[120px]">
                     {testType}
@@ -620,13 +730,21 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {Array.from(new Set(labs.map(l => formatTime(l.testDate)))).map(time => {
-                const labsAtTime = labs.filter(l => formatTime(l.testDate) === time);
+              {Array.from(new Set(labs.map(l => formatTime(l.testDate || l.createdAt)))).map(time => {
+                const labsAtTime = labs.filter(l => formatTime(l.testDate || l.createdAt) === time);
+                const firstLab = labsAtTime[0];
 
                 return (
                   <tr key={time} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-xs text-gray-900 font-medium sticky left-0 bg-white">
                       {time}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getRoleBadgeColor(firstLab.role)}`}>
+                        {firstLab.role === 'PERAWAT_POLI' ? 'Perawat Poli' :
+                         firstLab.role === 'LABORATORIUM' ? 'Laboratorium' :
+                         'Perawat Ruangan'}
+                      </span>
                     </td>
                     {testTypes.map(testType => {
                       const lab = labsAtTime.find(l => l.testType === testType);
@@ -659,11 +777,12 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                             <span className="text-[10px] text-gray-500">
                               Normal: {lab.normalRange}
                             </span>
-                            <span className={`text-[10px] font-semibold ${lab.status === 'CRITICAL' ? 'text-red-700' :
+                            <span className={`text-[10px] font-semibold ${
+                              lab.status === 'CRITICAL' ? 'text-red-700' :
                               lab.status === 'HIGH' ? 'text-orange-700' :
-                                lab.status === 'LOW' ? 'text-yellow-700' :
-                                  'text-green-700'
-                              }`}>
+                              lab.status === 'LOW' ? 'text-yellow-700' :
+                              'text-green-700'
+                            }`}>
                               {getStatusBadge(lab.status)}
                             </span>
                             {lab.notes && (
@@ -685,10 +804,78 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
     );
   };
 
+  const renderSearBSection = (vitals: any[]) => {
+    const vitalsWithSearB = vitals.filter(v => v.metadata?.searB);
+    if (vitalsWithSearB.length === 0) return null;
+
+    return (
+      <div className="bg-white rounded-lg border border-green-200 overflow-hidden mb-4">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+          <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Prediksi Risiko Kardiovaskular (SEAR B WHO)
+          </h4>
+        </div>
+        <div className="p-4">
+          {vitalsWithSearB.map(vital => {
+            const searB = vital.metadata.searB;
+            const getColorClass = () => {
+              if (searB.level === 'Sangat Rendah') return 'bg-green-100 text-green-800 border-green-300';
+              if (searB.level === 'Rendah') return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+              if (searB.level === 'Sedang') return 'bg-orange-100 text-orange-800 border-orange-300';
+              if (searB.level === 'Tinggi') return 'bg-red-100 text-red-800 border-red-300';
+              return 'bg-red-900 text-white border-red-900';
+            };
+
+            return (
+              <div key={vital.id} className="mb-3 last:mb-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-gray-600">
+                    {formatTime(vital.createdAt)}
+                  </span>
+                </div>
+                <div className={`rounded-lg border-2 p-3 ${getColorClass()}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium mb-1">Risiko 10 Tahun</p>
+                      <p className="text-2xl font-bold">{searB.range}</p>
+                      <p className="text-sm font-semibold mt-1">{searB.level}</p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 opacity-50" />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-current border-opacity-20">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="opacity-75">Umur:</span>
+                        <span className="font-semibold ml-1">{searB.age} tahun</span>
+                      </div>
+                      <div>
+                        <span className="opacity-75">Kolesterol:</span>
+                        <span className="font-semibold ml-1">{searB.cholesterolMmol} mmol/L</span>
+                      </div>
+                      <div>
+                        <span className="opacity-75">Merokok:</span>
+                        <span className="font-semibold ml-1">{searB.isSmoker ? 'Ya' : 'Tidak'}</span>
+                      </div>
+                      <div>
+                        <span className="opacity-75">Diabetes:</span>
+                        <span className="font-semibold ml-1">{searB.hasDiabetes ? 'Ya' : 'Tidak'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderDailyGroup = (dateKey: string, data: {
     complaints: PatientRecord[];
-    vitals: PatientRecord[];
-    labs: LabResult[];
+    vitals: any[];
+    labs: any[];
   }) => {
     const isExpanded = expandedDates[dateKey];
     const dateObj = new Date(dateKey);
@@ -713,7 +900,7 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                 })}
               </h3>
               <p className="text-sm text-gray-600">
-                {data.complaints.length} Info Medis Pasien • {data.vitals.length} vital signs • {data.labs.length} hasil lab
+                {data.complaints.length} keluhan {data.vitals.length} vital signs {data.labs.length} hasil lab
               </p>
             </div>
           </div>
@@ -726,15 +913,16 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
 
         {isExpanded && (
           <div className="p-6">
+            {renderPatientMedicalData(data.vitals)}
             {renderComplaintsSection(data.complaints)}
             {renderVitalSignsTable(data.vitals)}
             {renderLabResultsTable(data.labs)}
+            {renderSearBSection(data.vitals)}
           </div>
         )}
       </div>
     );
   };
-
 
   if (!selectedPatient) {
     return (
@@ -829,10 +1017,11 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
             <button
               key={key}
               onClick={() => setTimeRange(key as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${timeRange === key
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'bg-white text-gray-700 hover:bg-green-100 border border-gray-200'
-                }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                timeRange === key
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'bg-white text-gray-700 hover:bg-green-100 border border-gray-200'
+              }`}
             >
               {label}
             </button>
@@ -882,13 +1071,12 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                   return [value, name];
                 }}
               />
-
               <Legend wrapperStyle={{ fontSize: '12px' }} iconType="line" />
-              <Line type="monotone" dataKey="suhu" stroke="#3b82f6" strokeWidth={2} name="Suhu (°C)" dot={{ fill: '#3b82f6', r: 4 }} connectNulls />
-              <Line type="monotone" dataKey="nadi" stroke="#ef4444" strokeWidth={2} name="Nadi (bpm)" dot={{ fill: '#ef4444', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="suhu" stroke="#3b82f6" strokeWidth={2} name="Suhu" dot={{ fill: '#3b82f6', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="nadi" stroke="#ef4444" strokeWidth={2} name="Nadi" dot={{ fill: '#ef4444', r: 4 }} connectNulls />
               <Line type="monotone" dataKey="tekananDarah" stroke="#8b5cf6" strokeWidth={2} name="TD Sistolik" dot={{ fill: '#8b5cf6', r: 4 }} connectNulls />
-              <Line type="monotone" dataKey="spo2" stroke="#10b981" strokeWidth={2} name="SpO2 (%)" dot={{ fill: '#10b981', r: 4 }} connectNulls />
-              <Line type="monotone" dataKey="rr" stroke="#f59e0b" strokeWidth={2} name="Respiratory Rate (x/mnt)" dot={{ fill: '#f59e0b', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="spo2" stroke="#10b981" strokeWidth={2} name="SpO2" dot={{ fill: '#10b981', r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="rr" stroke="#f59e0b" strokeWidth={2} name="RR" dot={{ fill: '#f59e0b', r: 4 }} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -943,10 +1131,6 @@ const LabHistoryView: React.FC<LabHistoryViewProps> = ({
                 labelStyle={{
                   color: '#111827',
                   fontWeight: 400,
-                }}
-                labelFormatter={(label) => {
-                  const data = vitalSignsData[label];
-                  return data ? data.fullDateTime : label;
                 }}
                 formatter={(value: any, name: string) => {
                   if (value === null) return ['-', name];

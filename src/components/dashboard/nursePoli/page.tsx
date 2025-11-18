@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, User, Activity, History, Eye, Menu, X, FlaskConical, ClipboardCheck, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import PatientExaminationForm from '@/components/dashboard/nursePoli/PatientExaminationForm';
-import LabHistoryView from '@/components/dashboard/nursePoli/LabHistoryView';
+import LabHistoryView from '@/components/LabHistoryView';
 import SplashScreen from '@/components/SplashScreen';
 import { useSession } from 'next-auth/react';
 import SystemHistoryView from '../SystemHistoryView';

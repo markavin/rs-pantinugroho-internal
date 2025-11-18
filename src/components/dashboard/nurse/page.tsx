@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Users, FileText, TrendingUp, Plus, Search, Menu, X, Clock } from 'lucide-react';
+import { Activity, Users, FileText, TrendingUp, Plus, Search, Menu, X, Clock, FlaskConical } from 'lucide-react';
 import Visitasi from './Visitasi';
 import DaftarPasien from './DaftarPasien';
 import SystemHistoryView from '../SystemHistoryView';
+import LabHistoryView from '@/components/LabHistoryView';
 import { ChevronLeft, ChevronRight, History as HistoryIcon } from 'lucide-react';
 
 interface DashboardStats {
@@ -15,8 +16,9 @@ interface DashboardStats {
 }
 
 const NurseDashboard = () => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'visitations' | 'system-history'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'visitations' | 'lab-history' | 'system-history'>('dashboard');
     const [patients, setPatients] = useState<any[]>([]);
+    const [inpatients, setInpatients] = useState<any[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [visitationCurrentPage, setVisitationCurrentPage] = useState(1);
@@ -62,19 +64,21 @@ const NurseDashboard = () => {
 
                 setPatients(patientsData);
 
+                const inpatientsData = patientsData.filter((p: any) => p.status === 'RAWAT_INAP');
+                setInpatients(inpatientsData);
+
                 const today = new Date().toDateString();
                 const todayVisits = visitationsData.filter((v: any) =>
                     new Date(v.createdAt).toDateString() === today
                 );
 
-                // Helper function to check if visit has vital signs
                 const hasVitalSigns = (v: any) => {
                     return !!(v.temperature || v.bloodPressure || v.heartRate ||
                         v.respiratoryRate || v.oxygenSaturation || v.bloodSugar);
                 };
 
                 setStats({
-                    totalInpatients: patientsData.filter((p: any) => p.status === 'RAWAT_INAP').length,
+                    totalInpatients: inpatientsData.length,
                     todayVisitations: todayVisits.length,
                     vitalSignsRecorded: todayVisits.filter((v: any) => hasVitalSigns(v)).length,
                     medicationsGiven: todayVisits.filter((v: any) =>
@@ -115,10 +119,11 @@ const NurseDashboard = () => {
         { key: 'dashboard', label: 'Dashboard', icon: Activity },
         { key: 'patients', label: 'Daftar Pasien', icon: Users },
         { key: 'visitations', label: 'Visitasi', icon: FileText },
+        { key: 'lab-history', label: 'Riwayat Lab & Poli', icon: FlaskConical },
         { key: 'system-history', label: 'Riwayat Sistem', icon: HistoryIcon }
     ];
 
-    const handleTabChange = (tab: 'dashboard' | 'patients' | 'visitations') => {
+    const handleTabChange = (tab: 'dashboard' | 'patients' | 'visitations' | 'lab-history' | 'system-history') => {
         setActiveTab(tab);
         setIsMobileSidebarOpen(false);
     };
@@ -149,8 +154,8 @@ const NurseDashboard = () => {
                                 key={item.key}
                                 onClick={() => handleTabChange(item.key as any)}
                                 className={`flex items-center space-x-3 w-full p-3 rounded-lg font-medium text-sm transition-colors ${activeTab === item.key
-                                    ? 'bg-green-100 text-green-700 border border-green-200'
-                                    : 'text-gray-700 hover:bg-gray-100'
+                                        ? 'bg-green-100 text-green-700 border border-green-200'
+                                        : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                             >
                                 <IconComponent className="h-5 w-5" />
@@ -190,7 +195,7 @@ const NurseDashboard = () => {
 
                 <div className="bg-white rounded-lg shadow-sm mb-6 hidden lg:block">
                     <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-55 px-6 justify-center">
+                        <nav className="-mb-px flex space-x-30 px-6 justify-center">
                             {navigationItems.map(tab => {
                                 const IconComponent = tab.icon;
                                 return (
@@ -198,8 +203,8 @@ const NurseDashboard = () => {
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key as any)}
                                         className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
-                                            ? 'border-green-500 text-green-600'
-                                            : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
+                                                ? 'border-green-500 text-green-600'
+                                                : 'border-transparent text-gray-700 hover:text-gray-700 hover:border-gray-300'
                                             }`}
                                     >
                                         <IconComponent className="h-5 w-5" />
@@ -247,7 +252,7 @@ const NurseDashboard = () => {
                                     <div className="bg-linear-to-br from-white to-red-50 p-6 rounded-xl shadow-sm border border-red-100 sm:col-span-2 lg:col-span-1">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm fonat-medium text-red-600">Risiko Tinggi</p>
+                                                <p className="text-sm font-medium text-red-600">Risiko Tinggi</p>
                                                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.highRiskPatients}</p>
                                             </div>
                                             <div className="bg-red-100 p-3 rounded-full">
@@ -329,7 +334,16 @@ const NurseDashboard = () => {
                 )}
 
                 {activeTab === 'patients' && <DaftarPasien />}
+
                 {activeTab === 'visitations' && <Visitasi currentShift={currentShift} />}
+
+                {activeTab === 'lab-history' && (
+                    <LabHistoryView
+                        patients={inpatients}
+                        selectedPatient={selectedPatient}
+                        onPatientSelect={(patient: any) => setSelectedPatient(patient)}
+                    />
+                )}
 
                 {activeTab === 'system-history' && (
                     <SystemHistoryView

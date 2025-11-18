@@ -242,7 +242,7 @@ model Visitation {
 
   complaints        String?
   medicationsGiven  String[]
-  labResults        String?
+  labResults        Json?
   labNotes          String?
   actions           String?
   complications     String?
