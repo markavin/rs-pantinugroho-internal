@@ -181,7 +181,18 @@ const ManajerDashboard = () => {
         const patientActivities = [
           ...complaints.map((c: any) => ({ ...c, activityType: 'complaint', timestamp: new Date(c.createdAt), role: 'ADMINISTRASI', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
           ...vitals.map((v: any) => ({ ...v, activityType: 'vital', timestamp: new Date(v.createdAt), role: 'PERAWAT_POLI', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
-          ...labs.map((l: any) => ({ ...l, activityType: 'lab', timestamp: new Date(l.testDate || l.createdAt), role: 'PERAWAT_POLI', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
+          ...labs.map((l: any) => {
+            console.log('Lab data:', l, 'Technician:', l.technician);
+            return {
+              ...l,
+              activityType: 'lab',
+              timestamp: new Date(l.testDate || l.createdAt),
+              role: l.technician?.role || 'LABORATORIUM',
+              patientId: patient.id,
+              patientName: patient.name,
+              patientMrNumber: patient.mrNumber
+            };
+          }),
           ...handled.map((h: any) => ({ ...h, activityType: 'handled', timestamp: new Date(h.handledDate), role: h.handler?.role || 'DOKTER_SPESIALIS', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
           ...visitations.map((v: any) => ({ ...v, activityType: 'visitation', timestamp: new Date(v.createdAt), role: 'PERAWAT_RUANGAN', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
           ...nutrition.map((n: any) => ({ ...n, activityType: 'nutrition', timestamp: new Date(n.createdAt), role: 'AHLI_GIZI', patientId: patient.id, patientName: patient.name, patientMrNumber: patient.mrNumber })),
@@ -404,6 +415,7 @@ const ManajerDashboard = () => {
         if (roleFilter === 'DOKTER') return a.role === 'DOKTER_SPESIALIS' || a.role === 'DOKTER_POLI';
         if (roleFilter === 'PERAWAT_POLI') return a.role === 'PERAWAT_POLI';
         if (roleFilter === 'PERAWAT_RUANGAN') return a.role === 'PERAWAT_RUANGAN';
+        if (roleFilter === 'LABORATORIUM') return a.role === 'LABORATORIUM';
         return a.role === roleFilter;
       });
     }
@@ -452,6 +464,7 @@ const ManajerDashboard = () => {
       'DOKTER_SPESIALIS': 'text-blue-700 bg-blue-50 border-blue-200',
       'PERAWAT_RUANGAN': 'text-teal-700 bg-teal-50 border-teal-200',
       'PERAWAT_POLI': 'text-cyan-700 bg-cyan-50 border-cyan-200',
+      'LABORATORIUM': 'text-purple-700 bg-purple-50 border-purple-200',
       'AHLI_GIZI': 'text-green-700 bg-green-50 border-green-200',
       'FARMASI': 'text-emerald-700 bg-emerald-50 border-emerald-200',
       'ADMINISTRASI': 'text-gray-700 bg-gray-50 border-gray-200'
@@ -1642,6 +1655,7 @@ const ManajerDashboard = () => {
                         { key: 'all', label: 'Semua Role' },
                         { key: 'DOKTER', label: 'Dokter' },
                         { key: 'PERAWAT_POLI', label: 'Perawat Poli' },
+                        { key: 'LABORATORIUM', label: 'Laboratorium' },
                         { key: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
                         { key: 'AHLI_GIZI', label: 'Ahli Gizi' },
                         { key: 'FARMASI', label: 'Farmasi' },
@@ -1864,6 +1878,7 @@ const ManajerDashboard = () => {
                         { key: 'DOKTER_SPESIALIS', label: 'Dokter Spesialis' },
                         { key: 'PERAWAT_RUANGAN', label: 'Perawat Ruangan' },
                         { key: 'PERAWAT_POLI', label: 'Perawat Poli' },
+                        { key: 'LABORATORIUM', label: 'Laboratorium' },
                         { key: 'AHLI_GIZI', label: 'Ahli Gizi' },
                         { key: 'FARMASI', label: 'Farmasi' },
                         { key: 'ADMINISTRASI', label: 'Administrasi' },
